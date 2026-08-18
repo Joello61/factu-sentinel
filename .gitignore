@@ -1,0 +1,42 @@
+# .gitignore global — FactuSentinel
+#
+# Ce fichier couvre uniquement ce qui n'est pas déjà couvert par les .gitignore
+# spécifiques de backend/ (Symfony/PHP) et frontend/ (Next.js/TypeScript).
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+desktop.ini
+
+# Éditeurs / IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Variables d'environnement et secrets (racine du dépôt)
+.env
+.env.local
+.env.*.local
+
+# Docker (volumes/données locales, overrides personnels)
+docker-compose.override.yml
+docker/**/data/
+docker/**/*.local.yml
+
+# Infrastructure (état/config locale, jamais de secret commité)
+infra/**/*.local.*
+infra/**/secrets/
+
+# Logs
+*.log
+logs/
+
+# Archives temporaires
+*.tmp
+*.bak

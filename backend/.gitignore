@@ -1,0 +1,22 @@
+
+###> symfony/framework-bundle ###
+/.env.local
+/.env.local.php
+/.env.*.local
+/config/secrets/prod/prod.decrypt.private.php
+/public/bundles/
+/var/
+/vendor/
+###< symfony/framework-bundle ###
+
+# PHPUnit
+/.phpunit.cache/
+/.phpunit.result.cache
+
+# Analyse statique / formatage (caches d'outils, à ajuster si non utilisés)
+/.php-cs-fixer.cache
+/.phpstan.cache/
+
+# Docker / conteneur backend (build local)
+/docker-compose.override.yml
+

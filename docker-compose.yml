@@ -1,0 +1,84 @@
+# Environnement de développement local pour FactuSentinel.
+# Cohérent avec docs/06-technical-architecture.md (section 30-32, ADR-007) et le
+# Definition of Done de la Phase 0 (docs/12-roadmap.md) : `docker compose up` doit
+# suffire à démarrer l'application localement.
+#
+# Les identifiants ci-dessous sont des valeurs de développement local uniquement,
+# jamais utilisées en production (docs/10-security-privacy.md, section 27 : aucun
+# secret réel ne doit être commité).
+
+services:
+  backend:
+    build:
+      context: ./backend
+      target: dev
+    environment:
+      APP_ENV: dev
+      DATABASE_URL: "postgresql://${POSTGRES_USER:-factusentinel}:${POSTGRES_PASSWORD:-factusentinel}@postgres:5432/${POSTGRES_DB:-factusentinel}?serverVersion=18&charset=utf8"
+      REDIS_URL: "redis://redis:6379"
+    volumes:
+      - ./backend:/app
+      - backend_vendor:/app/vendor
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    expose:
+      - "9000"
+
+  frontend:
+    build:
+      context: ./frontend
+      target: dev
+    environment:
+      NODE_ENV: development
+    volumes:
+      - ./frontend:/app
+      - frontend_node_modules:/app/node_modules
+      - frontend_next_cache:/app/.next
+    expose:
+      - "3000"
+
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-factusentinel}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-factusentinel}
+      POSTGRES_DB: ${POSTGRES_DB:-factusentinel}
+      # Chemin de données explicite : indépendant du chemin par défaut, qui varie
+      # selon la version majeure de l'image officielle postgres.
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-factusentinel} -d ${POSTGRES_DB:-factusentinel}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:8-alpine
+    volumes:
+      - redis_data:/data
+    ports:
+      - "127.0.0.1:6379:6379"
+
+  nginx:
+    image: nginx:alpine
+    volumes:
+      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - backend
+      - frontend
+    ports:
+      - "8080:80"
+
+volumes:
+  postgres_data:
+  redis_data:
+  backend_vendor:
+  frontend_node_modules:
+  frontend_next_cache:
