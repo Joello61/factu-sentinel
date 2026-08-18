@@ -19,10 +19,12 @@ desktop.ini
 *.swo
 *~
 
-# Variables d'environnement et secrets (racine du dépôt)
-.env
-.env.local
-.env.*.local
+# Variables d'environnement et secrets — UNIQUEMENT à la racine du dépôt (le "/" ancre
+# le motif ici ; sans lui, ".env" s'appliquerait aussi à backend/.env, qui doit au
+# contraire être committé par convention Symfony — seul backend/.env.local est un secret).
+/.env
+/.env.local
+/.env.*.local
 
 # Docker (volumes/données locales, overrides personnels)
 docker-compose.override.yml
