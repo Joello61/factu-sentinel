@@ -71,6 +71,18 @@ class Organization
         return $this->legalName;
     }
 
+    /**
+     * Seul champ modifiable par PATCH /organizations/current au périmètre de la Phase 3
+     * (docs/08-api-specification.md, section 24) : trade_name/siren/siret/legal_form/country
+     * restent hors payload pour cette phase, cohérent avec ce que US-COMPANY-001/002
+     * décrivent réellement (statut TVA et taille, pas l'identité légale complète) — voir
+     * plan Phase 3.
+     */
+    public function setLegalName(string $legalName): void
+    {
+        $this->legalName = $legalName;
+    }
+
     public function isConfigured(): bool
     {
         return null !== $this->legalName;
