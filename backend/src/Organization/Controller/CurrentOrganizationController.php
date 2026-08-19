@@ -14,11 +14,11 @@ use Symfony\Component\Routing\Attribute\Route;
 /**
  * Premier endpoint authentifié permettant de vérifier la résolution du tenant courant
  * (pas "tenant-scoped" au sens strict : Organization est le tenant racine, elle n'a pas
- * de organization_id — voir plan Phase 2). L'identifiant vient exclusivement du jeton
+ * de organization_id : voir plan Phase 2). L'identifiant vient exclusivement du jeton
  * (CurrentOrganizationResolver), jamais d'un paramètre d'URL : il n'existe donc
  * structurellement aucun moyen pour un client d'en demander une autre que la sienne.
  *
- * PATCH /organizations/current (configuration réelle) reste hors périmètre — Phase 3.
+ * PATCH /organizations/current (configuration réelle) reste hors périmètre : Phase 3.
  */
 final class CurrentOrganizationController
 {

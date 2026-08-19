@@ -13,7 +13,7 @@ use Doctrine\ORM\Mapping as ORM;
  * Référentiel réglementaire pur (docs/06-technical-architecture.md, section 9 ;
  * docs/07-data-model.md, section 15) : entité globale, jamais tenant-scoped, sans aucune
  * dépendance sortante vers un autre module (n'importe rien de App\Organization, App\Identity,
- * etc.) — la réglementation française ne dépend d'aucune organisation particulière.
+ * etc.) : la réglementation française ne dépend d'aucune organisation particulière.
  *
  * Identifiant métier stable (pas un UUID) : un identifiant lisible et invariant dans le
  * temps, indépendant de ses versions (docs/06-technical-architecture.md, section 9).
@@ -35,7 +35,7 @@ class RegulatoryRule
     #[ORM\Column(type: Types::STRING, enumType: RuleCategory::class)]
     private RuleCategory $category;
 
-    /** Code pays ISO 3166-1 alpha-2 — portée géographique (docs/07-data-model.md, section 15). */
+    /** Code pays ISO 3166-1 alpha-2 : portée géographique (docs/07-data-model.md, section 15). */
     #[ORM\Column(type: Types::STRING, length: 2)]
     private string $jurisdiction;
 

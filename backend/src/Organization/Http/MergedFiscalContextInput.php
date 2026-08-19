@@ -9,7 +9,7 @@ use Symfony\Component\Validator\Constraints as Assert;
 
 /**
  * Représente le FiscalContext après fusion de la requête PATCH avec le contexte existant
- * (App\Organization\Service\ConfigureOrganizationService) — jamais mappé directement depuis
+ * (App\Organization\Service\ConfigureOrganizationService) : jamais mappé directement depuis
  * la requête HTTP (contrairement à App\Identity\Http\RegisterRequest) : #[MapRequestPayload]
  * ne permet pas de distinguer "champ absent" de "champ explicitement null" nécessaire à la
  * sémantique de PATCH partiel de cet endpoint (docs/08-api-specification.md, section 24,

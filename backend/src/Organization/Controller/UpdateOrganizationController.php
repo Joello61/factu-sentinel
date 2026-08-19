@@ -14,7 +14,7 @@ use Symfony\Component\Routing\Attribute\Route;
 
 /**
  * PATCH /organizations/current (docs/08-api-specification.md, section 24, payload
- * corrigé — voir plan Phase 3, gap 1 : trois valeurs brutes en entrée, jamais
+ * corrigé : voir plan Phase 3, gap 1 : trois valeurs brutes en entrée, jamais
  * company_size_category directement). Controller volontairement mince
  * (backend/CLAUDE.md, section 3) : délègue toute la logique à ConfigureOrganizationService.
  *

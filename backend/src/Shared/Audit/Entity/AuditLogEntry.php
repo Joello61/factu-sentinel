@@ -19,10 +19,10 @@ use Symfony\Component\Uid\Uuid;
  * organizationId/actorId sont des références opaques (Uuid brut, pas de relation Doctrine
  * vers Organization/User) plutôt que des associations ManyToOne : Shared ne doit lire ni
  * écrire directement les entités internes d'un autre module (backend/CLAUDE.md, section 3)
- * — Audit reste transverse, jamais couplé aux modules métier qu'il journalise.
+ * : Audit reste transverse, jamais couplé aux modules métier qu'il journalise.
  *
  * organizationId nullable (docs/07-data-model.md, section 20 et 25 : "nullable pour
- * événements globaux") — cette entité n'implémente donc volontairement pas
+ * événements globaux") : cette entité n'implémente donc volontairement pas
  * TenantScopedInterface, qui exige un organization_id non nul ; elle n'est jamais filtrée
  * automatiquement par TenantFilter.
  */

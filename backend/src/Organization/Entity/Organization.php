@@ -18,7 +18,7 @@ use Symfony\Component\Uid\Uuid;
  * Créée vide à l'inscription (Phase 2, US-AUTH-001 -> US-ONBOARDING-001) : `legal_name`,
  * `siren` et `country` sont nullable jusqu'à leur saisie en Phase 3
  * (`PATCH /organizations/current`). Invariant explicite : une organisation est
- * "configurée" quand `legal_name` n'est pas nul — pas de colonne de statut séparée pour
+ * "configurée" quand `legal_name` n'est pas nul : pas de colonne de statut séparée pour
  * ce seul besoin.
  *
  * Le contexte fiscal (statut TVA, taille) n'est volontairement pas porté ici : il évolue
@@ -75,7 +75,7 @@ class Organization
      * Seul champ modifiable par PATCH /organizations/current au périmètre de la Phase 3
      * (docs/08-api-specification.md, section 24) : trade_name/siren/siret/legal_form/country
      * restent hors payload pour cette phase, cohérent avec ce que US-COMPANY-001/002
-     * décrivent réellement (statut TVA et taille, pas l'identité légale complète) — voir
+     * décrivent réellement (statut TVA et taille, pas l'identité légale complète) : voir
      * plan Phase 3.
      */
     public function setLegalName(string $legalName): void

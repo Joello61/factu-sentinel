@@ -15,7 +15,7 @@ type ViewState =
 /**
  * Diagnostic d'éligibilité (US-COMPLIANCE-001, docs/11-frontend-design-system.md, section
  * 59). Un 404 signifie ici un état légitime "pas encore configuré", jamais une erreur
- * système (../../../CLAUDE.md frontend, section 6) — distinct de toute autre erreur API.
+ * système (../../../CLAUDE.md frontend, section 6) : distinct de toute autre erreur API.
  */
 export function DiagnosticView() {
   const [state, setState] = useState<ViewState>({ status: "loading" });

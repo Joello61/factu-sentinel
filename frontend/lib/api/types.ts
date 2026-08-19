@@ -55,7 +55,7 @@ export interface LoginResult {
   token: string;
 }
 
-// Phase 3 (docs/08-api-specification.md, section 24, payload corrigé — plan Phase 3, gap 1 :
+// Phase 3 (docs/08-api-specification.md, section 24, payload corrigé : plan Phase 3, gap 1 :
 // les trois valeurs brutes sont saisies par l'utilisateur, company_size_category est
 // toujours dérivé par le backend, jamais accepté en entrée).
 
@@ -63,7 +63,7 @@ export type VatStatus = "ASSUJETTI_REDEVABLE" | "ASSUJETTI_FRANCHISE_EN_BASE" | 
 
 /**
  * Classification à deux niveaux propre au calendrier de la réforme (docs/07-data-model.md,
- * section 7) — pas la classification légale INSEE à quatre niveaux (Micro/PME/ETI/GE).
+ * section 7) : pas la classification légale INSEE à quatre niveaux (Micro/PME/ETI/GE).
  */
 export type CompanySizeCategory = "GRANDE_ENTREPRISE_ETI" | "PME_TPE_MICRO";
 

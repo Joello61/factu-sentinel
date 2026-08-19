@@ -22,16 +22,16 @@ use Symfony\Component\Uid\Uuid;
  * Amendement documenté par rapport au schéma initial de la section 21 (voir plan Phase 3 et
  * mise à jour de 07-data-model.md) : `explanation` et les deux références de RuleVersion
  * sont ajoutées, pour la même raison qu'un ComplianceFinding fige la version de règle
- * utilisée (docs/06-technical-architecture.md, section 10) — un diagnostic consulté plus
+ * utilisée (docs/06-technical-architecture.md, section 10) : un diagnostic consulté plus
  * tard doit rester fidèle aux règles actives au moment de son calcul, jamais recalculé
  * dynamiquement depuis la RuleVersion courante.
  *
  * receptionObligationDate/emissionObligationDate sont nullables : null signifie que
  * l'organisation est hors du périmètre de la réforme (vatStatus = NON_ASSUJETTI,
- * docs/02-regulatory-study.md section 6) — ce n'est pas une absence de calcul.
+ * docs/02-regulatory-study.md section 6) : ce n'est pas une absence de calcul.
  *
  * Immuable après création : un nouveau calcul crée toujours une nouvelle ligne (computedAt
- * les distingue), jamais une mise à jour en place — aucune méthode de mutation n'est
+ * les distingue), jamais une mise à jour en place : aucune méthode de mutation n'est
  * exposée.
  */
 #[ORM\Entity]

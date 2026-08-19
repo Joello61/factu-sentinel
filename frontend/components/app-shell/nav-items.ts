@@ -17,7 +17,7 @@ export interface NavItem {
 }
 
 /**
- * Navigation principale — docs/11-frontend-design-system.md, section 16. Aucune section
+ * Navigation principale : docs/11-frontend-design-system.md, section 16. Aucune section
  * "Factures" en tant que production/émission : "Factures" ici signifie exclusivement
  * l'analyse de conformité de factures existantes (docs/04-product-requirements.md,
  * section 7 et 30).

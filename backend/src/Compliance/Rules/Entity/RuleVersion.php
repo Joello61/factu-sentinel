@@ -15,12 +15,12 @@ use Symfony\Component\Uid\Uuid;
  * 10 ; docs/07-data-model.md section 16). Aucune méthode de mise à jour n'est exposée
  * volontairement, y compris pour effectiveUntil : toute évolution de la règle crée une
  * nouvelle RuleVersion, l'ancienne recevant sa date de fin de validité par une opération de
- * publication dédiée, hors périmètre de cette phase (aucune règle n'y est encore révisée —
- * voir plan Phase 3, scope boundary) — jamais une modification en place de cette entité.
+ * publication dédiée, hors périmètre de cette phase (aucune règle n'y est encore révisée :
+ * voir plan Phase 3, scope boundary) : jamais une modification en place de cette entité.
  *
  * `conditions` porte les seuils/dates concrets de la règle en JSON structuré (montant,
  * date, effectif...) : c'est ce qui évite un `if` codé en dur dans le calculateur qui la
- * consomme (voir Compliance/Service/EligibilityDiagnosticCalculator) — la nature exacte du
+ * consomme (voir Compliance/Service/EligibilityDiagnosticCalculator) : la nature exacte du
  * contenu est documentée au moment de la migration de seed de cette phase, pas ici.
  */
 #[ORM\Entity]
@@ -51,11 +51,11 @@ class RuleVersion
 
     /**
      * Sévérité au sens des six états de résultat de conformité
-     * (docs/05-user-stories.md section 8) — nullable : sans objet pour les deux
+     * (docs/05-user-stories.md section 8) : nullable : sans objet pour les deux
      * RuleVersion d'éligibilité de cette phase, qui ne produisent jamais de
      * ComplianceFinding, seulement un EligibilityDiagnostic (calendrier). Un enum dédié
      * à ces six états sera introduit avec le Compliance Engine générique de la Phase 5,
-     * quand il aura un usage réel — non anticipé ici (voir plan Phase 3, scope boundary).
+     * quand il aura un usage réel : non anticipé ici (voir plan Phase 3, scope boundary).
      */
     #[ORM\Column(type: Types::STRING, length: 50, nullable: true)]
     private ?string $severity;

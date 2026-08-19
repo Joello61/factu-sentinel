@@ -105,7 +105,7 @@ Le Compliance Engine a besoin de connaître, à la date d'une analyse, le statut
 | employees_count | Integer | **Donnée résolue (décision produit, 2026)** — effectif salarié, l'une des trois données saisies par l'utilisateur (US-COMPANY-002, `05-user-stories.md`) pour déterminer `company_size_category` |
 | annual_turnover | Decimal | Chiffre d'affaires annuel, deuxième donnée saisie |
 | annual_balance_sheet_total | Decimal | Total du bilan annuel, troisième donnée saisie |
-| company_size_category | Enum (`grande_entreprise_eti`, `pme_tpe_micro`) | Dérivée des trois attributs ci-dessus ; détermine la date d'obligation d'émission applicable (`02-regulatory-study.md` section 5). **Précision ajoutée en Phase 3** : cette valeur est une classification à **deux niveaux propre au calendrier de la réforme**, dérivée de la seule distinction PME/non-PME au sens INSEE (le seuil PME étant le seul dont ce produit a besoin, `02-regulatory-study.md` sections 5-6 regroupant GE et ETI sous une même date) — ce n'est **pas** une restitution de la classification légale INSEE à quatre niveaux (Micro/PME/ETI/GE) ; `grande_entreprise_eti` signifie seulement « non-PME », jamais « confirmé ETI » ou « confirmé grande entreprise ». Ne jamais présenter cette valeur à l'utilisateur comme sa catégorie légale INSEE. |
+| company_size_category | Enum (`grande_entreprise_eti`, `pme_tpe_micro`) | Dérivée des trois attributs ci-dessus ; détermine la date d'obligation d'émission applicable (`02-regulatory-study.md` section 5). **Précision ajoutée en Phase 3** : cette valeur est une classification à **deux niveaux propre au calendrier de la réforme**, dérivée de la seule distinction PME/non-PME au sens INSEE (le seuil PME étant le seul dont ce produit a besoin, `02-regulatory-study.md` sections 5-6 regroupant GE et ETI sous une même date), ce n'est **pas** une restitution de la classification légale INSEE à quatre niveaux (Micro/PME/ETI/GE) ; `grande_entreprise_eti` signifie seulement « non-PME », jamais « confirmé ETI » ou « confirmé grande entreprise ». Ne jamais présenter cette valeur à l'utilisateur comme sa catégorie légale INSEE. |
 | effective_from | Date | Début de validité de ce contexte |
 | effective_until | Date, nullable | Fin de validité (null si contexte courant) |
 | recorded_at | DateTime | Date d'enregistrement dans le système, distincte de `effective_from` |
@@ -364,17 +364,17 @@ Cette approche différenciée évite de dupliquer systématiquement toutes les d
 | scheduled_for | DateTime | |
 | sent_at | DateTime, optionnel | |
 
-**EligibilityDiagnostic** (entité portant le résultat de US-COMPLIANCE-001, distincte d'un `ComplianceAnalysis` qui porte sur une facture précise — confirmée et implémentée en Phase 3, voir section 43) :
+**EligibilityDiagnostic** (entité portant le résultat de US-COMPLIANCE-001, distincte d'un `ComplianceAnalysis` qui porte sur une facture précise, confirmée et implémentée en Phase 3, voir section 43) :
 | Attribut | Type conceptuel | Description |
 |---|---|---|
 | id | UUID | |
 | organization_id | Reference | Tenant-scoped |
 | fiscal_context_id | Reference | Contexte utilisé pour ce diagnostic |
-| reception_obligation_date | Date, **nullable** | Date à partir de laquelle l'organisation est concernée par l'obligation de réception. **Null signifie que l'organisation est hors du périmètre de la réforme** (`vat_status = non_assujetti`, `02-regulatory-study.md` section 6) — ce n'est jamais une absence de calcul |
+| reception_obligation_date | Date, **nullable** | Date à partir de laquelle l'organisation est concernée par l'obligation de réception. **Null signifie que l'organisation est hors du périmètre de la réforme** (`vat_status = non_assujetti`, `02-regulatory-study.md` section 6), ce n'est jamais une absence de calcul |
 | emission_obligation_date | Date, **nullable** | Idem pour l'émission, même sémantique du `null` |
-| explanation | String | **Ajouté en Phase 3** (corrige une incohérence avec `08-api-specification.md` section 29, dont l'exemple de réponse l'incluait déjà alors que cette section l'omettait). C'est un **snapshot capturé au moment du calcul**, jamais recalculé dynamiquement à partir de la `RuleVersion` courante lors d'une consultation ultérieure — un diagnostic déjà produit doit rester fidèle à l'explication qui correspondait aux règles actives au moment de son calcul, la même garantie que `06-technical-architecture.md` section 10 impose à un `ComplianceFinding` |
-| franchise_rule_version_id | Reference vers `RuleVersion` | **Ajouté en Phase 3** — version de la règle d'assujettissement/franchise en base effectivement utilisée |
-| calendar_rule_version_id | Reference vers `RuleVersion` | **Ajouté en Phase 3** — version de la règle de calendrier par taille effectivement utilisée |
+| explanation | String | **Ajouté en Phase 3** (corrige une incohérence avec `08-api-specification.md` section 29, dont l'exemple de réponse l'incluait déjà alors que cette section l'omettait). C'est un **snapshot capturé au moment du calcul**, jamais recalculé dynamiquement à partir de la `RuleVersion` courante lors d'une consultation ultérieure : un diagnostic déjà produit doit rester fidèle à l'explication qui correspondait aux règles actives au moment de son calcul, la même garantie que `06-technical-architecture.md` section 10 impose à un `ComplianceFinding` |
+| franchise_rule_version_id | Reference vers `RuleVersion` | **Ajouté en Phase 3** : version de la règle d'assujettissement/franchise en base effectivement utilisée |
+| calendar_rule_version_id | Reference vers `RuleVersion` | **Ajouté en Phase 3** : version de la règle de calendrier par taille effectivement utilisée |
 | computed_at | DateTime | |
 
 ## 22. External Integrations
@@ -780,7 +780,7 @@ Toutes les fonctionnalités P0 du MVP (`04-product-requirements.md`, section 8) 
 | Valeurs exactes de `company_size_category` | **Résolu** : dérivée de `employees_count`, `annual_turnover`, `annual_balance_sheet_total` (section 7). |
 | Équivalence `ComplianceRule`/`ComplianceRuleVersion`/`ComplianceEvaluation` avec les entités de ce document | **Résolu** : équivalence de nomenclature documentée, pas de duplication d'entités, écarts de nommage assumés (section 18). |
 | `Membership` en 1:N — un `User` peut-il gérer plusieurs `Organization` ? | **Reste ouvert** : proposition cohérente avec le modèle mais non explicitement confirmée par le PRD (section 5). |
-| `EligibilityDiagnostic` comme entité explicitement nommée | **Résolu — confirmé en Phase 3** : implémentée comme spécifié en section 21 (amendée), déjà cohérente avec `08-api-specification.md` et `backend/CLAUDE.md` avant cette confirmation. |
+| `EligibilityDiagnostic` comme entité explicitement nommée | **Résolu, confirmé en Phase 3** : implémentée comme spécifié en section 21 (amendée), déjà cohérente avec `08-api-specification.md` et `backend/CLAUDE.md` avant cette confirmation. |
 | Choix précis entre contrainte déclarative et vérification applicative pour les contraintes complexes (chevauchement de périodes, cohérence multi-tenant) | **Reste ouvert** : dépend du SGBD retenu, relève de l'implémentation (section 34). |
 | Délai précis de purge après soft delete d'un compte utilisateur/organisation | **Reste ouvert** : non couvert par les décisions produit 2026, à trancher avec `10-security-privacy.md` (section 36). |
 

@@ -13,7 +13,7 @@ use Symfony\Component\Routing\Attribute\Route;
 /**
  * GET /eligibility-diagnostics/current (docs/08-api-specification.md, section 29 ;
  * US-COMPLIANCE-001). Jamais calculé ici : toujours un effet de bord de
- * PATCH /organizations/current (App\Organization\Service\ConfigureOrganizationService) —
+ * PATCH /organizations/current (App\Organization\Service\ConfigureOrganizationService) :
  * ce controller ne fait que lire le dernier diagnostic déjà calculé.
  *
  * 404 si aucun diagnostic n'existe encore (organisation pas encore configurée) : comportement

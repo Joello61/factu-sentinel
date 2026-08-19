@@ -36,7 +36,7 @@ const EMPTY_FORM: FormState = {
  * Configuration entreprise (US-COMPANY-001/002, docs/11-frontend-design-system.md, section
  * 59). Les trois valeurs brutes (effectif, CA, bilan) sont saisies ici ; company_size_category
  * n'est jamais soumis par ce formulaire, il est toujours dérivé par le backend
- * (docs/07-data-model.md, section 7 — voir plan Phase 3, gap 1).
+ * (docs/07-data-model.md, section 7 : voir plan Phase 3, gap 1).
  */
 export function CompanyForm() {
   const vatStatusId = useId();

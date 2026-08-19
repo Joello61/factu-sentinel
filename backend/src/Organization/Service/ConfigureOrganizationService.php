@@ -34,7 +34,7 @@ use Symfony\Component\Validator\Validator\ValidatorInterface;
  * - Organization configurée  <=> legal_name IS NOT NULL (Organization::isConfigured(), déjà
  *   défini en Phase 2, non redéfini ici).
  * - FiscalContext configuré  <=> vat_status + les trois valeurs numériques + la catégorie
- *   dérivée sont toutes non nulles — jamais de ligne partiellement configurée en base.
+ *   dérivée sont toutes non nulles : jamais de ligne partiellement configurée en base.
  * Une requête peut renseigner l'un, l'autre, ou les deux à la fois, indépendamment. Le
  * diagnostic est recalculé chaque fois que fiscal_context est présent dans la requête et
  * complet après fusion avec l'existant, quel que soit le sous-champ effectivement modifié.
@@ -231,7 +231,7 @@ final class ConfigureOrganizationService
      * ApiExceptionListener expose directement getPropertyPath() dans error.details[].field
      * (docs/08-api-specification.md, section 15) : ce champ doit correspondre au nom JSON
      * attendu par le client (snake_case, ex. "annual_turnover"), pas au nom de la propriété
-     * PHP interne de MergedFiscalContextInput (camelCase) — remappage local à cet endpoint,
+     * PHP interne de MergedFiscalContextInput (camelCase) : remappage local à cet endpoint,
      * plutôt que de complexifier le listener générique pour un seul cas.
      */
     private function toApiFieldNames(ConstraintViolationList $violations): ConstraintViolationList
