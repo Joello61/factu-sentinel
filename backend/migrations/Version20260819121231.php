@@ -34,7 +34,7 @@ final class Version20260819121231 extends AbstractMigration
         $this->addSql('CREATE TABLE fiscal_contexts (id UUID NOT NULL, vat_status VARCHAR(255) NOT NULL, employees_count INT NOT NULL, annual_turnover NUMERIC(16, 2) NOT NULL, annual_balance_sheet_total NUMERIC(16, 2) NOT NULL, company_size_category VARCHAR(255) NOT NULL, effective_from DATE NOT NULL, effective_until DATE DEFAULT NULL, recorded_at TIMESTAMP(0) WITHOUT TIME ZONE NOT NULL, organization_id UUID NOT NULL, PRIMARY KEY (id))');
         $this->addSql('CREATE INDEX idx_fiscal_contexts_organization_id ON fiscal_contexts (organization_id)');
         // Index partiel (docs/07-data-model.md section 37) : au plus une ligne "courante" par
-        // organisation. Ne garantit pas à lui seul l'absence de chevauchement historique — voir
+        // organisation. Ne garantit pas à lui seul l'absence de chevauchement historique : voir
         // App\Organization\Entity\FiscalContext et le plan Phase 3, point 6 de la revue.
         $this->addSql('CREATE UNIQUE INDEX uniq_fiscal_contexts_current_per_organization ON fiscal_contexts (organization_id) WHERE (effective_until IS NULL)');
         $this->addSql('CREATE TABLE regulatory_rules (id VARCHAR(100) NOT NULL, name VARCHAR(255) NOT NULL, description TEXT NOT NULL, category VARCHAR(255) NOT NULL, jurisdiction VARCHAR(2) NOT NULL, status VARCHAR(255) NOT NULL, PRIMARY KEY (id))');
@@ -70,8 +70,8 @@ final class Version20260819121231 extends AbstractMigration
      * docs plan Phase 3, décision 1) : les deux seuils/dates du diagnostic d'éligibilité ne
      * sont jamais codés en dur dans le calculateur applicatif, ils vivent ici, comme donnée.
      *
-     * Seuils PME/ETI de "eligibilite-calendrier-taille" : sourcés DGFiP (calendrier et
-     * catégories d'entreprises) et INSEE (définitions des catégories d'entreprises) — voir
+     * Seuils PME/ETI de "calendrier-obligation-emission" : sourcés DGFiP (calendrier et
+     * catégories d'entreprises) et INSEE (définitions des catégories d'entreprises) : voir
      * la mise à jour correspondante de docs/02-regulatory-study.md sections 5-6, réalisée
      * dans le cadre de cette même tâche. Seul le seuil PME est encodé (250 salariés /
      * 50 M€ CA / 43 M€ bilan, OR entre les deux critères monétaires) : le calendrier de la
@@ -82,10 +82,10 @@ final class Version20260819121231 extends AbstractMigration
     {
         $this->addSql(<<<'SQL'
             INSERT INTO regulatory_rules (id, name, description, category, jurisdiction, status) VALUES
-            ('eligibilite-franchise-en-base', 'Assujettissement même en franchise en base de TVA',
+            ('franchise-en-base-eligibilite', 'Assujettissement même en franchise en base de TVA',
              'Une entreprise en franchise en base de TVA reste assujettie et donc concernée par la réforme de la facturation électronique, en réception comme en émission (BR-ELIGIBILITY-001).',
              'ELIGIBILITE', 'FR', 'ACTIVE'),
-            ('eligibilite-calendrier-taille', 'Calendrier d''émission différencié selon la taille de l''entreprise',
+            ('calendrier-obligation-emission', 'Calendrier d''émission différencié selon la taille de l''entreprise',
              'La date d''obligation d''émission de factures électroniques conformes dépend de la taille de l''entreprise : 1er septembre 2026 pour les grandes entreprises et ETI, 1er septembre 2027 pour les PME, TPE et micro-entreprises.',
              'ELIGIBILITE', 'FR', 'ACTIVE')
             SQL);
@@ -117,7 +117,7 @@ final class Version20260819121231 extends AbstractMigration
                 'docs/02-regulatory-study.md, sections 5-6',
                 'ELEVE',
                 "Votre entreprise est assujettie à la TVA : elle est donc concernée par la réforme de la facturation électronique, avec une obligation de réception des factures électroniques à partir du 1er septembre 2026.",
-                'eligibilite-franchise-en-base',
+                'franchise-en-base-eligibilite',
             ],
         );
 
@@ -130,7 +130,7 @@ final class Version20260819121231 extends AbstractMigration
                 'docs/02-regulatory-study.md, section 5 ; seuils PME/ETI : DGFiP (calendrier et catégories d\'entreprises), INSEE (définitions des catégories d\'entreprises)',
                 'ELEVE',
                 "La date à partir de laquelle vous devez émettre des factures électroniques conformes dépend de la taille de votre entreprise, appréciée sur le dernier exercice clos avant le 1er janvier 2025 (ou le premier exercice clos à compter de cette date).",
-                'eligibilite-calendrier-taille',
+                'calendrier-obligation-emission',
             ],
         );
     }

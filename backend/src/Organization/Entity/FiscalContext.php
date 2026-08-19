@@ -19,18 +19,18 @@ use Symfony\Component\Uid\Uuid;
  *
  * Toujours créée complète (les quatre attributs métier ci-dessous non-nullables) : la
  * validation de complétude a lieu en amont, dans ConfigureOrganizationService, avant toute
- * tentative de construction — il n'existe donc jamais de FiscalContext partiellement
+ * tentative de construction : il n'existe donc jamais de FiscalContext partiellement
  * configuré en base (voir plan Phase 3).
  *
  * companySizeCategory n'est jamais fourni par l'appelant : calculé à partir des trois
  * valeurs brutes par ConfigureOrganizationService, à partir des seuils versionnés dans
- * Compliance/Rules (RuleVersion "eligibilite-calendrier-taille"), jamais codé en dur ici.
+ * Compliance/Rules (RuleVersion "calendrier-obligation-emission"), jamais codé en dur ici.
  */
 /**
  * L'index partiel garantissant au plus une ligne "courante" (effective_until IS NULL) par
  * organisation n'est pas déclaré via un attribut Doctrine : le driver attribute de Doctrine
  * ORM (version installée, voir backend/CLAUDE.md section 2) ne supporte pas nativement les
- * index partiels (clause WHERE) sur #[ORM\UniqueConstraint] — vérifié avant d'écrire cette
+ * index partiels (clause WHERE) sur #[ORM\UniqueConstraint] : vérifié avant d'écrire cette
  * entité plutôt que supposé. Il est donc créé directement en SQL dans la migration (voir
  * la migration de cette phase), comme les contraintes déjà gérées à la main en Phase 2.
  */
@@ -138,7 +138,7 @@ class FiscalContext implements TenantScopedInterface
 
     /**
      * Ferme cette version (invariant de non-chevauchement, docs/07-data-model.md section
-     * 37) : garanti ici par construction, jamais par rétro-datation — voir plan Phase 3.
+     * 37) : garanti ici par construction, jamais par rétro-datation : voir plan Phase 3.
      */
     public function close(\DateTimeImmutable $effectiveUntil): void
     {

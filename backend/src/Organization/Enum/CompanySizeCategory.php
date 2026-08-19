@@ -10,9 +10,9 @@ namespace App\Organization\Enum;
  * date d'émission, et PME/TPE/micro sous une autre), dérivée de la seule distinction
  * PME/non-PME au sens INSEE. Ce n'est PAS la classification légale INSEE à quatre niveaux
  * (Micro/PME/ETI/GE) : GRANDE_ENTREPRISE_ETI signifie seulement "non-PME au sens INSEE",
- * jamais "confirmé ETI" ou "confirmé grande entreprise" — le produit n'a pas besoin de les
+ * jamais "confirmé ETI" ou "confirmé grande entreprise" : le produit n'a pas besoin de les
  * distinguer, les deux dates d'émission étant identiques (voir
- * Compliance/Rules, RuleVersion "eligibilite-calendrier-taille").
+ * Compliance/Rules, RuleVersion "calendrier-obligation-emission").
  */
 enum CompanySizeCategory: string
 {

@@ -17,7 +17,7 @@ use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
 
 /**
  * Contre le référentiel réel seedé par la migration Phase 3 (docs/09-test-strategy.md,
- * section 9 : REG-001, REG-009 ; section 11 : déterminisme) — pas de double contre les
+ * section 9 : REG-001, REG-009 ; section 11 : déterminisme) : pas de double contre les
  * seuils, ils sont lus depuis Compliance/Rules comme en production, jamais recopiés en dur
  * ici (voir plan Phase 3).
  */
@@ -52,8 +52,8 @@ final class EligibilityDiagnosticCalculatorTest extends KernelTestCase
 
     private function calendarRuleVersion(\DateTimeImmutable $at): \App\Compliance\Rules\Entity\RuleVersion
     {
-        $ruleVersion = $this->ruleVersionRepository->findActive(RuleId::ELIGIBILITE_CALENDRIER_TAILLE, $at);
-        self::assertNotNull($ruleVersion, 'RuleVersion "eligibilite-calendrier-taille" doit être seedée par la migration Phase 3.');
+        $ruleVersion = $this->ruleVersionRepository->findActive(RuleId::CALENDRIER_OBLIGATION_EMISSION, $at);
+        self::assertNotNull($ruleVersion, 'RuleVersion "calendrier-obligation-emission" doit être seedée par la migration Phase 3.');
 
         return $ruleVersion;
     }
@@ -147,7 +147,7 @@ final class EligibilityDiagnosticCalculatorTest extends KernelTestCase
         // Combinaisons explicites exerçant le OR entre les deux critères monétaires, à
         // effectif constant sous le seuil de 250 (docs plan Phase 3, point 9 de la revue
         // utilisateur) : l'effectif reste un ET ferme avec le OR monétaire, jamais lui-même
-        // en OR avec les montants — un effectif de 300 exclurait la catégorie PME quels que
+        // en OR avec les montants : un effectif de 300 exclurait la catégorie PME quels que
         // soient le CA et le bilan, ce serait donc un mauvais cas pour isoler le OR monétaire.
         yield 'CA au-dessus, bilan en-dessous => PME (OR)' => ['employees' => 100, 'turnover' => '60000000', 'balance' => '40000000', 'expected' => CompanySizeCategory::PME_TPE_MICRO];
         yield 'CA en-dessous, bilan au-dessus => PME (OR)' => ['employees' => 100, 'turnover' => '40000000', 'balance' => '50000000', 'expected' => CompanySizeCategory::PME_TPE_MICRO];
