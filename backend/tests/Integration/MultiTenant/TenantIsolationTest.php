@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Integration\MultiTenant;
 
+use App\Compliance\Engine\Entity\ComplianceAnalysis;
 use App\Customer\Entity\Customer;
 use App\Identity\Entity\Membership;
 use App\Identity\Entity\User;
@@ -196,6 +197,64 @@ final class TenantIsolationTest extends ApiTestCase
         self::assertNotEmpty($invoices);
         foreach ($invoices as $invoice) {
             self::assertSame($organizationAId, $invoice->getOrganizationId()->toRfc4122());
+        }
+
+        $em->getFilters()->disable('tenant_filter');
+    }
+
+    /**
+     * Extension Phase 5 (docs/12-roadmap.md) de TC-TENANT-003/006 : ComplianceAnalysis, la
+     * ressource la plus sensible de cette phase (résultat de conformité), ne doit jamais
+     * fuiter au niveau Doctrine lorsque TenantFilter est actif pour l'organisation A.
+     */
+    public function testTcTenant007DoctrineLevelIsolationOnComplianceAnalysis(): void
+    {
+        [$client, $tokenA, $tokenB] = $this->tokensForTwoTenants('tenant-a-007@example.test', 'tenant-b-007@example.test');
+
+        $client->setServerParameter('HTTP_AUTHORIZATION', 'Bearer '.$tokenA);
+        $client->jsonRequest('PATCH', '/api/v1/organizations/current', [
+            'fiscal_context' => ['vat_status' => 'ASSUJETTI_REDEVABLE', 'employees_count' => 5, 'annual_turnover' => '200000', 'annual_balance_sheet_total' => '150000'],
+        ]);
+        $organizationAId = $this->jsonBody($client)['data']['id'];
+        $client->jsonRequest('POST', '/api/v1/customers', ['customer_type' => 'PROFESSIONNEL_FRANCAIS', 'name' => 'Client A', 'siren' => '123456789', 'country' => 'FR']);
+        $customerAId = $this->jsonBody($client)['data']['id'];
+        $client->jsonRequest('POST', '/api/v1/invoices', [
+            'customer_id' => $customerAId,
+            'operation_type' => 'VENTE_BIEN',
+            'issue_date' => '2026-08-15',
+            'currency' => 'EUR',
+            'lines' => [['description' => 'Ligne', 'quantity' => '1', 'unit_price_ht' => '10.00', 'vat_rate' => '0.20']],
+        ]);
+        $invoiceAId = $this->jsonBody($client)['data']['id'];
+        $client->jsonRequest('POST', sprintf('/api/v1/invoices/%s/compliance-analyses', $invoiceAId), [], ['HTTP_IDEMPOTENCY_KEY' => 'tenant-007-a']);
+        self::assertResponseStatusCodeSame(200);
+
+        $client->setServerParameter('HTTP_AUTHORIZATION', 'Bearer '.$tokenB);
+        $client->jsonRequest('PATCH', '/api/v1/organizations/current', [
+            'fiscal_context' => ['vat_status' => 'ASSUJETTI_REDEVABLE', 'employees_count' => 5, 'annual_turnover' => '200000', 'annual_balance_sheet_total' => '150000'],
+        ]);
+        $client->jsonRequest('POST', '/api/v1/customers', ['customer_type' => 'PROFESSIONNEL_FRANCAIS', 'name' => 'Client B', 'siren' => '987654321', 'country' => 'FR']);
+        $customerBId = $this->jsonBody($client)['data']['id'];
+        $client->jsonRequest('POST', '/api/v1/invoices', [
+            'customer_id' => $customerBId,
+            'operation_type' => 'VENTE_BIEN',
+            'issue_date' => '2026-08-15',
+            'currency' => 'EUR',
+            'lines' => [['description' => 'Ligne', 'quantity' => '1', 'unit_price_ht' => '10.00', 'vat_rate' => '0.20']],
+        ]);
+        $invoiceBId = $this->jsonBody($client)['data']['id'];
+        $client->jsonRequest('POST', sprintf('/api/v1/invoices/%s/compliance-analyses', $invoiceBId), [], ['HTTP_IDEMPOTENCY_KEY' => 'tenant-007-b']);
+        self::assertResponseStatusCodeSame(200);
+
+        $container = static::getContainer();
+        /** @var EntityManagerInterface $em */
+        $em = $container->get(EntityManagerInterface::class);
+        $em->getFilters()->enable('tenant_filter')->setParameter('organization_id', $organizationAId, 'string');
+
+        $analyses = $em->getRepository(ComplianceAnalysis::class)->findAll();
+        self::assertNotEmpty($analyses);
+        foreach ($analyses as $analysis) {
+            self::assertSame($organizationAId, $analysis->getOrganizationId()->toRfc4122());
         }
 
         $em->getFilters()->disable('tenant_filter');

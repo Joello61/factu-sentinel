@@ -271,4 +271,29 @@ class Invoice implements TenantScopedInterface
     {
         $this->updatedAt = new \DateTimeImmutable();
     }
+
+    /**
+     * Transition produite par App\Compliance\Engine\Service\RunComplianceAnalysisService
+     * (Phase 5) à l'issue d'une ComplianceAnalysis COMPLETED : ANALYZED quel que soit le
+     * statut précédent (y compris ANALYSIS_STALE, US-COMPLIANCE-006 : une relance après
+     * correction remplace toujours l'ancien statut, sans jamais effacer les analyses
+     * passées elles-mêmes).
+     */
+    public function markAnalyzed(): void
+    {
+        $this->status = InvoiceStatus::ANALYZED;
+    }
+
+    /**
+     * US-COMPLIANCE-006bis : modifier une facture ANALYZED rend son résultat de conformité
+     * obsolète. No-op si le statut n'est pas ANALYZED (jamais de régression depuis
+     * ANALYSIS_STALE lui-même, ni depuis DRAFT/READY_FOR_ANALYSIS qui n'ont jamais été
+     * analysés) — même défense que refreshReadinessStatus().
+     */
+    public function markStale(): void
+    {
+        if (InvoiceStatus::ANALYZED === $this->status) {
+            $this->status = InvoiceStatus::ANALYSIS_STALE;
+        }
+    }
 }

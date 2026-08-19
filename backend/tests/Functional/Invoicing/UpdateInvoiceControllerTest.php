@@ -118,4 +118,52 @@ final class UpdateInvoiceControllerTest extends ApiTestCase
 
         self::assertResponseStatusCodeSame(404);
     }
+
+    /**
+     * US-COMPLIANCE-006bis (Phase 5) : modifier une facture ANALYZED la rend obsolète.
+     * Ne peut être exercé qu'après une vraie ComplianceAnalysis (Phase 5), donc configuré
+     * ici via PATCH /organizations/current + POST .../compliance-analyses plutôt que
+     * simulé -- Invoice::markAnalyzed() n'est jamais appelée ailleurs qu'à l'issue d'une
+     * analyse réelle.
+     */
+    public function testModifyingAnAnalyzedInvoiceMarksItStale(): void
+    {
+        $client = $this->createAuthenticatedClient('invoice-update-006@example.test');
+        $client->jsonRequest('PATCH', '/api/v1/organizations/current', [
+            'fiscal_context' => [
+                'vat_status' => 'ASSUJETTI_REDEVABLE',
+                'employees_count' => 5,
+                'annual_turnover' => '200000',
+                'annual_balance_sheet_total' => '150000',
+            ],
+        ]);
+        self::assertResponseStatusCodeSame(200);
+
+        $customerId = $this->createCustomer($client);
+        [$id, $etag] = $this->createInvoice($client, $customerId);
+
+        $client->jsonRequest('POST', sprintf('/api/v1/invoices/%s/compliance-analyses', $id), [], ['HTTP_IDEMPOTENCY_KEY' => 'stale-key-006']);
+        self::assertResponseStatusCodeSame(200);
+
+        $client->jsonRequest('GET', '/api/v1/invoices/'.$id);
+        self::assertSame('ANALYZED', $this->jsonBody($client)['data']['status']);
+        $analyzedEtag = $client->getResponse()->headers->get('ETag');
+        self::assertIsString($analyzedEtag);
+
+        $client->jsonRequest('PATCH', '/api/v1/invoices/'.$id, ['invoice_number' => 'FA-STALE-001'], ['HTTP_IF_MATCH' => $analyzedEtag]);
+        self::assertResponseStatusCodeSame(200);
+        self::assertSame('ANALYSIS_STALE', $this->jsonBody($client)['data']['status']);
+    }
+
+    public function testModifyingADraftInvoiceNeverProducesAnalysisStale(): void
+    {
+        $client = $this->createAuthenticatedClient('invoice-update-007@example.test');
+        $customerId = $this->createCustomer($client);
+        [$id, $etag] = $this->createInvoice($client, $customerId);
+
+        $client->jsonRequest('PATCH', '/api/v1/invoices/'.$id, ['invoice_number' => 'FA-007'], ['HTTP_IF_MATCH' => $etag]);
+
+        self::assertResponseStatusCodeSame(200);
+        self::assertSame('READY_FOR_ANALYSIS', $this->jsonBody($client)['data']['status']);
+    }
 }

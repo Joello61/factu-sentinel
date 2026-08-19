@@ -22,4 +22,15 @@ enum EventType: string
     case CUSTOMER_DELETED = 'CUSTOMER_DELETED';
     case INVOICE_CREATED = 'INVOICE_CREATED';
     case INVOICE_UPDATED = 'INVOICE_UPDATED';
+
+    /**
+     * Ajoutés en Phase 5 (SEC-AUDIT-001, docs/10-security-privacy.md section 63) :
+     * COMPLIANCE_ANALYSIS_FAILED est déclaré pour fidélité au modèle mais n'est produit
+     * par aucun code chemin en Phase 5 (traitement toujours synchrone, une erreur
+     * technique fait échouer toute la transaction avant tout audit -- voir
+     * App\Compliance\Engine\Service\RunComplianceAnalysisService) : à ne pas utiliser
+     * avant qu'un vrai chemin (Phase 7, asynchrone) l'émette.
+     */
+    case COMPLIANCE_ANALYSIS_COMPLETED = 'COMPLIANCE_ANALYSIS_COMPLETED';
+    case COMPLIANCE_ANALYSIS_FAILED = 'COMPLIANCE_ANALYSIS_FAILED';
 }
