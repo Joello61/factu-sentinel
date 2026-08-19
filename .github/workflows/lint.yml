@@ -1,4 +1,4 @@
-name: Lint
+name: CI
 
 on:
   push:
@@ -16,6 +16,25 @@ jobs:
     defaults:
       run:
         working-directory: backend
+    env:
+      # dbname_suffix (config/packages/doctrine.yaml, when@test) turns this into
+      # "factusentinel_test" for the actual connection used by the test suite.
+      DATABASE_URL: "postgresql://app:app@localhost:5432/factusentinel?serverVersion=18&charset=utf8"
+      APP_ENV: test
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: app
+          POSTGRES_PASSWORD: app
+          POSTGRES_DB: factusentinel
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U app -d factusentinel"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -34,6 +53,15 @@ jobs:
 
       - name: Lint PHP syntax
         run: find src -type f -name '*.php' -print0 | xargs -0 -n1 -P "$(nproc)" php -l
+
+      - name: Create test database
+        run: php bin/console doctrine:database:create --if-not-exists
+
+      - name: Run migrations
+        run: php bin/console doctrine:migrations:migrate --no-interaction
+
+      - name: Run tests
+        run: php bin/phpunit
 
   frontend-lint:
     name: Frontend (Next.js)
