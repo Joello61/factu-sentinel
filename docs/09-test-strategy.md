@@ -551,10 +551,10 @@ Cette matrice, obligatoire pour toute exigence P0 (`04-product-requirements.md`,
 
 | Réglementation (`02-regulatory-study.md`) | Règle | Test | Résultat attendu | Dernière validation |
 |---|---|---|---|---|
-| Section 6 — assujettissement en franchise en base | `franchise-en-base-eligibilite` | REG-001 | Diagnostic confirme l'assujettissement | À renseigner à chaque exécution de la suite de régression (section 13) |
-| Section 10 — mention SIREN client | `mention-siren-client` | REG-004 | `NON_CONFORME` si absent | Idem |
-| Section 8 — définition facture électronique | `format-facture-electronique` | REG-006 | Finding explicite sur PDF simple | Idem |
-| Section 5 — calendrier différencié | `calendrier-obligation-emission` | REG-009 | Date d'obligation correcte selon la taille | Idem |
+| Section 6, assujettissement en franchise en base | `franchise-en-base-eligibilite` | REG-001 | Diagnostic confirme l'assujettissement | Implémentée et testée en Phase 3 (19/08/2026, `EligibilityDiagnosticCalculatorTest::testReg001FranchiseEnBaseRemainsInScope`) ; à renseigner de nouveau à chaque exécution suivante de la suite de régression (section 13) |
+| Section 10, mention SIREN client | `mention-siren-client` | REG-004 | `NON_CONFORME` si absent | À renseigner à chaque exécution de la suite de régression (section 13), non implémentée avant Phase 5 |
+| Section 8, définition facture électronique | `format-facture-electronique` | REG-006 | Finding explicite sur PDF simple | À renseigner à chaque exécution de la suite de régression (section 13), non implémentée avant Phase 7 |
+| Section 5, calendrier différencié | `calendrier-obligation-emission` | REG-009 | Date d'obligation correcte selon la taille | Implémentée et testée en Phase 3 (19/08/2026, `EligibilityDiagnosticCalculatorTest::testReg009PmeTpeMicroEmissionDateIs2027`) ; à renseigner de nouveau à chaque exécution suivante de la suite de régression (section 13) |
 
 Cette matrice répond directement à la question « quelle preuve avons-nous que cette règle réglementaire fonctionne correctement ? » — elle doit être maintenue en parallèle du référentiel de règles lui-même (`07-data-model.md`, section 15-16), chaque nouvelle `RuleVersion` entraînant une ligne correspondante.
 

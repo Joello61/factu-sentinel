@@ -1,4 +1,5 @@
 import {
+  Building2,
   ClipboardCheck,
   FileText,
   Users,
@@ -16,7 +17,7 @@ export interface NavItem {
 }
 
 /**
- * Navigation principale — docs/11-frontend-design-system.md, section 16. Aucune section
+ * Navigation principale : docs/11-frontend-design-system.md, section 16. Aucune section
  * "Factures" en tant que production/émission : "Factures" ici signifie exclusivement
  * l'analyse de conformité de factures existantes (docs/04-product-requirements.md,
  * section 7 et 30).
@@ -26,6 +27,7 @@ export interface NavItem {
  * Phase 1, cohérent avec le rôle d'"App Shell" de cette phase.
  */
 export const NAV_ITEMS: NavItem[] = [
+  { label: "Entreprise", href: "/company", icon: Building2 },
   { label: "Diagnostic", href: "/diagnostic", icon: ClipboardCheck },
   { label: "Factures", href: "/invoices", icon: FileText },
   { label: "Clients", href: "/customers", icon: Users },

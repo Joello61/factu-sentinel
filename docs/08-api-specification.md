@@ -343,11 +343,35 @@ Audit: Non (lecture simple).
 ```text
 Description: Modifier l'identité légale et/ou le contexte fiscal de l'entreprise (US-COMPANY-001/002/003).
 Permission: organization:update
-Request: { "legal_name": "string?", "fiscal_context": { "vat_status": "string?", "company_size_category": "string?" } }
+Request: {
+  "legal_name": "string?",
+  "fiscal_context": {
+    "vat_status": "string?",
+    "employees_count": "integer?",
+    "annual_turnover": "string?",            // décimal-en-chaîne, section 18
+    "annual_balance_sheet_total": "string?"  // décimal-en-chaîne, section 18
+  }
+}
 Response: 200 OK — organisation mise à jour + eligibility_diagnostic recalculé (voir section 30)
+```
+**Correction Phase 3** (voir plan Phase 3, gap 1) : le payload accepte les trois valeurs brutes
+saisies par l'utilisateur (`employees_count`, `annual_turnover`, `annual_balance_sheet_total`,
+US-COMPANY-002), jamais `company_size_category` directement : cette valeur est **toujours
+dérivée par le backend**, jamais acceptée en entrée (`07-data-model.md`, section 7). La
+version antérieure de ce contrat, qui acceptait `company_size_category` en entrée,
+contredisait `07-data-model.md` section 7 et US-COMPANY-002 ; c'est la version ci-dessus qui
+fait foi.
+
+**Règle de complétude** : `fiscal_context` est fusionné avec le contexte existant de
+l'organisation (valeurs déjà connues si non fournies dans la requête). Si, après fusion,
+`vat_status` ou l'une des trois valeurs numériques reste manquante (première configuration
+incomplète), la requête échoue en `422 VALIDATION_ERROR` avec un `details[]` par champ
+manquant : rien n'est persisté, `company_size_category` n'étant jamais calculable sans les
+trois valeurs.
+```text
 Side effects: Si fiscal_context change, une nouvelle version de FiscalContext est créée (07-data-model.md §7) — l'ancienne reçoit effective_until ; un nouveau EligibilityDiagnostic est calculé.
 Async: Non.
-Audit: Oui — AuditLogEntry(event_type="organization_updated"), delta des champs modifiés.
+Audit: Oui : AuditLogEntry(event_type="organization_updated"), delta des champs modifiés ; plus AuditLogEntry(event_type="eligibility_diagnostic_computed") référençant le diagnostic recalculé.
 ```
 
 ## 25. Members & Roles API

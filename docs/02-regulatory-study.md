@@ -75,6 +75,25 @@ Le calendrier a connu plusieurs reports depuis l'annonce initiale (initialement 
 
 > **Niveau de confiance : Élevé** pour les dates et le principe d'échelonnement (source officielle directe). **Faible** pour l'hypothèse d'un report trimestriel par décret.
 
+### 5 bis. Critères de taille d'entreprise (ajouté en Phase 3)
+
+Seuils exacts nécessaires pour déterminer si une entreprise relève de « grande entreprise/ETI » (émission 2026) ou « PME/TPE/micro-entreprise » (émission 2027), absents de la version initiale de cette étude, qui ne documentait que les dates. Vérifiés à l'implémentation de la Phase 3 (`12-roadmap.md`).
+
+<cite>Les entreprises sont classées en quatre catégories selon l'article 3 du décret n° 2008-1354 du 18 décembre 2008 (pris pour l'application de l'article 51 de la loi n° 2008-776 du 4 août 2008 de modernisation de l'économie), sur la base de l'effectif, du chiffre d'affaires et du total de bilan du dernier exercice clos.</cite>
+
+| Catégorie | Effectif | Chiffre d'affaires | Total de bilan |
+|---|---|---|---|
+| Micro-entreprise | < 10 personnes | ≤ 2 M€ | ≤ 2 M€ |
+| PME (inclut la micro-entreprise) | < 250 personnes | ≤ 50 M€ | ≤ 43 M€ (l'un des deux critères monétaires suffit, en plus du critère d'effectif) |
+| ETI | Pas une PME, < 5 000 personnes | ≤ 1,5 Md€ | ≤ 2 Md€ (l'un des deux critères monétaires suffit) |
+| Grande entreprise | Au-delà des seuils ETI | (pas de plafond) | (pas de plafond) |
+
+<cite>La page officielle impots.gouv.fr consacrée au calendrier de la réforme ("À partir de quand suis-je concerné par la réforme de la facturation électronique ?") référence explicitement l'article 51 de la loi du 4 août 2008 de modernisation de l'économie pour fonder le critère de taille</cite>, c'est-à-dire la même base légale que la classification INSEE ci-dessus, confirmant que ce sont bien ces seuils qui s'appliquent au calendrier de la réforme, et non un barème propre à la facturation électronique.
+
+**Simplification produit assumée** : pour la seule détermination de la date d'émission, la réforme regroupe grande entreprise et ETI sous une même date (1er septembre 2026), et PME/TPE/micro-entreprise sous une autre (1er septembre 2027, la micro-entreprise étant un sous-ensemble strict de la PME au sens de ce tableau). Le produit n'a donc jamais besoin de distinguer une ETI d'une grande entreprise, ni une micro-entreprise d'une PME plus grande : seul le seuil PME (< 250 personnes, et CA ≤ 50 M€ ou bilan ≤ 43 M€) est encodé comme donnée versionnée (`07-data-model.md`, sections 15-16). Voir `07-data-model.md` section 7 pour la traduction en modèle de données (`company_size_category`, classification à deux niveaux, explicitement distincte de la classification légale INSEE à quatre niveaux).
+
+> **Niveau de confiance : Élevé** pour les seuils eux-mêmes (source INSEE directe, définition officielle et fiche métadonnées). **Élevé** pour le fait que ce même cadre légal (article 51 LME) s'applique au critère de taille de la réforme de facturation électronique (référencé explicitement par impots.gouv.fr), bien que la page dédiée de l'administration ne redétaille pas elle-même les seuils chiffrés.
+
 ## 6. Entreprises concernées
 
 <cite index="16-1">Toutes les entreprises, indépendants et professions libérales assujettis à la taxe sur la valeur ajoutée (TVA) sont concernés par la facturation électronique, quels que soient leur taille, le chiffre d'affaires qu'elles réalisent, leur forme juridique ou leur régime d'imposition.</cite>
@@ -457,6 +476,8 @@ Les éléments suivants restent des **zones d'incertitude** à traiter avec prud
 | S11 | Bpifrance Création | Facturation électronique et obligation de e-reporting | Consultée le 17/08/2026 | https://bpifrance-creation.fr/encyclopedie/gerer-lentreprise/gestion-financiere-comptable/facturation-electronique-obligation-e | Complément sur la définition de l'e-reporting |
 | S12 | Diverses sources professionnelles (Pennylane, Cegid, MEG, Dougs, Lido, Hayot, Quadient, comparatif-facture-electronique.fr, etc.) | Articles de blog et guides pratiques sur le calendrier, les formats et le rôle du PPF | Consultées le 17/08/2026 | Voir citations en sections 5, 9, 12 | Utilisées uniquement en recoupement/complément lorsque concordantes entre elles ; jamais comme preuve unique d'un fait réglementaire important |
 | S13 | Diverses sources sur les seuils de franchise en base de TVA (CCI Lyon Métropole, Indy, petite-entreprise.net, etc.) | Articles sur l'évolution (suspendue puis abandonnée) de la réforme des seuils de TVA | Consultées le 17/08/2026 | Voir citations en section 6 et question ouverte en section 23 | Sources partiellement contradictoires entre elles ; signalées comme telles, non tranchées dans cette étude |
+| S14 | INSEE | Catégorie d'entreprise (fiche métadonnées, définition officielle) | Consultée le 19/08/2026 | https://www.insee.fr/fr/metadonnees/definition/c1057 | Section 5 bis : seuils exacts des quatre catégories d'entreprises (décret n° 2008-1354) |
+| S15 | DGFiP (impots.gouv.fr) | À partir de quand suis-je concerné par la réforme de la facturation électronique ? | Consultée le 19/08/2026 | https://www.impots.gouv.fr/professionnel/questions/partir-de-quand-suis-je-concerne-par-la-reforme-de-la-facturation | Section 5 bis : confirme que le critère de taille de la réforme se fonde sur l'article 51 de la loi de modernisation de l'économie du 4 août 2008, la même base légale que S14 |
 
 ## 26. Impact sur les prochains documents
 
