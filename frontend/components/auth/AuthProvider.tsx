@@ -142,6 +142,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = useCallback(async () => {
     try {
       await apiRequest("/api/v1/auth/logout", { method: "POST" });
+    } catch {
+      // Le nettoyage de session local ci-dessous doit avoir lieu même si l'appel réseau
+      // échoue (backend indisponible, connexion coupée) : jamais un utilisateur restant
+      // authentifié côté client parce que la requête de logout a échoué.
     } finally {
       accessTokenRef.current = null;
       setUser(null);
