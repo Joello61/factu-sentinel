@@ -54,3 +54,55 @@ export interface RegisteredAccount {
 export interface LoginResult {
   token: string;
 }
+
+// Phase 3 (docs/08-api-specification.md, section 24, payload corrigé — plan Phase 3, gap 1 :
+// les trois valeurs brutes sont saisies par l'utilisateur, company_size_category est
+// toujours dérivé par le backend, jamais accepté en entrée).
+
+export type VatStatus = "ASSUJETTI_REDEVABLE" | "ASSUJETTI_FRANCHISE_EN_BASE" | "NON_ASSUJETTI";
+
+/**
+ * Classification à deux niveaux propre au calendrier de la réforme (docs/07-data-model.md,
+ * section 7) — pas la classification légale INSEE à quatre niveaux (Micro/PME/ETI/GE).
+ */
+export type CompanySizeCategory = "GRANDE_ENTREPRISE_ETI" | "PME_TPE_MICRO";
+
+export interface FiscalContext {
+  vat_status: VatStatus;
+  employees_count: number;
+  annual_turnover: string;
+  annual_balance_sheet_total: string;
+  company_size_category: CompanySizeCategory;
+  effective_from: string;
+}
+
+export interface Organization {
+  id: string;
+  legal_name: string | null;
+  trade_name: string | null;
+  siren: string | null;
+  siret: string | null;
+  legal_form: string | null;
+  country: string | null;
+  configured: boolean;
+  created_at: string;
+  fiscal_context?: FiscalContext;
+  eligibility_diagnostic?: EligibilityDiagnostic;
+}
+
+export interface UpdateOrganizationPayload {
+  legal_name?: string;
+  fiscal_context?: {
+    vat_status?: VatStatus;
+    employees_count?: number;
+    annual_turnover?: string;
+    annual_balance_sheet_total?: string;
+  };
+}
+
+export interface EligibilityDiagnostic {
+  reception_obligation_date: string | null;
+  emission_obligation_date: string | null;
+  computed_at: string;
+  explanation: string;
+}

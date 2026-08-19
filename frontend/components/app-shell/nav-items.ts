@@ -1,4 +1,5 @@
 import {
+  Building2,
   ClipboardCheck,
   FileText,
   Users,
@@ -26,6 +27,7 @@ export interface NavItem {
  * Phase 1, cohérent avec le rôle d'"App Shell" de cette phase.
  */
 export const NAV_ITEMS: NavItem[] = [
+  { label: "Entreprise", href: "/company", icon: Building2 },
   { label: "Diagnostic", href: "/diagnostic", icon: ClipboardCheck },
   { label: "Factures", href: "/invoices", icon: FileText },
   { label: "Clients", href: "/customers", icon: Users },
