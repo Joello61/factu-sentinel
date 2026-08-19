@@ -72,7 +72,9 @@ Cohérent avec `06-technical-architecture.md` (section 19, ADR-007) et `07-data-
 
 | Endpoint | Méthode | Condition d'activation |
 |---|---|---|
-| `/auth/verify-email` | POST | Toujours actif — déclenché après inscription (US-AUTH-001), requis avant l'accès aux fonctionnalités sensibles (upload, analyse, IA) |
+| `/auth/verify-email/{userId}` | GET | Toujours actif — déclenché après inscription (US-AUTH-001), requis avant l'accès aux fonctionnalités sensibles (upload, analyse, IA) |
+
+**Implémentation (Phase 2, vérifiée)** : `symfonycasts/verify-email-bundle` valide par **URL signée** (`expires`, `signature` en query string), sans jeton stocké en base — la vérification se fait donc par un `GET` sur un lien complet, jamais par un `POST` portant un jeton dans le body. L'email envoyé au compte pointe vers `{FRONTEND_URL}/verify-email/{userId}?{query signée}` ; la page frontend correspondante relaie ces paramètres tels quels vers `GET /api/v1/auth/verify-email/{userId}`.
 
 ## 8. Authorization
 
@@ -258,7 +260,9 @@ Voir section 7 pour le tableau complet ; détail de deux endpoints représentati
 
 **POST /auth/register**
 ```text
-Description: Créer un compte utilisateur et son organisation initiale.
+Description: Créer un compte utilisateur et son organisation initiale (Organization vide,
+  Membership OWNER). N'authentifie pas automatiquement l'utilisateur (register et login
+  restent deux appels distincts) ; déclenche l'envoi de l'email de vérification.
 Authentication: Non requise.
 Request:
 {
@@ -267,11 +271,10 @@ Request:
 }
 Response: 201 Created
 {
-  "data": {
-    "user": { "id": "uuid", "email": "string" }
-  }
+  "data": { "id": "uuid", "email": "string" }
 }
-Errors: 422 (email invalide, mot de passe trop faible), 409 (email déjà utilisé)
+Errors: 422 (email invalide, mot de passe trop faible — 15 caractères minimum, NIST 2026),
+  409 (email déjà utilisé)
 Async: Non.
 Idempotency: Non requise (l'unicité de l'email fait déjà office de garde-fou).
 Audit: Oui — AuditLogEntry(event_type="user_registered").
@@ -279,38 +282,62 @@ Audit: Oui — AuditLogEntry(event_type="user_registered").
 
 **POST /auth/login**
 ```text
-Description: Authentifier un utilisateur existant (US-AUTH-002).
+Description: Authentifier un utilisateur existant (US-AUTH-002). Pose le refresh token dans
+  un cookie HttpOnly/Secure/SameSite=Lax ; l'access token est renvoyé dans le corps de la
+  réponse, jamais dans un cookie lisible.
 Authentication: Non requise.
 Request: { "email": "string", "password": "string" }
-Response: 200 OK — { "data": { "session": { ... } } }
+Response: 200 OK — { "data": { "token": "string (JWT)" } }
 Errors: 401 (identifiants invalides — message volontairement non spécifique, cf. US-AUTH-002 critère d'acceptation)
 Async: Non.
 Audit: Oui — AuditLogEntry(event_type="login").
+```
+
+**GET /users/current**
+```text
+Description: Identité du compte authentifié — source fiable pour l'état de vérification
+  d'email côté frontend (le JWT ne porte volontairement aucun claim email_verified, qui
+  deviendrait obsolète entre deux rafraîchissements de token).
+Authentication: Requise.
+Response: 200 OK
+{
+  "data": {
+    "id": "uuid",
+    "email": "string",
+    "email_verified_at": "string (ISO 8601) | null",
+    "created_at": "string (ISO 8601)"
+  }
+}
+Audit: Non (lecture simple).
 ```
 
 ## 24. Organization API
 
 **GET /organizations/current**
 ```text
-Description: Consulter l'entreprise de l'utilisateur connecté, incluant son FiscalContext courant.
+Description: Consulter l'entreprise de l'utilisateur connecté, incluant son FiscalContext
+  courant une fois celui-ci configuré (Phase 3, PATCH /organizations/current).
 Authentication: Requise.
 Permission: organization:read
 Response: 200 OK
 {
   "data": {
     "id": "uuid",
-    "legal_name": "string",
-    "siren": "string",
-    "country": "FR",
-    "fiscal_context": {
-      "vat_status": "ASSUJETTI_FRANCHISE_EN_BASE",
-      "company_size_category": "PME_TPE_MICRO",
-      "effective_from": "2026-01-01"
-    }
+    "legal_name": "string | null",
+    "trade_name": "string | null",
+    "siren": "string | null",
+    "siret": "string | null",
+    "legal_form": "string | null",
+    "country": "string | null",
+    "configured": "boolean",
+    "created_at": "string (ISO 8601)",
+    "fiscal_context": { ... } | absent tant que non configuré (Phase 3)
   }
 }
 Audit: Non (lecture simple).
 ```
+
+**Créée vide à l'inscription (Phase 2, vérifié)** : `legal_name`/`siren`/`country` sont nullables — une `Organization` est créée sans identité légale au moment de `POST /auth/register`, avant toute saisie utilisateur. `configured` (`true` dès que `legal_name` est renseigné) permet au frontend de distinguer une organisation à configurer d'une organisation déjà identifiée, sans dépendre d'un champ dédié non prévu par `07-data-model.md`.
 
 **PATCH /organizations/current**
 ```text
