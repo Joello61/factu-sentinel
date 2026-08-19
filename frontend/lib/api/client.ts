@@ -1,4 +1,4 @@
-import { ApiError, isApiErrorBody } from "./types";
+import { ApiError, isApiErrorBody, type PaginationMeta } from "./types";
 
 /**
  * Client API centralisé (../CLAUDE.md, section 4) : aucun fetch brut ne doit être dispersé
@@ -80,6 +80,45 @@ export async function apiRequest<T>(path: string, init: ApiRequestInit = {}): Pr
   }
 
   return parseEnvelope<T>(response);
+}
+
+async function parsePaginatedEnvelope<T>(response: Response): Promise<{ data: T[]; meta: { pagination: PaginationMeta } }> {
+  const raw = await response.text();
+  const body: unknown = raw.length > 0 ? JSON.parse(raw) : null;
+
+  if (!response.ok) {
+    if (isApiErrorBody(body)) {
+      throw new ApiError(response.status, body);
+    }
+    throw new ApiError(response.status, {
+      error: { code: "UNKNOWN_ERROR", message: "Une erreur inattendue est survenue.", details: [], request_id: null },
+    });
+  }
+
+  return body as { data: T[]; meta: { pagination: PaginationMeta } };
+}
+
+/**
+ * Variante de apiRequest() pour les listes paginées (docs/08-api-specification.md, section
+ * 41) : apiRequest()/parseEnvelope() jette `meta` volontairement pour les ressources
+ * uniques, mais `meta.pagination` est nécessaire à l'affichage d'une liste (customers,
+ * invoices, ...).
+ */
+export async function apiRequestPaginated<T>(
+  path: string,
+  init: ApiRequestInit = {},
+): Promise<{ data: T[]; meta: { pagination: PaginationMeta } }> {
+  const response = await performRequest(path, init);
+
+  if (response.status === 401 && init.auth !== false) {
+    const token = await config.refreshAccessToken();
+    if (token) {
+      const retryResponse = await performRequest(path, init);
+      return parsePaginatedEnvelope<T>(retryResponse);
+    }
+  }
+
+  return parsePaginatedEnvelope<T>(response);
 }
 
 export { ApiError } from "./types";

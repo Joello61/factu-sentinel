@@ -106,3 +106,92 @@ export interface EligibilityDiagnostic {
   computed_at: string;
   explanation: string;
 }
+
+// Phase 4 (docs/08-api-specification.md, sections 26-28 ; docs/07-data-model.md, sections
+// 8, 10-11).
+
+export type CustomerType = "PROFESSIONNEL_FRANCAIS" | "PARTICULIER" | "PROFESSIONNEL_ETRANGER";
+
+export interface Customer {
+  id: string;
+  customer_type: CustomerType;
+  name: string;
+  siren: string | null;
+  vat_number: string | null;
+  country: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateCustomerPayload {
+  customer_type: CustomerType;
+  name: string;
+  siren?: string | null;
+  vat_number?: string | null;
+  country: string;
+}
+
+export type UpdateCustomerPayload = Partial<CreateCustomerPayload>;
+
+export interface PaginationMeta {
+  page: number;
+  per_page: number;
+  total_count: number;
+  total_pages: number;
+}
+
+export type OperationType = "VENTE_BIEN" | "PRESTATION_SERVICE" | "MIXTE";
+
+/**
+ * ANALYZED/ANALYSIS_STALE ne sont jamais produits avant la Phase 5 (Compliance Engine,
+ * inexistant à ce stade) : déclarés ici pour que le type reflète fidèlement le contrat,
+ * jamais un simple `string` (../../CLAUDE.md frontend, section 11).
+ */
+export type InvoiceStatus = "DRAFT" | "READY_FOR_ANALYSIS" | "ANALYZED" | "ANALYSIS_STALE";
+
+export type InvoiceSource = "SAISIE_MANUELLE" | "DOCUMENT_IMPORTE";
+
+export interface InvoiceLine {
+  id: string;
+  description: string;
+  quantity: string;
+  unit_price_ht: string;
+  vat_rate: string;
+  line_amount_ht: string;
+  line_amount_vat: string;
+  line_amount_ttc: string;
+}
+
+export interface Invoice {
+  id: string;
+  customer_id: string;
+  invoice_number: string | null;
+  issue_date: string;
+  operation_type: OperationType;
+  currency: string;
+  total_amount_ht: string;
+  total_amount_ttc: string;
+  vat_exemption_reason: string | null;
+  status: InvoiceStatus;
+  source: InvoiceSource;
+  lines: InvoiceLine[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface InvoiceLineInputPayload {
+  description: string;
+  quantity: string;
+  unit_price_ht: string;
+  vat_rate: string;
+}
+
+export interface CreateInvoicePayload {
+  customer_id: string;
+  operation_type: OperationType;
+  issue_date: string;
+  currency: string;
+  lines: InvoiceLineInputPayload[];
+  invoice_number?: string | null;
+  vat_exemption_reason?: string | null;
+}
