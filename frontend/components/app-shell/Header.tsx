@@ -3,14 +3,16 @@
 import Link from "next/link";
 import { Bell, ChevronDown, LogOut, Settings, ShieldCheck } from "lucide-react";
 import { DropdownMenu } from "radix-ui";
+import { useAuth } from "@/components/auth/AuthProvider";
 
 /**
  * Header applicatif (docs/11-frontend-design-system.md, section 17) : logo, accès rapide
- * aux notifications, menu de compte. L'identité de compte est un espace réservé tant que
- * l'authentification (Phase 2, docs/12-roadmap.md) n'existe pas — jamais une fausse
- * donnée utilisateur, seulement un libellé générique.
+ * aux notifications, menu de compte. AppLayout ne rend ce composant qu'une fois status
+ * "authenticated" (app/(app)/layout.tsx), donc `user` est toujours renseigné ici.
  */
 export function Header() {
+  const { user, logout } = useAuth();
+
   return (
     <header className="flex h-16 shrink-0 items-center justify-between border-b border-border bg-surface px-4 md:px-6">
       <Link href="/" className="flex items-center gap-2 text-foreground">
@@ -33,7 +35,7 @@ export function Header() {
               type="button"
               className="flex items-center gap-1 rounded-md px-2 py-1.5 text-sm font-medium text-foreground hover:bg-primary/10 hover:text-primary"
             >
-              Mon compte
+              {user?.email ?? "Mon compte"}
               <ChevronDown aria-hidden="true" size={16} strokeWidth={1.75} />
             </button>
           </DropdownMenu.Trigger>
@@ -54,6 +56,9 @@ export function Header() {
                 </Link>
               </DropdownMenu.Item>
               <DropdownMenu.Item
+                onSelect={() => {
+                  void logout();
+                }}
                 className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm text-error outline-none hover:bg-error/10"
               >
                 <LogOut aria-hidden="true" size={16} strokeWidth={1.75} />
