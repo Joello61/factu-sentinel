@@ -13,7 +13,16 @@ services:
       context: ./backend
       target: dev
     environment:
-      APP_ENV: dev
+      # APP_ENV volontairement absent ici : backend/.env commite déjà APP_ENV=dev par
+      # défaut (comportement standard Symfony), donc cette variable serait redondante pour
+      # l'usage normal du conteneur. La définir ici en ferait en revanche une variable
+      # d'environnement réelle du processus (visible via getenv()), qui prime alors sur le
+      # `<server name="APP_ENV" value="test" force="true">` de backend/phpunit.dist.xml
+      # (vérifié : Symfony Dotenv redonne la priorité à un getenv() réel lors du
+      # bootEnv() de backend/tests/bootstrap.php) — `docker compose exec backend php
+      # bin/phpunit` démarrait alors silencieusement en environnement "dev" au lieu de
+      # "test" (service "test.service_container" introuvable). Ne pas la réintroduire ici
+      # sans revoir ce commentaire.
       DATABASE_URL: "postgresql://${POSTGRES_USER:-factusentinel}:${POSTGRES_PASSWORD:-factusentinel}@postgres:5432/${POSTGRES_DB:-factusentinel}?serverVersion=18&charset=utf8"
       REDIS_URL: "redis://redis:6379"
     volumes:

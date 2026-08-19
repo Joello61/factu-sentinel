@@ -40,8 +40,17 @@ WORKDIR /app
 # ---------------------------------------------------------------------------
 FROM base AS dev
 
-ENV APP_ENV=dev \
-    COMPOSER_ALLOW_SUPERUSER=1
+# APP_ENV volontairement absent ici (contrairement aux stages build/prod ci-dessous, où
+# elle reste une vraie protection de sécurité) : backend/.env commite déjà APP_ENV=dev par
+# défaut, et ce fichier est systématiquement présent en développement (committé + monté en
+# volume par docker-compose.yml). La définir ici en ferait en revanche une variable
+# d'environnement réelle du conteneur, qui prime alors sur le
+# `<server name="APP_ENV" value="test" force="true">` de backend/phpunit.dist.xml (vérifié :
+# Symfony Dotenv redonne la priorité à un getenv() réel lors du bootEnv() de
+# backend/tests/bootstrap.php) — `docker compose exec backend php bin/phpunit` démarrait
+# alors silencieusement en environnement "dev" au lieu de "test" (service
+# "test.service_container" introuvable). Ne pas la réintroduire ici sans revoir ce commentaire.
+ENV COMPOSER_ALLOW_SUPERUSER=1
 
 COPY composer.json composer.lock* symfony.lock* ./
 RUN composer install --no-scripts --no-interaction --prefer-dist

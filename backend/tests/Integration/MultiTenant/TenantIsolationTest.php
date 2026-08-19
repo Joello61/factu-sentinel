@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace App\Tests\Integration\MultiTenant;
 
+use App\Customer\Entity\Customer;
 use App\Identity\Entity\Membership;
 use App\Identity\Entity\User;
+use App\Invoicing\Entity\Invoice;
 use App\Tests\Support\ApiTestCase;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
@@ -145,5 +147,57 @@ final class TenantIsolationTest extends ApiTestCase
         self::assertResponseStatusCodeSame(500);
         $body = $this->jsonBody($client);
         self::assertSame('INTERNAL_ERROR', $body['error']['code']);
+    }
+
+    /**
+     * Extension Phase 4 (docs/12-roadmap.md) de TC-TENANT-003 : Customer et Invoice, comme
+     * Membership en Phase 2, ne doivent jamais fuiter au niveau Doctrine lorsque TenantFilter
+     * est actif pour l'organisation A (docs/09-test-strategy.md, section 22).
+     */
+    public function testTcTenant006DoctrineLevelIsolationOnCustomerAndInvoice(): void
+    {
+        [$client, $tokenA, $tokenB] = $this->tokensForTwoTenants('tenant-a-006@example.test', 'tenant-b-006@example.test');
+
+        $client->setServerParameter('HTTP_AUTHORIZATION', 'Bearer '.$tokenA);
+        $client->jsonRequest('GET', '/api/v1/organizations/current');
+        $organizationAId = $this->jsonBody($client)['data']['id'];
+        $client->jsonRequest('POST', '/api/v1/customers', ['customer_type' => 'PARTICULIER', 'name' => 'Client A', 'country' => 'FR']);
+        $customerAId = $this->jsonBody($client)['data']['id'];
+        $client->jsonRequest('POST', '/api/v1/invoices', [
+            'customer_id' => $customerAId,
+            'operation_type' => 'VENTE_BIEN',
+            'issue_date' => '2026-08-15',
+            'currency' => 'EUR',
+            'lines' => [['description' => 'Ligne', 'quantity' => '1', 'unit_price_ht' => '10.00', 'vat_rate' => '0.20']],
+        ]);
+
+        $client->setServerParameter('HTTP_AUTHORIZATION', 'Bearer '.$tokenB);
+        $client->jsonRequest('POST', '/api/v1/customers', ['customer_type' => 'PARTICULIER', 'name' => 'Client B', 'country' => 'FR']);
+        $client->jsonRequest('POST', '/api/v1/invoices', [
+            'customer_id' => $this->jsonBody($client)['data']['id'],
+            'operation_type' => 'VENTE_BIEN',
+            'issue_date' => '2026-08-15',
+            'currency' => 'EUR',
+            'lines' => [['description' => 'Ligne', 'quantity' => '1', 'unit_price_ht' => '10.00', 'vat_rate' => '0.20']],
+        ]);
+
+        $container = static::getContainer();
+        /** @var EntityManagerInterface $em */
+        $em = $container->get(EntityManagerInterface::class);
+        $em->getFilters()->enable('tenant_filter')->setParameter('organization_id', $organizationAId, 'string');
+
+        $customers = $em->getRepository(Customer::class)->findAll();
+        self::assertNotEmpty($customers);
+        foreach ($customers as $customer) {
+            self::assertSame($organizationAId, $customer->getOrganizationId()->toRfc4122());
+        }
+
+        $invoices = $em->getRepository(Invoice::class)->findAll();
+        self::assertNotEmpty($invoices);
+        foreach ($invoices as $invoice) {
+            self::assertSame($organizationAId, $invoice->getOrganizationId()->toRfc4122());
+        }
+
+        $em->getFilters()->disable('tenant_filter');
     }
 }
