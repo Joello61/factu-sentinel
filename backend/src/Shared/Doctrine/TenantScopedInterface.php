@@ -12,7 +12,7 @@ use Symfony\Component\Uid\Uuid;
  * c'est le tenant racine, pas une entité tenant-scoped (elle n'a pas de organization_id).
  *
  * Toute entité qui l'implémente doit porter une colonne `organization_id` réellement
- * indexée en base — c'est ce que `TenantFilter` exploite pour filtrer automatiquement.
+ * indexée en base - c'est ce que `TenantFilter` exploite pour filtrer automatiquement.
  */
 interface TenantScopedInterface
 {

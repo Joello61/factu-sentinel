@@ -14,7 +14,7 @@ use Symfony\Component\Uid\Uuid;
  * jamais depuis l'URL ou une donnée fournie par le client).
  *
  * Lit l'attribut de requête posé par TenantFilterActivationListener juste après
- * l'authentification JWT — jamais recalculé indépendamment, pour rester la même valeur
+ * l'authentification JWT - jamais recalculé indépendamment, pour rester la même valeur
  * que celle utilisée pour activer TenantFilter.
  */
 final class CurrentOrganizationResolver

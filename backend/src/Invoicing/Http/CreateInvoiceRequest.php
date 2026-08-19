@@ -14,7 +14,7 @@ use Symfony\Component\Validator\Constraints as Assert;
  * projet (pas de résolution de type d'élément de tableau de DTO sans phpdocumentor/phpstan).
  *
  * Pas de champ Idempotency-Key porté ici : POST /invoices n'honore pas encore cet en-tête
- * en Phase 4 (plan Phase 4, décision D2 — écart connu documenté avec CLAUDE.md racine
+ * en Phase 4 (plan Phase 4, décision D2 - écart connu documenté avec CLAUDE.md racine
  * section 11, différé à l'intégration Redis/Messenger de la Phase 7).
  *
  * `currency` validé par `#[Assert\Currency]` (liste ISO 4217 réelle) : nécessite le

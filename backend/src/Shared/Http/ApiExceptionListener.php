@@ -16,7 +16,7 @@ use Symfony\Component\Validator\Exception\ValidationFailedException;
 
 /**
  * Contrat d'erreur uniforme (docs/08-api-specification.md, section 14-15) : introduit ici,
- * avec le premier ensemble d'endpoints métier réels (Phase 2) — volontairement non
+ * avec le premier ensemble d'endpoints métier réels (Phase 2) - volontairement non
  * exhaustif, à étendre au fil des phases suivantes plutôt que anticipé en une fois.
  *
  * Rappel structurant : ce contrat ne représente jamais un résultat de conformité, qui

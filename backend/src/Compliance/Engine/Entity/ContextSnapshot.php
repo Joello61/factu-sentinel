@@ -19,7 +19,7 @@ use Symfony\Component\Uid\Uuid;
  * Pas de champ invoice_snapshot_reference distinct : ComplianceAnalysis.invoice_id porte
  * déjà cette référence (même principe d'équivalence que ComplianceFinding, qui ne répète
  * pas invoice_id/date déjà portés par son ComplianceAnalysis parente, docs/07-data-model.md
- * section 18) — écart assumé plutôt qu'une duplication systématique.
+ * section 18) - écart assumé plutôt qu'une duplication systématique.
  *
  * Jamais supprimée physiquement (backend/CLAUDE.md, section 7), jamais modifiée après
  * création : aucune méthode de mutation n'est exposée.

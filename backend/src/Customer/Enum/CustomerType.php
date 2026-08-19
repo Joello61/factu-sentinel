@@ -6,7 +6,7 @@ namespace App\Customer\Enum;
 
 /**
  * docs/07-data-model.md, section 8 : détermine le jeu de règles applicable (e-invoicing vs
- * e-reporting, docs/02-regulatory-study.md section 7) — jamais un simple booléen
+ * e-reporting, docs/02-regulatory-study.md section 7) - jamais un simple booléen
  * professionnel/particulier, le cas étranger suit un régime distinct des deux autres.
  */
 enum CustomerType: string

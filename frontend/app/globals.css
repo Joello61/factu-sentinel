@@ -1,7 +1,7 @@
-@import "tailwindcss";
+@import 'tailwindcss';
 
 /*
- * Design tokens — décisions actées dans docs/11-frontend-design-system.md (section 5, 7, 70).
+ * Design tokens - décisions actées dans docs/11-frontend-design-system.md (section 5, 7, 70).
  * Palette fonctionnelle uniquement (pas de charte de marque complète). Contraste WCAG à
  * valider avant mise en production (section 6).
  *

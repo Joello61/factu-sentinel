@@ -13,7 +13,7 @@ use Symfony\Component\Validator\Constraints as Assert;
  * #[MapRequestPayload] : le PropertyInfo de ce projet n'a ni phpdocumentor/reflection-docblock
  * ni phpstan/phpdoc-parser installés (vérifié dans backend/vendor avant d'écrire ce code), donc
  * le Serializer ne peut pas résoudre le type d'élément d'un tableau de DTOs à partir d'une
- * simple propriété `array` — seule la validation (#[Assert\Valid] sur CreateInvoiceRequest,
+ * simple propriété `array` - seule la validation (#[Assert\Valid] sur CreateInvoiceRequest,
  * qui parcourt les éléments à l'exécution indépendamment de tout typage déclaré) recoupe
  * ensuite ces objets.
  *

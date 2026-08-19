@@ -1,4 +1,4 @@
-import { ApiError, isApiErrorBody, type PaginationMeta } from "./types";
+import { ApiError, isApiErrorBody, type PaginationMeta } from './types';
 
 /**
  * Client API centralisé (../CLAUDE.md, section 4) : aucun fetch brut ne doit être dispersé
@@ -20,20 +20,23 @@ export function configureApiClient(next: ApiClientConfig): void {
   config = next;
 }
 
-interface ApiRequestInit extends Omit<RequestInit, "body"> {
+interface ApiRequestInit extends Omit<RequestInit, 'body'> {
   body?: unknown;
   /** Ajoute l'en-tête Authorization et tente un refresh sur 401. Défaut : true. */
   auth?: boolean;
 }
 
-async function performRequest(path: string, init: ApiRequestInit): Promise<Response> {
+async function performRequest(
+  path: string,
+  init: ApiRequestInit,
+): Promise<Response> {
   const headers = new Headers(init.headers);
-  headers.set("Content-Type", "application/json");
+  headers.set('Content-Type', 'application/json');
 
   if (init.auth !== false) {
     const token = config.getAccessToken();
     if (token) {
-      headers.set("Authorization", `Bearer ${token}`);
+      headers.set('Authorization', `Bearer ${token}`);
     }
   }
 
@@ -42,7 +45,7 @@ async function performRequest(path: string, init: ApiRequestInit): Promise<Respo
     headers,
     // Le cookie HttpOnly de refresh doit être transmis sur /auth/refresh et /auth/logout,
     // même en same-origin (comportement par défaut du navigateur, explicité ici).
-    credentials: "include",
+    credentials: 'include',
     body: init.body !== undefined ? JSON.stringify(init.body) : undefined,
   });
 }
@@ -56,7 +59,12 @@ async function parseEnvelope<T>(response: Response): Promise<T> {
       throw new ApiError(response.status, body);
     }
     throw new ApiError(response.status, {
-      error: { code: "UNKNOWN_ERROR", message: "Une erreur inattendue est survenue.", details: [], request_id: null },
+      error: {
+        code: 'UNKNOWN_ERROR',
+        message: 'Une erreur inattendue est survenue.',
+        details: [],
+        request_id: null,
+      },
     });
   }
 
@@ -66,9 +74,12 @@ async function parseEnvelope<T>(response: Response): Promise<T> {
 /**
  * Point d'entrée unique pour appeler l'API backend. Sur une réponse 401 avec `auth` actif,
  * tente exactement un refresh (délégué à AuthProvider, qui garantit le single-flight) puis
- * rejoue la requête une seule fois — jamais de boucle de retry.
+ * rejoue la requête une seule fois - jamais de boucle de retry.
  */
-export async function apiRequest<T>(path: string, init: ApiRequestInit = {}): Promise<T> {
+export async function apiRequest<T>(
+  path: string,
+  init: ApiRequestInit = {},
+): Promise<T> {
   const response = await performRequest(path, init);
 
   if (response.status === 401 && init.auth !== false) {
@@ -82,7 +93,9 @@ export async function apiRequest<T>(path: string, init: ApiRequestInit = {}): Pr
   return parseEnvelope<T>(response);
 }
 
-async function parsePaginatedEnvelope<T>(response: Response): Promise<{ data: T[]; meta: { pagination: PaginationMeta } }> {
+async function parsePaginatedEnvelope<T>(
+  response: Response,
+): Promise<{ data: T[]; meta: { pagination: PaginationMeta } }> {
   const raw = await response.text();
   const body: unknown = raw.length > 0 ? JSON.parse(raw) : null;
 
@@ -91,7 +104,12 @@ async function parsePaginatedEnvelope<T>(response: Response): Promise<{ data: T[
       throw new ApiError(response.status, body);
     }
     throw new ApiError(response.status, {
-      error: { code: "UNKNOWN_ERROR", message: "Une erreur inattendue est survenue.", details: [], request_id: null },
+      error: {
+        code: 'UNKNOWN_ERROR',
+        message: 'Une erreur inattendue est survenue.',
+        details: [],
+        request_id: null,
+      },
     });
   }
 
@@ -121,4 +139,4 @@ export async function apiRequestPaginated<T>(
   return parsePaginatedEnvelope<T>(response);
 }
 
-export { ApiError } from "./types";
+export { ApiError } from './types';

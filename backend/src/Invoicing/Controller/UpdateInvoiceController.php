@@ -22,7 +22,7 @@ use Symfony\Component\Uid\Uuid;
  * optimiste natif Doctrine (plan Phase 4, décision D3), vérifié contre le code source
  * installé (doctrine/orm 3.6) : EntityManagerInterface::find() avec LockMode::OPTIMISTIC et
  * la version attendue lève Doctrine\ORM\OptimisticLockException en cas de désaccord, capturée
- * ici et traduite en 409 Conflict — jamais un détail technique exposé au client
+ * ici et traduite en 409 Conflict - jamais un détail technique exposé au client
  * (backend/CLAUDE.md, section 12).
  *
  * Distinct de la transition ANALYZED -> ANALYSIS_STALE (docs/08-api-specification.md, section

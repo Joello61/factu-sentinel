@@ -10,7 +10,7 @@ use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\Routing\Attribute\Route;
 
 /**
- * Source fiable de l'état de vérification d'email côté frontend — jamais un claim JWT,
+ * Source fiable de l'état de vérification d'email côté frontend - jamais un claim JWT,
  * qui pourrait être obsolète entre deux rafraîchissements (voir plan Phase 2).
  */
 final class CurrentUserController
