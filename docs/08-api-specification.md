@@ -394,14 +394,16 @@ Request:
 {
   "customer_type": "PROFESSIONNEL_FRANCAIS",
   "name": "string",
-  "siren": "string?",   // requis si customer_type = PROFESSIONNEL_FRANCAIS
+  "siren": "string?",   // optionnel, y compris si customer_type = PROFESSIONNEL_FRANCAIS
   "country": "FR"
 }
 Response: 201 Created
-Errors: 422 si siren manquant pour un professionnel français (US-CUSTOMER-002)
+Errors: 422 uniquement pour une violation de format (ex. SIREN ne comportant pas 9 chiffres) ou un champ requis manquant (name, country)
 Idempotency: recommandée mais non bloquante (création peu coûteuse)
 Audit: Oui
 ```
+
+**Correction (Phase 4, décision D1)** : la version précédente de ce contrat indiquait un `422` si `siren` était manquant pour un `PROFESSIONNEL_FRANCAIS`, en citant US-CUSTOMER-002 comme justification. C'était une erreur de rédaction, contredisant directement le texte même d'US-CUSTOMER-002 (`05-user-stories.md`) qui décrit une absence de SIREN comme devant produire un état `A_VERIFIER` au moment de l'analyse de conformité, "pas comme une non-conformité automatique" — et contredisant BR-COMPLIANCE-003/ADR-002 (`CLAUDE.md` racine, section 9) : une donnée manquante ne doit jamais être rejetée en amont du Compliance Engine. `POST /customers` accepte donc un `PROFESSIONNEL_FRANCAIS` sans `siren` (`201 Created`, `siren: null`) ; la qualification de cette absence relève exclusivement de la Phase 5 (Compliance Engine).
 
 ## 27. Invoices API
 
@@ -443,8 +445,8 @@ Response: 201 Created
     "lines": [ "..." ]
   }
 }
-Errors: 422 (incohérence de montants, §11 de 07-data-model.md ; client introuvable)
-Idempotency: Idempotency-Key recommandée (section 20)
+Errors: 422 (incohérence/absence de ligne, §11 de 07-data-model.md) ; 404 si customer_id introuvable ou appartenant à une autre organisation (jamais 422 dans ce cas précis, cohérent avec la règle générale de la section 42 : ressource inexistante ou cross-tenant = 404, jamais confirmée par un autre code)
+Idempotency: Idempotency-Key recommandée (section 20). **Écart connu (Phase 4, décision D2)** : non honorée par le backend à ce stade — la clé n'est ni lue ni déduplique la création. Différé à l'intégration réelle de Redis/Messenger côté Symfony, qui n'intervient qu'en Phase 7 (Document Processing, `06-technical-architecture.md` section 12 : en Phase 4/5, une facture issue de saisie manuelle reste analysée de façon synchrone, donc sans motif réel de câbler Redis plus tôt). Cet écart contredit littéralement `CLAUDE.md` racine (section 11), qui qualifie cette en-tête d'"obligatoire" sur `POST /invoices` : signalé ici explicitement plutôt que laissé silencieux, à corriger avec l'implémentation de la Phase 7.
 Audit: Oui
 ```
 

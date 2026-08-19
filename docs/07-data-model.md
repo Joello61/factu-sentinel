@@ -123,10 +123,10 @@ Le Compliance Engine a besoin de connaître, à la date d'une analyse, le statut
 | organization_id | Reference | Tenant-scoped |
 | customer_type | Enum (`professionnel_francais`, `particulier`, `professionnel_etranger`) | Détermine les règles applicables (e-invoicing vs e-reporting, `02-regulatory-study.md` section 7 ; US-CUSTOMER-001) |
 | name (identité) | String | Nom ou raison sociale |
-| siren | String, optionnel — obligatoire si `customer_type = professionnel_francais` pour permettre la vérification de mention (US-CUSTOMER-002) | Identification légale |
+| siren | String, optionnel, y compris si `customer_type = professionnel_francais` | Identification légale ; **précision (plan Phase 4, décision D1)** : la formulation précédente de cette ligne ("obligatoire si professionnel_francais") était ambiguë et a entraîné une contradiction avec `08-api-specification.md` (§26) et `05-user-stories.md` (US-CUSTOMER-002) — cette dernière fait foi : une absence de SIREN n'est jamais une erreur de validation à la création du client, elle est qualifiée en `A_VERIFIER` par le Compliance Engine (Phase 5), jamais avant |
 | vat_number | String, optionnel | Pertinent pour un client professionnel étranger (contexte intracommunautaire, `02-regulatory-study.md` section 7-8) |
 | country | String | Nécessaire à la qualification B2B France / international |
-| address_id | Reference, optionnel | Voir section 9 |
+| address_id | Reference, optionnel | Voir section 9. **Non implémenté au Phase 4** (plan Phase 4, décision D5) : aucun endpoint de cette phase n'expose `Address` (`08-api-specification.md` §26), colonne absente du schéma tant qu'un besoin réel ne l'introduit pas |
 | created_at / updated_at | DateTime | Suivi standard |
 
 **Client changeant d'information dans le temps** : contrairement au `FiscalContext` de l'organisation, le PRD et les User Stories ne documentent pas de besoin explicite de conserver un historique des changements d'un `Customer` en tant que tel — en revanche, l'exigence d'auditabilité (`04-product-requirements.md` section 24) porte sur le résultat d'analyse, pas sur l'évolution du client lui-même. **Décision confirmée (2026)** : ne pas historiser `Customer` au MVP — le snapshot déjà pris au moment de chaque analyse (section 19) suffit à garantir la traçabilité. Une historisation complète de `Customer` pourra être ajoutée ultérieurement si un besoin explicite émerge, mais n'est pas retenue pour le MVP.
