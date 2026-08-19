@@ -1,0 +1,44 @@
+security:
+    password_hashers:
+        # "auto" : Argon2id si disponible, migration automatique si l'algorithme par
+        # défaut de Symfony évolue (docs/10-security-privacy.md, section 13 : décision
+        # volontairement non figée sur un algorithme précis).
+        App\Identity\Entity\User:
+            algorithm: auto
+
+    providers:
+        app_user_provider:
+            id: App\Identity\Repository\UserRepository
+
+    firewalls:
+        dev:
+            pattern: ^/(_(profiler|wdt)|css|images|js)/
+            security: false
+
+        # Un seul firewall pour toute l'API : json_login/jwt/refresh-jwt n'activent chacun
+        # que sur leur propre condition (check_path exact ou en-tête Authorization
+        # présent), donc aucune requête n'est traitée deux fois.
+        api:
+            pattern: ^/api
+            stateless: true
+            provider: app_user_provider
+            entry_point: jwt
+            json_login:
+                check_path: /api/v1/auth/login
+                username_path: email
+                password_path: password
+                success_handler: lexik_jwt_authentication.handler.authentication_success
+                failure_handler: lexik_jwt_authentication.handler.authentication_failure
+            login_throttling:
+                max_attempts: 5
+                interval: '15 minutes'
+            jwt: ~
+            refresh-jwt:
+                check_path: /api/v1/auth/refresh
+            logout:
+                path: /api/v1/auth/logout
+
+    access_control:
+        - { path: ^/api/health, roles: PUBLIC_ACCESS }
+        - { path: ^/api/v1/auth/(register|login|refresh|password/forgot|password/reset|verify-email), roles: PUBLIC_ACCESS }
+        - { path: ^/api, roles: IS_AUTHENTICATED_FULLY }
