@@ -26,7 +26,7 @@ use App\Shared\Exception\RegulatoryRuleVersionNotFoundException;
  * Liste ordonnée fixe des règles Phase 5 (docs/12-roadmap.md, Phase 5) : garantit le
  * déterminisme (docs/09-test-strategy.md, section 11) -- même entrée + même contexte +
  * même version de règle = même résultat et même ordre de findings à chaque exécution.
- * FORMAT_DOCUMENT_STRUCTURE n'a pas de RuleChecker en Phase 5 (null) : son applicability
+ * FORMAT_FACTURE_ELECTRONIQUE n'a pas de RuleChecker en Phase 5 (null) : son applicability
  * (sources: DOCUMENT_IMPORTE) ne peut jamais être satisfaite avant la Phase 7, donc
  * ComplianceRuleEvaluator s'arrête toujours à NON_APPLICABLE avant d'avoir besoin d'un
  * checker (voir cette classe, étape 1).
@@ -44,7 +44,7 @@ final class ComplianceEngine
         $this->checkersByRuleId = [
             RuleId::MENTION_SIREN_CLIENT => new SirenMentionRuleChecker(),
             RuleId::MENTION_CATEGORIE_OPERATION => new OperationCategoryMentionRuleChecker(),
-            RuleId::FORMAT_DOCUMENT_STRUCTURE => null,
+            RuleId::FORMAT_FACTURE_ELECTRONIQUE => null,
         ];
     }
 

@@ -11,7 +11,7 @@ use Doctrine\Migrations\AbstractMigration;
  * Phase 5 - Compliance Engine (noyau) : ComplianceAnalysis/ComplianceFinding/
  * ContextSnapshot, idempotency_keys (Idempotency-Key, ../../CLAUDE.md racine section 11),
  * 3 nouvelles RegulatoryRule/RuleVersion (mention-siren-client, mention-categorie-operation,
- * format-document-structure) (docs/12-roadmap.md, Phase 5 ; docs/07-data-model.md, sections
+ * format-facture-electronique) (docs/12-roadmap.md, Phase 5 ; docs/07-data-model.md, sections
  * 17-19 ; voir plan Phase 5).
  */
 final class Version20260819200000 extends AbstractMigration
@@ -22,7 +22,7 @@ final class Version20260819200000 extends AbstractMigration
 
     public function getDescription(): string
     {
-        return 'ComplianceAnalysis, ComplianceFinding, ContextSnapshot, idempotency_keys, seed mention-siren-client/mention-categorie-operation/format-document-structure (Phase 5).';
+        return 'ComplianceAnalysis, ComplianceFinding, ContextSnapshot, idempotency_keys, seed mention-siren-client/mention-categorie-operation/format-facture-electronique (Phase 5).';
     }
 
     public function up(Schema $schema): void
@@ -67,7 +67,7 @@ final class Version20260819200000 extends AbstractMigration
             self::MENTION_CATEGORIE_VERSION_ID,
             self::FORMAT_VERSION_ID,
         ));
-        $this->addSql("DELETE FROM regulatory_rules WHERE id IN ('mention-siren-client', 'mention-categorie-operation', 'format-document-structure')");
+        $this->addSql("DELETE FROM regulatory_rules WHERE id IN ('mention-siren-client', 'mention-categorie-operation', 'format-facture-electronique')");
     }
 
     /**
@@ -81,7 +81,7 @@ final class Version20260819200000 extends AbstractMigration
      * conditions.outcomes[result] porte le message/correction_action figés par état.
      * severity porte l'état produit en cas de VIOLATED (docs/07-data-model.md, section 16).
      *
-     * format-document-structure a confidence_level = MOYEN (docs/02-regulatory-study.md,
+     * format-facture-electronique a confidence_level = MOYEN (docs/02-regulatory-study.md,
      * section 9 : correspondance formats/EN16931 confirmée à confiance Moyen, à revérifier
      * sur les sources DGFiP/AIFE avant activation réelle en Phase 7) : produit donc
      * systématiquement INCERTAIN_REGLEMENTAIRE si jamais son applicability devenait vraie
@@ -99,7 +99,7 @@ final class Version20260819200000 extends AbstractMigration
             ('mention-categorie-operation', 'Mention obligatoire de la catégorie de l''opération',
              'La catégorie de l''opération (vente de bien, prestation de service, ou mixte) doit figurer sur les factures B2B domestiques depuis la réforme de la facturation électronique (docs/02-regulatory-study.md, section 10).',
              'MENTION_OBLIGATOIRE', 'FR', 'ACTIVE'),
-            ('format-document-structure', 'Format électronique structuré et normé de la facture',
+            ('format-facture-electronique', 'Format électronique structuré et normé de la facture',
              'Une facture électronique conforme doit respecter un format structuré et normé (Factur-X, UBL, CII), pas un PDF simple ou un document non structuré (docs/02-regulatory-study.md, sections 8-9).',
              'FORMAT', 'FR', 'ACTIVE')
             SQL);
@@ -172,7 +172,7 @@ final class Version20260819200000 extends AbstractMigration
                 'docs/02-regulatory-study.md, sections 8-9',
                 'MOYEN',
                 "Une facture électronique doit respecter un format électronique structuré et normé (Factur-X, UBL ou CII, norme EN 16931) ; un PDF simple ou un document non structuré n'est pas conforme à cette exigence, même si les mentions obligatoires y figurent.",
-                'format-document-structure',
+                'format-facture-electronique',
             ],
         );
     }

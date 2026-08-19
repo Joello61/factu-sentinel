@@ -87,7 +87,7 @@ final class ComplianceEngineTest extends KernelTestCase
         [$drafts] = $this->engine->evaluate($this->invoice($customer), $customer, $this->fiscalContext, new \DateTimeImmutable('2026-08-19'));
 
         foreach ($drafts as $draft) {
-            if ('format-document-structure' === $draft->ruleVersion->getRule()->getId()) {
+            if ('format-facture-electronique' === $draft->ruleVersion->getRule()->getId()) {
                 continue;
             }
             self::assertSame(ComplianceResult::NON_APPLICABLE, $draft->result);
@@ -101,7 +101,7 @@ final class ComplianceEngineTest extends KernelTestCase
         [$drafts] = $this->engine->evaluate($this->invoice($customer), $customer, $this->fiscalContext, new \DateTimeImmutable('2026-08-19'));
 
         foreach ($drafts as $draft) {
-            if ('format-document-structure' === $draft->ruleVersion->getRule()->getId()) {
+            if ('format-facture-electronique' === $draft->ruleVersion->getRule()->getId()) {
                 continue;
             }
             self::assertSame(ComplianceResult::NON_APPLICABLE, $draft->result);
@@ -116,7 +116,7 @@ final class ComplianceEngineTest extends KernelTestCase
         [$drafts, $globalResult] = $this->engine->evaluate($invoice, $customer, $this->fiscalContext, new \DateTimeImmutable('2026-08-19'));
 
         foreach ($drafts as $draft) {
-            if ('format-document-structure' === $draft->ruleVersion->getRule()->getId()) {
+            if ('format-facture-electronique' === $draft->ruleVersion->getRule()->getId()) {
                 continue;
             }
             self::assertSame(ComplianceResult::NON_APPLICABLE, $draft->result);
@@ -130,7 +130,7 @@ final class ComplianceEngineTest extends KernelTestCase
         $customer = $this->customer(CustomerType::PROFESSIONNEL_FRANCAIS, '123456789');
         [$drafts] = $this->engine->evaluate($this->invoice($customer), $customer, $this->fiscalContext, new \DateTimeImmutable('2026-08-19'));
 
-        $format = array_values(array_filter($drafts, static fn ($d) => 'format-document-structure' === $d->ruleVersion->getRule()->getId()))[0];
+        $format = array_values(array_filter($drafts, static fn ($d) => 'format-facture-electronique' === $d->ruleVersion->getRule()->getId()))[0];
         self::assertSame(ComplianceResult::NON_APPLICABLE, $format->result);
     }
 
