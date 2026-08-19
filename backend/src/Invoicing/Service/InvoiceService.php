@@ -126,18 +126,49 @@ final class InvoiceService
 
             \assert(\is_string($input->operationType));
 
+            // US-COMPLIANCE-006bis : une modification effective d'une facture ANALYZED la
+            // rend obsolète (Invoice::markStale()) -- suivi champ par champ plutôt que sur
+            // la seule présence de la clé dans le payload (PATCH peut renvoyer la même
+            // valeur qu'avant sans que ce soit une vraie modification).
+            $dataChanged = false;
+
             if ($input->customerId !== $invoice->getCustomer()->getId()->toRfc4122()) {
                 $invoice->setCustomer($this->resolveCustomer($input->customerId));
+                $dataChanged = true;
             }
 
-            $invoice->setInvoiceNumber($input->invoiceNumber);
-            $invoice->setIssueDate(new \DateTimeImmutable($input->issueDate));
-            $invoice->setOperationType(OperationType::from($input->operationType));
-            $invoice->setCurrency($input->currency);
-            $invoice->setVatExemptionReason($input->vatExemptionReason);
+            if ($input->invoiceNumber !== $invoice->getInvoiceNumber()) {
+                $invoice->setInvoiceNumber($input->invoiceNumber);
+                $dataChanged = true;
+            }
+
+            if ($input->issueDate !== $invoice->getIssueDate()->format('Y-m-d')) {
+                $invoice->setIssueDate(new \DateTimeImmutable($input->issueDate));
+                $dataChanged = true;
+            }
+
+            if ($input->operationType !== $invoice->getOperationType()->value) {
+                $invoice->setOperationType(OperationType::from($input->operationType));
+                $dataChanged = true;
+            }
+
+            if ($input->currency !== $invoice->getCurrency()) {
+                $invoice->setCurrency($input->currency);
+                $dataChanged = true;
+            }
+
+            if ($input->vatExemptionReason !== $invoice->getVatExemptionReason()) {
+                $invoice->setVatExemptionReason($input->vatExemptionReason);
+                $dataChanged = true;
+            }
 
             if (null !== $input->lines) {
                 $this->applyLines($invoice, $input->lines);
+                $dataChanged = true;
+            }
+
+            if ($dataChanged) {
+                $invoice->markStale();
             }
 
             $invoice->refreshReadinessStatus();
