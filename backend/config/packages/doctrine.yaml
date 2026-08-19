@@ -25,6 +25,13 @@ doctrine:
                 dir: '%kernel.project_dir%/src'
                 prefix: 'App'
                 alias: App
+        filters:
+            # Isolation tenant (ADR-004) : désactivé par défaut, activé pour la requête
+            # courante par App\Shared\Security\TenantFilterActivationListener juste après
+            # l'authentification JWT — jamais laissé activé globalement ni au contrôleur.
+            tenant_filter:
+                class: App\Shared\Doctrine\TenantFilter
+                enabled: false
 
 when@test:
     doctrine:
