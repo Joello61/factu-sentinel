@@ -50,6 +50,10 @@ RUN composer install --no-scripts --no-interaction --prefer-dist
 # cette copie garantit néanmoins que l'image reste utilisable seule (ex. CI).
 COPY . .
 
+COPY docker/entrypoint-dev.sh /usr/local/bin/docker-entrypoint-dev.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint-dev.sh
+
+ENTRYPOINT ["docker-entrypoint-dev.sh"]
 EXPOSE 9000
 CMD ["php-fpm"]
 

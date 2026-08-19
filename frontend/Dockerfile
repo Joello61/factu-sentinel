@@ -27,6 +27,10 @@ ENV NODE_ENV=development
 # cette copie garantit néanmoins que l'image reste utilisable seule (ex. CI).
 COPY . .
 
+COPY docker/entrypoint-dev.sh /usr/local/bin/docker-entrypoint-dev.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint-dev.sh
+
+ENTRYPOINT ["docker-entrypoint-dev.sh"]
 EXPOSE 3000
 CMD ["npm", "run", "dev"]
 
