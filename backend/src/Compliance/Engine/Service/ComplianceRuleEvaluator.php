@@ -77,6 +77,17 @@ final class ComplianceRuleEvaluator
             return false;
         }
 
+        // Phase 7 (docs/12-roadmap.md) : distinct de "sources" ci-dessus - une Invoice reste
+        // toujours InvoiceSource::SAISIE_MANUELLE sous la décision produit retenue (plan
+        // Phase 7, décision 1, corrigée) : un document est rattaché après coup à une facture
+        // créée normalement dans l'éditeur, il ne change jamais Invoice.source. La bonne
+        // condition d'applicabilité pour format-facture-electronique est donc "un Document
+        // est-il présent", jamais "source vaut DOCUMENT_IMPORTE" (valeur qu'aucun chemin de
+        // code ne produit plus - corrigé pendant l'implémentation, avant tout usage réel).
+        if (true === ($applicability['requires_document'] ?? false) && null === $context->document) {
+            return false;
+        }
+
         return true;
     }
 

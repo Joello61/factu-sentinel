@@ -9,6 +9,7 @@ use App\Compliance\Engine\Entity\ComplianceFinding;
 use App\Compliance\Engine\Entity\ContextSnapshot;
 use App\Compliance\Engine\Http\ComplianceAnalysisView;
 use App\Customer\Entity\Customer;
+use App\Document\Repository\DocumentRepository;
 use App\Identity\Entity\User;
 use App\Invoicing\Entity\Invoice;
 use App\Organization\Entity\Organization;
@@ -36,6 +37,7 @@ final class RunComplianceAnalysisService
     public function __construct(
         private readonly EntityManagerInterface $entityManager,
         private readonly FiscalContextRepository $fiscalContextRepository,
+        private readonly DocumentRepository $documentRepository,
         private readonly ComplianceEngine $complianceEngine,
         private readonly AuditLogger $auditLogger,
         private readonly IdempotencyStore $idempotencyStore,
@@ -71,7 +73,13 @@ final class RunComplianceAnalysisService
 
         $snapshot = new ContextSnapshot($analysis, $fiscalContext, $this->customerSnapshot($customer));
 
-        [$drafts, $globalResult] = $this->complianceEngine->evaluate($invoice, $customer, $fiscalContext, new \DateTimeImmutable());
+        // Le Document le plus récent non supprimé de l'Invoice (docs/07-data-model.md,
+        // section 13 : plusieurs documents possibles) - App\Compliance\Engine\RuleCheck\
+        // DocumentFormatRuleChecker n'a besoin que d'un seul candidat représentatif, jamais
+        // de l'historique complet (plan Phase 7).
+        $document = $this->documentRepository->findActiveForInvoice($invoice->getId())[0] ?? null;
+
+        [$drafts, $globalResult] = $this->complianceEngine->evaluate($invoice, $customer, $fiscalContext, new \DateTimeImmutable(), $document);
 
         $findings = array_map(
             static fn (ComplianceFindingDraft $draft): ComplianceFinding => new ComplianceFinding(

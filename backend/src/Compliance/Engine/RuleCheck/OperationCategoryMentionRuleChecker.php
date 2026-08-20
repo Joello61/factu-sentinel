@@ -21,9 +21,14 @@ use App\Compliance\Engine\RuleEvaluationContext;
  * test dédié utilisant un RuleChecker de test, indépendant de cette règle réelle
  * (BR-COMPLIANCE-003 est une garantie du moteur, pas de chaque règle individuelle).
  *
- * Cette règle gagnera une vérification réelle (valeur détectée/ambiguë par extraction
- * documentaire) avec la Phase 7 (Document Processing), où operationType pourra
- * effectivement être incertain sur une facture importée.
+ * Mise à jour Phase 7 (Document Processing, docs/12-roadmap.md) : la prédiction ci-dessus ne
+ * s'est finalement pas réalisée - la décision produit retenue (plan Phase 7, décision 1)
+ * exige qu'un document importé soit toujours rattaché à une Invoice DRAFT/READY_FOR_ANALYSIS
+ * existante et confirmée par l'utilisateur dans l'Invoice Editor avant toute analyse ;
+ * operationType reste donc structurellement toujours présent, y compris pour une facture
+ * DOCUMENT_IMPORTE (jamais une valeur "détectée/ambiguë" écrite automatiquement depuis
+ * l'extraction, voir App\Document\MessageHandler\ExtractDocumentContentHandler). Ce checker
+ * reste donc inchangé, toujours SATISFIED.
  */
 final class OperationCategoryMentionRuleChecker implements RuleCheckerInterface
 {
