@@ -162,4 +162,39 @@ export async function apiRequestWithEtag<T>(
   return { data: await parseEnvelope<T>(response), etag: response.headers.get('ETag') };
 }
 
+/**
+ * Variante multipart/form-data de apiRequest() (Phase 7, POST /documents) : jamais de
+ * Content-Type explicite ici, le navigateur le fixe lui-même avec la boundary correcte pour
+ * un FormData -- fixer "application/json" comme performRequest() casserait l'upload.
+ */
+async function performUploadRequest(path: string, formData: FormData, headers: HeadersInit | undefined): Promise<Response> {
+  const requestHeaders = new Headers(headers);
+
+  const token = config.getAccessToken();
+  if (token) {
+    requestHeaders.set('Authorization', `Bearer ${token}`);
+  }
+
+  return fetch(path, {
+    method: 'POST',
+    headers: requestHeaders,
+    credentials: 'include',
+    body: formData,
+  });
+}
+
+export async function apiRequestUpload<T>(path: string, formData: FormData, headers?: HeadersInit): Promise<T> {
+  const response = await performUploadRequest(path, formData, headers);
+
+  if (response.status === 401) {
+    const token = await config.refreshAccessToken();
+    if (token) {
+      const retryResponse = await performUploadRequest(path, formData, headers);
+      return parseEnvelope<T>(retryResponse);
+    }
+  }
+
+  return parseEnvelope<T>(response);
+}
+
 export { ApiError } from './types';
