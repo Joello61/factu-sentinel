@@ -1,0 +1,35 @@
+# Traitement asynchrone (docs/06-technical-architecture.md, section 13 ; ADR-006 ; Phase 7,
+# docs/12-roadmap.md). Redis reste uniquement le backend de transport de la file de tâches,
+# jamais une source de vérité métier - PostgreSQL (transport "failed" ci-dessous) reste seul
+# responsable de la persistance durable, y compris pour les échecs définitifs (dead-letter,
+# backend/CLAUDE.md section 10).
+framework:
+    messenger:
+        failure_transport: failed
+
+        transports:
+            async:
+                dsn: '%env(MESSENGER_TRANSPORT_DSN)%'
+                retry_strategy:
+                    max_retries: 3
+                    delay: 1000
+                    multiplier: 2
+                    max_delay: 10000
+            # Store PostgreSQL (pas Redis) pour les échecs définitifs : cohérent avec
+            # "dead-letter handling" (section 13) - un job en échec définitif doit rester
+            # visible/consultable pour le développeur solo, jamais perdu dans une structure
+            # Redis éphémère.
+            failed: 'doctrine://default?queue_name=failed'
+
+        routing:
+            'App\Document\Message\ExtractDocumentContentMessage': async
+
+when@test:
+    framework:
+        messenger:
+            transports:
+                # Synchrone en test : un message dispatché est traité immédiatement dans le
+                # même processus, sans dépendance à un worker Messenger réel ni à Redis
+                # (cohérent avec backend/CLAUDE.md section 13 : mocker les intégrations
+                # externes par défaut dans les tests).
+                async: 'in-memory://'
