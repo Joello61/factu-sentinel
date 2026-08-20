@@ -17,3 +17,32 @@ framework:
             policy: sliding_window
             limit: 30
             interval: "1 hour"
+        # POST /invoices/{id}/compliance-analyses (docs/10-security-privacy.md, section 18 :
+        # "rate limiting sur ... le déclenchement d'analyses") - Phase 10, écart identifié
+        # (seuls password_reset_request et ai_assistant existaient jusqu'ici). Compteur par
+        # organization_id, jamais par IP ou par utilisateur individuel : l'architecture est
+        # déjà tenant-aware (App\Shared\Security\CurrentOrganizationResolver), un compteur
+        # IP-based pénaliserait injustement plusieurs organisations derrière une même IP
+        # partagée, et le coût d'une analyse (calcul + écriture) appartient au budget SaaS de
+        # l'organisation, pas à un utilisateur individuel - même principe que ai_assistant.
+        # Valeur volontairement généreuse : US-COMPLIANCE-006 encourage un cycle
+        # correction -> relance itératif sur une même facture pendant une session de travail
+        # (contrairement à ai_assistant, aucun appel à un fournisseur externe coûteux ici),
+        # 60/heure permet un rythme soutenu (~1/minute) tout en bornant un déclenchement
+        # automatisé en boucle. Un dépassement retourne 429 avec Retry-After
+        # (App\Compliance\Engine\Service\RunComplianceAnalysisService), affiché par le
+        # frontend via le contrat d'erreur générique (frontend/lib/forms/api-error.ts).
+        compliance_analysis_trigger:
+            policy: sliding_window
+            limit: 60
+            interval: "1 hour"
+        # POST /documents (docs/10-security-privacy.md, section 18 : "rate limiting sur
+        # ... l'upload") - même écart, même justification de clé (organization_id).
+        # Contrairement à une relance d'analyse, un upload de facture reste un geste ponctuel
+        # par facture (une saisie manuelle ou un import, pas une boucle) : 30/heure aligné sur
+        # l'ordre de grandeur déjà retenu pour ai_assistant, généreux pour un import par lot
+        # d'un TPE/micro-entrepreneur solo tout en bornant un abus de stockage.
+        document_upload:
+            policy: sliding_window
+            limit: 30
+            interval: "1 hour"

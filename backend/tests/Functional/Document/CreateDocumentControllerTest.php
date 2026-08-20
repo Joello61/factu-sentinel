@@ -119,9 +119,28 @@ final class CreateDocumentControllerTest extends ApiTestCase
         self::assertResponseStatusCodeSame(400);
     }
 
+    /**
+     * Phase 10 (docs/10-security-privacy.md, section 12 ; dette documentée
+     * docs/12-roadmap.md, Phase 8) : la vérification email, jusqu'ici appliquée uniquement
+     * à l'assistant IA, s'étend désormais à l'upload de documents.
+     */
+    public function testEmailNotVerifiedReturns403(): void
+    {
+        $client = $this->createAuthenticatedClient('doc-create-012@example.test');
+        $this->configureFiscalContext($client);
+        $customerId = $this->createCustomer($client);
+        $invoiceId = $this->createInvoice($client, $customerId, $this->readyInvoiceLines());
+
+        $this->upload($client, $invoiceId, 'pdf-simple.pdf', 'unverified-doc-key-012');
+
+        self::assertResponseStatusCodeSame(403);
+        self::assertSame('EMAIL_VERIFICATION_REQUIRED', $this->jsonBody($client)['error']['code']);
+    }
+
     public function testUploadOnDraftInvoiceIsAccepted(): void
     {
         $client = $this->createAuthenticatedClient('doc-create-002@example.test');
+        $this->markEmailVerified('doc-create-002@example.test');
         $this->configureFiscalContext($client);
         $customerId = $this->createCustomer($client);
         $invoiceId = $this->createDraftInvoice($client, $customerId);
@@ -142,6 +161,7 @@ final class CreateDocumentControllerTest extends ApiTestCase
     public function testUploadOnReadyForAnalysisInvoiceIsAccepted(): void
     {
         $client = $this->createAuthenticatedClient('doc-create-003@example.test');
+        $this->markEmailVerified('doc-create-003@example.test');
         $this->configureFiscalContext($client);
         $customerId = $this->createCustomer($client);
         $invoiceId = $this->createInvoice($client, $customerId, $this->readyInvoiceLines());
@@ -154,6 +174,7 @@ final class CreateDocumentControllerTest extends ApiTestCase
     public function testUploadOnAnalyzedInvoiceIsRejected(): void
     {
         $client = $this->createAuthenticatedClient('doc-create-004@example.test');
+        $this->markEmailVerified('doc-create-004@example.test');
         $this->configureFiscalContext($client);
         $customerId = $this->createCustomer($client);
         $invoiceId = $this->createInvoice($client, $customerId, $this->readyInvoiceLines());
@@ -188,6 +209,7 @@ final class CreateDocumentControllerTest extends ApiTestCase
     public function testOversizedFileReturns413(): void
     {
         $client = $this->createAuthenticatedClient('doc-create-006@example.test');
+        $this->markEmailVerified('doc-create-006@example.test');
         $this->configureFiscalContext($client);
         $customerId = $this->createCustomer($client);
         $invoiceId = $this->createInvoice($client, $customerId, $this->readyInvoiceLines());
@@ -207,6 +229,7 @@ final class CreateDocumentControllerTest extends ApiTestCase
     public function testSpoofedExtensionReturns422(): void
     {
         $client = $this->createAuthenticatedClient('doc-create-007@example.test');
+        $this->markEmailVerified('doc-create-007@example.test');
         $this->configureFiscalContext($client);
         $customerId = $this->createCustomer($client);
         $invoiceId = $this->createInvoice($client, $customerId, $this->readyInvoiceLines());
@@ -225,6 +248,7 @@ final class CreateDocumentControllerTest extends ApiTestCase
     public function testIdempotencyKeyReplayReturnsSameDocumentOnce(): void
     {
         $client = $this->createAuthenticatedClient('doc-create-008@example.test');
+        $this->markEmailVerified('doc-create-008@example.test');
         $this->configureFiscalContext($client);
         $customerId = $this->createCustomer($client);
         $invoiceId = $this->createInvoice($client, $customerId, $this->readyInvoiceLines());
@@ -250,6 +274,7 @@ final class CreateDocumentControllerTest extends ApiTestCase
     public function testDangerousFileNameIsSanitized(): void
     {
         $client = $this->createAuthenticatedClient('doc-create-010@example.test');
+        $this->markEmailVerified('doc-create-010@example.test');
         $this->configureFiscalContext($client);
         $customerId = $this->createCustomer($client);
         $invoiceId = $this->createInvoice($client, $customerId, $this->readyInvoiceLines());
@@ -279,5 +304,29 @@ final class CreateDocumentControllerTest extends ApiTestCase
         $client->request('POST', '/api/v1/documents', [], ['file' => $file], ['HTTP_IDEMPOTENCY_KEY' => 'doc-key-no-invoice-001']);
 
         self::assertResponseStatusCodeSame(422);
+    }
+
+    /**
+     * Phase 10 (docs/10-security-privacy.md, section 18) : rate limiting sur l'upload,
+     * jamais couvert avant cette phase. Même patron que App\Tests\Functional\AI\
+     * ExplainComplianceFindingControllerTest::testRateLimitReturns429AfterExhaustingLimiter.
+     */
+    public function testRateLimitReturns429AfterExhaustingLimiter(): void
+    {
+        $client = $this->createAuthenticatedClient('doc-create-011@example.test');
+        $this->markEmailVerified('doc-create-011@example.test');
+        $this->configureFiscalContext($client);
+        $customerId = $this->createCustomer($client);
+        $invoiceId = $this->createInvoice($client, $customerId, $this->readyInvoiceLines());
+
+        // config/packages/rate_limiter.yaml: document_upload = 30/heure.
+        for ($i = 0; $i < 30; ++$i) {
+            $this->upload($client, $invoiceId, 'pdf-simple.pdf', 'rate-limit-doc-key-'.$i);
+            self::assertResponseStatusCodeSame(202);
+        }
+
+        $this->upload($client, $invoiceId, 'pdf-simple.pdf', 'rate-limit-doc-key-over');
+
+        self::assertResponseStatusCodeSame(429);
     }
 }

@@ -16,12 +16,16 @@ use App\Shared\Audit\AuditLogger;
 use App\Shared\Audit\Enum\ActorType;
 use App\Shared\Audit\Enum\EventType;
 use App\Shared\Idempotency\Service\IdempotencyStore;
+use App\Shared\Security\EmailVerificationGuard;
 use App\Shared\Storage\StorageInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\SecurityBundle\Security;
+use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
+use Symfony\Component\HttpKernel\Exception\TooManyRequestsHttpException;
 use Symfony\Component\Messenger\MessageBusInterface;
+use Symfony\Component\RateLimiter\RateLimiterFactory;
 use Symfony\Component\Uid\Uuid;
 
 /**
@@ -44,12 +48,22 @@ final class UploadDocumentService
         private readonly AuditLogger $auditLogger,
         private readonly IdempotencyStore $idempotencyStore,
         private readonly Security $security,
+        private readonly EmailVerificationGuard $emailVerificationGuard,
+        #[Autowire(service: 'limiter.document_upload')]
+        private readonly RateLimiterFactory $rateLimiter,
     ) {
     }
 
     /** @return array{status: int, body: array<string, mixed>} */
     public function upload(Organization $organization, Invoice $invoice, UploadedFile $file, string $idempotencyKey): array
     {
+        $this->emailVerificationGuard->assertVerified();
+
+        $limit = $this->rateLimiter->create($organization->getId()->toRfc4122())->consume();
+        if (!$limit->isAccepted()) {
+            throw new TooManyRequestsHttpException($limit->getRetryAfter()->getTimestamp() - time());
+        }
+
         // Le message n'est dispatché qu'après le commit réel de la transaction (jamais
         // depuis l'intérieur de wrapInTransaction()) : dispatcher plus tôt risquerait qu'un
         // worker Messenger charge le Document avant que la ligne ne soit visible en base

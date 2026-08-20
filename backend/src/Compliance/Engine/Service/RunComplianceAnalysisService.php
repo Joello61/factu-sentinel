@@ -18,9 +18,13 @@ use App\Shared\Audit\AuditLogger;
 use App\Shared\Audit\Enum\ActorType;
 use App\Shared\Audit\Enum\EventType;
 use App\Shared\Idempotency\Service\IdempotencyStore;
+use App\Shared\Security\EmailVerificationGuard;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\SecurityBundle\Security;
+use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
+use Symfony\Component\HttpKernel\Exception\TooManyRequestsHttpException;
+use Symfony\Component\RateLimiter\RateLimiterFactory;
 use Symfony\Component\Uid\Uuid;
 
 /**
@@ -42,12 +46,22 @@ final class RunComplianceAnalysisService
         private readonly AuditLogger $auditLogger,
         private readonly IdempotencyStore $idempotencyStore,
         private readonly Security $security,
+        private readonly EmailVerificationGuard $emailVerificationGuard,
+        #[Autowire(service: 'limiter.compliance_analysis_trigger')]
+        private readonly RateLimiterFactory $rateLimiter,
     ) {
     }
 
     /** @return array{status: int, body: array<string, mixed>} */
     public function run(Organization $organization, Invoice $invoice, string $idempotencyKey): array
     {
+        $this->emailVerificationGuard->assertVerified();
+
+        $limit = $this->rateLimiter->create($organization->getId()->toRfc4122())->consume();
+        if (!$limit->isAccepted()) {
+            throw new TooManyRequestsHttpException($limit->getRetryAfter()->getTimestamp() - time());
+        }
+
         return $this->entityManager->wrapInTransaction(
             fn (): array => $this->idempotencyStore->execute(
                 $organization->getId(),

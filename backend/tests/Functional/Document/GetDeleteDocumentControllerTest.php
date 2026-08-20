@@ -61,6 +61,7 @@ final class GetDeleteDocumentControllerTest extends ApiTestCase
     public function testGetReturnsDocumentMetadata(): void
     {
         $client = $this->createAuthenticatedClient('doc-get-001@example.test');
+        $this->markEmailVerified('doc-get-001@example.test');
         $customerId = $this->createCustomer($client);
         $invoiceId = $this->createInvoice($client, $customerId);
         $documentId = $this->uploadDocument($client, $invoiceId);
@@ -86,6 +87,7 @@ final class GetDeleteDocumentControllerTest extends ApiTestCase
     public function testGetCrossTenantDocumentReturns404(): void
     {
         $client = $this->createAuthenticatedClient('doc-get-003-a@example.test');
+        $this->markEmailVerified('doc-get-003-a@example.test');
         $customerId = $this->createCustomer($client);
         $invoiceId = $this->createInvoice($client, $customerId);
         $documentId = $this->uploadDocument($client, $invoiceId);
@@ -101,6 +103,7 @@ final class GetDeleteDocumentControllerTest extends ApiTestCase
     public function testGetContentReturnsTheOriginalFileAsOctetStream(): void
     {
         $client = $this->createAuthenticatedClient('doc-get-004@example.test');
+        $this->markEmailVerified('doc-get-004@example.test');
         $customerId = $this->createCustomer($client);
         $invoiceId = $this->createInvoice($client, $customerId);
         $documentId = $this->uploadDocument($client, $invoiceId);
@@ -122,6 +125,7 @@ final class GetDeleteDocumentControllerTest extends ApiTestCase
     public function testGetContentCrossTenantReturns404(): void
     {
         $client = $this->createAuthenticatedClient('doc-get-005-a@example.test');
+        $this->markEmailVerified('doc-get-005-a@example.test');
         $customerId = $this->createCustomer($client);
         $invoiceId = $this->createInvoice($client, $customerId);
         $documentId = $this->uploadDocument($client, $invoiceId);
@@ -142,6 +146,7 @@ final class GetDeleteDocumentControllerTest extends ApiTestCase
     public function testDeleteRemovesFileButKeepsAuditableRecord(): void
     {
         $client = $this->createAuthenticatedClient('doc-delete-001@example.test');
+        $this->markEmailVerified('doc-delete-001@example.test');
         $customerId = $this->createCustomer($client);
         $invoiceId = $this->createInvoice($client, $customerId);
         $documentId = $this->uploadDocument($client, $invoiceId);
@@ -168,6 +173,7 @@ final class GetDeleteDocumentControllerTest extends ApiTestCase
     public function testDeleteCrossTenantDocumentReturns404AndDoesNotDeleteIt(): void
     {
         $client = $this->createAuthenticatedClient('doc-delete-003-a@example.test');
+        $this->markEmailVerified('doc-delete-003-a@example.test');
         $customerId = $this->createCustomer($client);
         $invoiceId = $this->createInvoice($client, $customerId);
         $documentId = $this->uploadDocument($client, $invoiceId);

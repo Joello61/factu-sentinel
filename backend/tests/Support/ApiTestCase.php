@@ -130,4 +130,28 @@ abstract class ApiTestCase extends WebTestCase
         $user->markEmailAsVerified();
         $em->flush();
     }
+
+    /**
+     * Remet un compte à l'état non vérifié après un markEmailVerified() précédent - utile
+     * pour un scénario qui a besoin de franchir une étape gardée par la vérification email
+     * (ex. déclencher une analyse de conformité, Phase 10) puis de tester ensuite un appel
+     * qui doit être rejeté précisément parce que le compte n'est pas vérifié. App\Identity\
+     * Entity\User n'expose volontairement aucun setter symétrique à markEmailAsVerified()
+     * (aucun besoin métier réel de "dé-vérifier" un email) - même raisonnement que
+     * App\Tests\Functional\Compliance\RuleVersionNonRetroactivityTest pour RuleVersion :
+     * une mutation SQL directe pour un état que l'entité n'a jamais besoin d'exposer en
+     * production, jamais un contournement via réflexion.
+     */
+    protected function markEmailUnverified(string $email): void
+    {
+        $container = static::getContainer();
+
+        /** @var EntityManagerInterface $em */
+        $em = $container->get(EntityManagerInterface::class);
+        $em->getConnection()->executeStatement(
+            'UPDATE users SET email_verified_at = NULL WHERE email = ?',
+            [$email],
+        );
+        $em->clear();
+    }
 }

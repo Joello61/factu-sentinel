@@ -55,6 +55,7 @@ final class GetComplianceAnalysisControllerTest extends ApiTestCase
     public function testGetAnalysisReturnsFindings(): void
     {
         $client = $this->createAuthenticatedClient('compliance-get-001@example.test');
+        $this->markEmailVerified('compliance-get-001@example.test');
         $invoiceId = $this->createAnalyzedInvoice($client, '001');
 
         $client->jsonRequest('GET', sprintf('/api/v1/invoices/%s/compliance-analyses', $invoiceId));
@@ -81,6 +82,7 @@ final class GetComplianceAnalysisControllerTest extends ApiTestCase
     public function testFindingsEndpointMatchesEmbeddedFindings(): void
     {
         $client = $this->createAuthenticatedClient('compliance-get-002@example.test');
+        $this->markEmailVerified('compliance-get-002@example.test');
         $invoiceId = $this->createAnalyzedInvoice($client, '002');
 
         $client->jsonRequest('GET', sprintf('/api/v1/invoices/%s/compliance-analyses', $invoiceId));
@@ -111,6 +113,7 @@ final class GetComplianceAnalysisControllerTest extends ApiTestCase
     {
         $client = static::createClient();
         $tokenA = $this->loginAs($client, 'compliance-get-tenant-a@example.test');
+        $this->markEmailVerified('compliance-get-tenant-a@example.test');
         $tokenB = $this->loginAs($client, 'compliance-get-tenant-b@example.test');
 
         $client->setServerParameter('HTTP_AUTHORIZATION', 'Bearer '.$tokenA);
@@ -128,6 +131,7 @@ final class GetComplianceAnalysisControllerTest extends ApiTestCase
     public function testListReturnsAnalysesNewestFirstWithoutErasingHistory(): void
     {
         $client = $this->createAuthenticatedClient('compliance-get-004@example.test');
+        $this->markEmailVerified('compliance-get-004@example.test');
         $this->configureFiscalContext($client);
         $client->jsonRequest('POST', '/api/v1/customers', [
             'customer_type' => 'PROFESSIONNEL_FRANCAIS',

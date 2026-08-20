@@ -210,6 +210,8 @@ final class TenantIsolationTest extends ApiTestCase
     public function testTcTenant007DoctrineLevelIsolationOnComplianceAnalysis(): void
     {
         [$client, $tokenA, $tokenB] = $this->tokensForTwoTenants('tenant-a-007@example.test', 'tenant-b-007@example.test');
+        $this->markEmailVerified('tenant-a-007@example.test');
+        $this->markEmailVerified('tenant-b-007@example.test');
 
         $client->setServerParameter('HTTP_AUTHORIZATION', 'Bearer '.$tokenA);
         $client->jsonRequest('PATCH', '/api/v1/organizations/current', [
