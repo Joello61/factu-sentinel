@@ -286,6 +286,51 @@ export interface AssistantAnswer {
   source: string;
 }
 
+// Phase 9 (docs/08-api-specification.md, section 33 ; US-DASHBOARD-001). Enum dédié, jamais
+// une réutilisation de ComplianceResult -- sémantique différente : ComplianceResult répond
+// du résultat d'un finding/d'une règle précise, DashboardGlobalStatus d'un agrégat de
+// portefeuille sur plusieurs factures (décision produit Phase 9). AUCUNE_ANALYSE n'est
+// jamais confondu avec CONFORME (distingue "rien analysé" de "tout est conforme").
+
+export type DashboardGlobalStatus = "AUCUNE_ANALYSE" | "CONFORME" | "AVERTISSEMENT" | "ATTENTION_REQUISE";
+
+export interface DashboardRecentAnalysis {
+  id: string;
+  invoice_id: string;
+  global_result: ComplianceResult | null;
+  triggered_at: string;
+}
+
+export interface DashboardRecommendedAction {
+  message: string;
+  related_analysis_id: string;
+}
+
+export interface Dashboard {
+  global_status: DashboardGlobalStatus;
+  open_issues_count: number;
+  warnings_count: number;
+  recent_analyses: DashboardRecentAnalysis[];
+  recommended_actions: DashboardRecommendedAction[];
+}
+
+/**
+ * GET /compliance-analyses (docs/08-api-specification.md, section 29 bis - historique
+ * organisation-wide, US-HISTORY-001) : même forme que ComplianceAnalysisSummary, avec en
+ * plus invoice_id/invoice_number -- indispensable ici, cette liste n'étant jamais déjà
+ * scopée à une facture connue de l'appelant (contrairement à
+ * GET /invoices/{id}/compliance-analyses).
+ */
+export interface ComplianceAnalysisHistoryItem {
+  id: string;
+  invoice_id: string;
+  invoice_number: string | null;
+  status: ComplianceAnalysisStatus;
+  global_result: ComplianceResult | null;
+  triggered_at: string;
+  completed_at: string | null;
+}
+
 // Phase 7 (docs/08-api-specification.md, section 31 ; docs/07-data-model.md, sections
 // 13-14). Nommé "DocumentFile", jamais "Document" -- collision avec le type DOM global
 // "Document" sinon (../../CLAUDE.md frontend, section 11).
