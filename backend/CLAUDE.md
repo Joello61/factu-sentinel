@@ -81,6 +81,8 @@ Le stockage local du MVP doit être encapsulé derrière `StorageInterface` (`Sh
 
 Le Validator Container (Mustang, Java) reste isolé du runtime PHP - appel par HTTP ou invocation de processus uniquement, jamais d'intégration directe d'une bibliothèque Java (ADR-008). Une indisponibilité de ce conteneur est une erreur technique, jamais un résultat de conformité.
 
+**Invariant non négociable (Phase 7)** : `DocumentProcessingRecord.extracted_data_summary` n'est **jamais** écrit automatiquement dans `Invoice`/`InvoiceLine`/`Customer`, et le Compliance Engine ne le lit **jamais** (`App\Compliance\Engine\RuleEvaluationContext` n'expose que des champs déjà structurés de `Document`, comme `fileFormat`). Un document importé ne peut être rattaché qu'à une `Invoice` déjà existante dont le statut est `DRAFT` ou `READY_FOR_ANALYSIS` (jamais `ANALYZED`/`ANALYSIS_STALE` - hors périmètre) - l'extraction produit uniquement des suggestions consommées par le frontend (Invoice Editor), que l'utilisateur doit explicitement confirmer/corriger avant qu'une donnée devienne réelle sur `Invoice`/`Customer`. Toute modification future qui romprait cette frontière (écriture directe depuis `App\Document\MessageHandler\ExtractDocumentContentHandler`, lecture d'`extracted_data_summary` par un `RuleChecker`) doit être explicitement discutée, jamais glissée incidemment dans une autre tâche.
+
 ## 6. API
 
 `08-api-specification.md` est la source de vérité. Ne jamais inventer un endpoint ni modifier un contrat existant sans vérifier le document, les consommateurs frontend, les tests, la compatibilité.
@@ -115,7 +117,9 @@ Chaque accès à une ressource tenant-scoped vérifie systématiquement, sans ex
 
 ## 10. Asynchronous processing
 
-Redis + Symfony Messenger pour les traitements asynchrones définis par l'architecture (extraction de document non triviale, analyse dépendant d'une extraction, reformulation IA, notifications) - traitement synchrone par défaut sinon (ADR-006), pas d'asynchrone systématique non justifié. Messenger n'est pas encore installé dans ce squelette : vérifier la documentation officielle Symfony Messenger actuelle avant de le configurer (transport Redis, retry, failure transport).
+Redis + Symfony Messenger pour les traitements asynchrones définis par l'architecture (extraction de document non triviale, analyse dépendant d'une extraction, reformulation IA, notifications) - traitement synchrone par défaut sinon (ADR-006), pas d'asynchrone systématique non justifié.
+
+Installé et configuré depuis la Phase 7 (`symfony/messenger`, `symfony/redis-messenger`, `config/packages/messenger.yaml`) : transport `async` sur Redis, transport `failed` sur un store PostgreSQL dédié (`doctrine://`, table `messenger_messages` - jamais Redis pour le dead-letter, cohérent avec le principe ci-dessus). Le worker (`docker-compose.yml`, service `worker`) est un second processus Symfony (`messenger:consume async`), jamais un second point d'entrée HTTP. **Isolation tenant dans un handler** : aucun `kernel.request`/JWT n'existe dans un worker - `App\Shared\Security\TenantFilterActivationListener` ne s'exécute jamais ici. Tout handler touchant une entité tenant-scoped doit activer lui-même `TenantFilter` avec l'`organization_id` porté explicitement par le message (voir `App\Document\MessageHandler\ExtractDocumentContentHandler` pour le patron à reproduire), jamais supposer que le filtre est déjà actif.
 
 Chaque job/message doit rester idempotent (rejouable sans dupliquer son effet métier, notamment `RunComplianceAnalysis`), porter explicitement son `organization_id` d'origine (un job qui « oublierait » son tenant est une brèche potentielle, `10-security-privacy.md` section 16), gérer un nombre de retries limité avec un échec technique explicite plutôt qu'un abandon silencieux, et rester visible en dead-letter s'il échoue définitivement. Redis n'est jamais une source de vérité métier - PostgreSQL reste seul responsable de la persistance durable.
 

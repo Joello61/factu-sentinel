@@ -25,6 +25,14 @@ services:
       # sans revoir ce commentaire.
       DATABASE_URL: 'postgresql://${POSTGRES_USER:-factusentinel}:${POSTGRES_PASSWORD:-factusentinel}@postgres:5432/${POSTGRES_DB:-factusentinel}?serverVersion=18&charset=utf8'
       REDIS_URL: 'redis://redis:6379'
+      # Traitement asynchrone (Phase 7, docs/06-technical-architecture.md section 13) :
+      # Redis reste un backend de transport, jamais une source de vérité métier.
+      MESSENGER_TRANSPORT_DSN: 'redis://redis:6379/messages'
+      # Validator Container Mustang (ADR-008), réseau Docker interne uniquement.
+      MUSTANG_BASE_URL: 'http://mustang:8080'
+      # Chemin absolu du conteneur - backend/.env porte un chemin relatif utilisable pour un
+      # usage direct de bin/console sur l'hôte, jamais le bon répertoire de travail ici.
+      STORAGE_LOCAL_PATH: '/app/var/storage/documents'
     volumes:
       - ./backend:/app
       - backend_vendor:/app/vendor
@@ -33,8 +41,57 @@ services:
         condition: service_healthy
       redis:
         condition: service_started
+      mustang:
+        condition: service_started
     expose:
       - '9000'
+
+  # Worker Messenger (docs/06-technical-architecture.md, section 30 : "Symfony (API + worker)").
+  # Même image que "backend", commande différente - jamais un second point d'entrée HTTP.
+  worker:
+    build:
+      context: ./backend
+      target: dev
+    entrypoint: ['docker-entrypoint-worker-dev.sh']
+    command: php bin/console messenger:consume async --time-limit=3600 --memory-limit=256M -vv
+    # --time-limit fait volontairement sortir ce process avec le code 0 après 1h (pratique
+    # Symfony Messenger courante, évite l'accumulation de fuites mémoire d'un process PHP
+    # long-lived) - sans cette politique de redémarrage, cette sortie volontaire deviendrait
+    # une panne silencieuse et définitive du traitement asynchrone (constaté après
+    # implémentation : le worker s'est arrêté sans qu'aucun message ne le relance). Aucun
+    # autre service de ce fichier n'a de mécanisme d'auto-extinction comparable, cette
+    # politique reste donc spécifique à "worker".
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: 'postgresql://${POSTGRES_USER:-factusentinel}:${POSTGRES_PASSWORD:-factusentinel}@postgres:5432/${POSTGRES_DB:-factusentinel}?serverVersion=18&charset=utf8'
+      REDIS_URL: 'redis://redis:6379'
+      MESSENGER_TRANSPORT_DSN: 'redis://redis:6379/messages'
+      MUSTANG_BASE_URL: 'http://mustang:8080'
+      STORAGE_LOCAL_PATH: '/app/var/storage/documents'
+      # Cache/logs isolés de "backend" (App\Kernel::getCacheDir()/getLogDir()) : ce worker
+      # est un processus long-lived (messenger:consume) qui ne doit jamais dépendre du
+      # cache Symfony régénéré par un cache:clear/redémarrage de "backend" sur le même
+      # bind-mount source - voir le commentaire de ces méthodes pour l'incident constaté.
+      APP_CACHE_DIR: '/app/var/worker-cache'
+      APP_LOG_DIR: '/app/var/worker-log'
+    volumes:
+      - ./backend:/app
+      - backend_vendor:/app/vendor
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      mustang:
+        condition: service_started
+
+  # Validator Container (ADR-008) : isolé du runtime PHP, jamais intégré directement -
+  # appelé par "backend"/"worker" uniquement via le réseau Docker interne (pas de "ports:").
+  mustang:
+    build:
+      context: ./docker/mustang
+    expose:
+      - '8080'
 
   frontend:
     build:

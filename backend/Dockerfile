@@ -19,6 +19,11 @@ FROM php:8.4-fpm-alpine AS base
 # ext-ctype et ext-iconv sont fournies nativement par l'image officielle (composer.json
 # les requiert explicitement). intl/pdo_pgsql/pgsql/zip sont nécessaires pour Doctrine,
 # la locale française et le traitement des documents (07-data-model.md, 06-technical-architecture.md).
+# ext-redis (PECL, pas un module core PHP) est nécessaire à symfony/redis-messenger
+# (Phase 7, traitement asynchrone, docs/06-technical-architecture.md section 13) - version
+# figée explicitement (6.1.0) plutôt que la dernière stable (6.3.0), dont l'installation
+# PECL est cassée au moment de l'écriture (métadonnées REST XML manquantes sur pecl.php.net,
+# vérifié lors de l'implémentation de la Phase 7 - à réévaluer si ce correctif est publié).
 RUN apk add --no-cache \
         icu-dev \
         icu-data-full \
@@ -31,9 +36,16 @@ RUN apk add --no-cache \
         pgsql \
         zip \
         opcache \
+    && pecl install redis-6.1.0 \
+    && docker-php-ext-enable redis \
     && apk del .build-deps
 
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
+
+# Limites d'upload (Phase 7, docs/12-roadmap.md) : voir docker/php/uploads.ini pour le
+# détail - les valeurs par défaut de cette image (2M/8M) sont très en dessous de la limite
+# produit de 20 Mo par fichier.
+COPY docker/php/uploads.ini /usr/local/etc/php/conf.d/uploads.ini
 
 WORKDIR /app
 
@@ -60,7 +72,8 @@ RUN composer install --no-scripts --no-interaction --prefer-dist
 COPY . .
 
 COPY docker/entrypoint-dev.sh /usr/local/bin/docker-entrypoint-dev.sh
-RUN chmod +x /usr/local/bin/docker-entrypoint-dev.sh
+COPY docker/entrypoint-worker-dev.sh /usr/local/bin/docker-entrypoint-worker-dev.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint-dev.sh /usr/local/bin/docker-entrypoint-worker-dev.sh
 
 ENTRYPOINT ["docker-entrypoint-dev.sh"]
 EXPOSE 9000

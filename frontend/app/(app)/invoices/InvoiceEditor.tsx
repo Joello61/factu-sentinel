@@ -192,7 +192,14 @@ export function InvoiceEditor({ invoiceId }: { invoiceId?: string } = {}) {
             body: payload,
             headers: etag ? { "If-Match": etag } : undefined,
           })
-        : await apiRequest<Invoice>("/api/v1/invoices", { method: "POST", body: payload });
+        : await apiRequest<Invoice>("/api/v1/invoices", {
+            method: "POST",
+            body: payload,
+            // Obligatoire depuis la Phase 7 (fermeture de l'écart D2, docs/08-api-specification.md
+            // section 27) : une clé fraîche par soumission, même principe que le
+            // déclenchement d'analyse dans InvoiceDetail.tsx.
+            headers: { "Idempotency-Key": crypto.randomUUID() },
+          });
       router.push(`/invoices/${invoice.id}`);
     } catch (error) {
       setErrors(

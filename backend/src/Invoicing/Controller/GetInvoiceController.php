@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Invoicing\Controller;
 
+use App\Document\Repository\DocumentRepository;
 use App\Invoicing\Http\InvoiceView;
 use App\Invoicing\Repository\InvoiceRepository;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -17,11 +18,16 @@ use Symfony\Component\Uid\Uuid;
  * invalide, absent ou appartenant à un autre tenant retourne uniformément 404 (jamais 403,
  * backend/CLAUDE.md section 6). Expose l'ETag de verrouillage optimiste (plan Phase 4,
  * décision D3) pour permettre un futur PATCH /invoices/{id}.
+ *
+ * Compose avec App\Document\Repository\DocumentRepository (Phase 7) : même précédent que
+ * App\Compliance\Engine\Controller\RunComplianceAnalysisController, qui injecte déjà des
+ * repositories d'autres modules pour orchestrer une réponse.
  */
 final class GetInvoiceController
 {
     public function __construct(
         private readonly InvoiceRepository $invoiceRepository,
+        private readonly DocumentRepository $documentRepository,
     ) {
     }
 
@@ -34,7 +40,9 @@ final class GetInvoiceController
             throw new NotFoundHttpException('Cette facture n\'existe pas ou n\'est plus disponible.');
         }
 
-        $response = new JsonResponse(['data' => InvoiceView::fromEntity($invoice)]);
+        $documents = $this->documentRepository->findActiveForInvoice($invoice->getId());
+
+        $response = new JsonResponse(['data' => InvoiceView::fromEntity($invoice, $documents)]);
         $response->headers->set('ETag', sprintf('W/"%d"', $invoice->getVersion()));
 
         return $response;

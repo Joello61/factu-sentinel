@@ -43,7 +43,7 @@ final class GetComplianceAnalysisControllerTest extends ApiTestCase
             'issue_date' => '2026-08-15',
             'currency' => 'EUR',
             'lines' => [['description' => 'Prestation', 'quantity' => '1', 'unit_price_ht' => '100.00', 'vat_rate' => '0.20']],
-        ]);
+        ], ['HTTP_IDEMPOTENCY_KEY' => 'invoice-create-'.bin2hex(random_bytes(8))]);
         $invoiceId = $this->jsonBody($client)['data']['id'];
 
         $client->jsonRequest('POST', sprintf('/api/v1/invoices/%s/compliance-analyses', $invoiceId), [], ['HTTP_IDEMPOTENCY_KEY' => 'get-key-'.$suffix]);
@@ -142,7 +142,7 @@ final class GetComplianceAnalysisControllerTest extends ApiTestCase
             'issue_date' => '2026-08-15',
             'currency' => 'EUR',
             'lines' => [['description' => 'Prestation', 'quantity' => '1', 'unit_price_ht' => '100.00', 'vat_rate' => '0.20']],
-        ]);
+        ], ['HTTP_IDEMPOTENCY_KEY' => 'invoice-create-'.bin2hex(random_bytes(8))]);
         $invoiceId = $this->jsonBody($client)['data']['id'];
 
         $client->jsonRequest('POST', sprintf('/api/v1/invoices/%s/compliance-analyses', $invoiceId), [], ['HTTP_IDEMPOTENCY_KEY' => 'list-key-1']);

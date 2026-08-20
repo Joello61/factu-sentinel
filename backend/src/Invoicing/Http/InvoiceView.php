@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Invoicing\Http;
 
+use App\Document\Entity\Document;
+use App\Document\Http\DocumentView;
 use App\Invoicing\Entity\Invoice;
 use App\Invoicing\Entity\InvoiceLine;
 
@@ -13,8 +15,21 @@ use App\Invoicing\Entity\InvoiceLine;
  */
 final class InvoiceView
 {
-    /** @return array<string, mixed> */
-    public static function fromEntity(Invoice $invoice): array
+    /**
+     * $documents (Phase 7, docs/12-roadmap.md ; docs/11-frontend-design-system.md section
+     * 32 : "Détail : ... ses documents associés") : jamais chargé par cette classe elle-même
+     * (une App\Invoicing\Http\* ne dépend jamais de Doctrine) - fourni par l'appelant, qui
+     * décide s'il a besoin de cette composition (même précédent que
+     * App\Compliance\Engine\Controller\RunComplianceAnalysisController, qui injecte déjà des
+     * repositories d'autres modules pour orchestrer une réponse). Vide par défaut : seul
+     * App\Invoicing\Controller\GetInvoiceController (page de détail) le renseigne
+     * réellement, les autres endpoints Invoice n'ont pas besoin de cette composition.
+     *
+     * @param list<Document> $documents
+     *
+     * @return array<string, mixed>
+     */
+    public static function fromEntity(Invoice $invoice, array $documents = []): array
     {
         return [
             'id' => $invoice->getId()->toRfc4122(),
@@ -29,6 +44,7 @@ final class InvoiceView
             'status' => $invoice->getStatus()->value,
             'source' => $invoice->getSource()->value,
             'lines' => array_map(self::lineToArray(...), $invoice->getLines()->toArray()),
+            'documents' => array_map(DocumentView::fromEntity(...), $documents),
             'created_at' => $invoice->getCreatedAt()->format(\DateTimeInterface::ATOM),
             'updated_at' => $invoice->getUpdatedAt()->format(\DateTimeInterface::ATOM),
         ];

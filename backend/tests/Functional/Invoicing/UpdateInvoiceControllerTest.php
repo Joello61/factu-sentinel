@@ -35,7 +35,7 @@ final class UpdateInvoiceControllerTest extends ApiTestCase
             'issue_date' => '2026-08-15',
             'currency' => 'EUR',
             'lines' => [['description' => 'Ligne 1', 'quantity' => '1', 'unit_price_ht' => '10.00', 'vat_rate' => '0.20']],
-        ]);
+        ], ['HTTP_IDEMPOTENCY_KEY' => 'invoice-create-'.bin2hex(random_bytes(8))]);
         self::assertResponseStatusCodeSame(201);
 
         $id = $this->jsonBody($client)['data']['id'];

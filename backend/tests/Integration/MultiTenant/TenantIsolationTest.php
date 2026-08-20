@@ -170,7 +170,7 @@ final class TenantIsolationTest extends ApiTestCase
             'issue_date' => '2026-08-15',
             'currency' => 'EUR',
             'lines' => [['description' => 'Ligne', 'quantity' => '1', 'unit_price_ht' => '10.00', 'vat_rate' => '0.20']],
-        ]);
+        ], ['HTTP_IDEMPOTENCY_KEY' => 'invoice-create-'.bin2hex(random_bytes(8))]);
 
         $client->setServerParameter('HTTP_AUTHORIZATION', 'Bearer '.$tokenB);
         $client->jsonRequest('POST', '/api/v1/customers', ['customer_type' => 'PARTICULIER', 'name' => 'Client B', 'country' => 'FR']);
@@ -180,7 +180,7 @@ final class TenantIsolationTest extends ApiTestCase
             'issue_date' => '2026-08-15',
             'currency' => 'EUR',
             'lines' => [['description' => 'Ligne', 'quantity' => '1', 'unit_price_ht' => '10.00', 'vat_rate' => '0.20']],
-        ]);
+        ], ['HTTP_IDEMPOTENCY_KEY' => 'invoice-create-'.bin2hex(random_bytes(8))]);
 
         $container = static::getContainer();
         /** @var EntityManagerInterface $em */
@@ -224,7 +224,7 @@ final class TenantIsolationTest extends ApiTestCase
             'issue_date' => '2026-08-15',
             'currency' => 'EUR',
             'lines' => [['description' => 'Ligne', 'quantity' => '1', 'unit_price_ht' => '10.00', 'vat_rate' => '0.20']],
-        ]);
+        ], ['HTTP_IDEMPOTENCY_KEY' => 'invoice-create-'.bin2hex(random_bytes(8))]);
         $invoiceAId = $this->jsonBody($client)['data']['id'];
         $client->jsonRequest('POST', sprintf('/api/v1/invoices/%s/compliance-analyses', $invoiceAId), [], ['HTTP_IDEMPOTENCY_KEY' => 'tenant-007-a']);
         self::assertResponseStatusCodeSame(200);
@@ -241,7 +241,7 @@ final class TenantIsolationTest extends ApiTestCase
             'issue_date' => '2026-08-15',
             'currency' => 'EUR',
             'lines' => [['description' => 'Ligne', 'quantity' => '1', 'unit_price_ht' => '10.00', 'vat_rate' => '0.20']],
-        ]);
+        ], ['HTTP_IDEMPOTENCY_KEY' => 'invoice-create-'.bin2hex(random_bytes(8))]);
         $invoiceBId = $this->jsonBody($client)['data']['id'];
         $client->jsonRequest('POST', sprintf('/api/v1/invoices/%s/compliance-analyses', $invoiceBId), [], ['HTTP_IDEMPOTENCY_KEY' => 'tenant-007-b']);
         self::assertResponseStatusCodeSame(200);

@@ -48,7 +48,7 @@ final class RunComplianceAnalysisControllerTest extends ApiTestCase
             'currency' => 'EUR',
             'vat_exemption_reason' => $vatExemptionReason,
             'lines' => [['description' => 'Prestation', 'quantity' => '1', 'unit_price_ht' => '100.00', 'vat_rate' => '0.20']],
-        ]);
+        ], ['HTTP_IDEMPOTENCY_KEY' => 'invoice-create-'.bin2hex(random_bytes(8))]);
         self::assertResponseStatusCodeSame(201);
 
         return $this->jsonBody($client)['data']['id'];

@@ -218,7 +218,7 @@ Claude ne doit jamais ajouter de co-auteur Claude dans les commits. Ne jamais aj
 
 Respecter les conventions de commit du projet une fois établies. Privilégier des commits courts, ciblés, explicites, cohérents. Ne pas mélanger plusieurs fonctionnalités indépendantes dans un même commit.
 
-Point d'attention spécifique à ce dépôt : `backend/` contient son propre répertoire `.git` (dépôt imbriqué). Avant tout commit touchant `backend/`, vérifier explicitement dans quel dépôt (racine ou `backend/`) l'opération doit avoir lieu, et le signaler à l'utilisateur en cas de doute plutôt que de deviner.
+Dépôt unique : `backend/` ne contient pas de répertoire `.git` propre (dépôt imbriqué) - vérifié le 20/08/2026, `backend/.git` n'existe pas et les fichiers sous `backend/` apparaissent directement dans `git status`/`git ls-files` depuis la racine. Cette section indiquait auparavant le contraire (instruction obsolète, corrigée après vérification factuelle) : ne pas supposer un second dépôt à ce chemin, mais confirmer par `ls -la backend/.git` en cas de doute plutôt que de se fier à une affirmation ancienne de ce fichier, y compris celle-ci.
 
 ## 20. Merge Requests / Pull Requests
 

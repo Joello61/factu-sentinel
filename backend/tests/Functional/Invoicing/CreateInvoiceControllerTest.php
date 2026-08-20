@@ -36,7 +36,7 @@ final class CreateInvoiceControllerTest extends ApiTestCase
                 ['description' => 'Prestation A', 'quantity' => '1', 'unit_price_ht' => '100.00', 'vat_rate' => '0.20'],
                 ['description' => 'Prestation B', 'quantity' => '2', 'unit_price_ht' => '50.00', 'vat_rate' => '0.055'],
             ],
-        ]);
+        ], ['HTTP_IDEMPOTENCY_KEY' => 'invoice-create-001-key']);
 
         self::assertResponseStatusCodeSame(201);
         $data = $this->jsonBody($client)['data'];
@@ -73,7 +73,7 @@ final class CreateInvoiceControllerTest extends ApiTestCase
                 'line_amount_vat' => '0.00',
                 'line_amount_ttc' => '999999.99',
             ]],
-        ]);
+        ], ['HTTP_IDEMPOTENCY_KEY' => 'invoice-create-002-key']);
 
         self::assertResponseStatusCodeSame(201);
         $line = $this->jsonBody($client)['data']['lines'][0];
@@ -91,7 +91,7 @@ final class CreateInvoiceControllerTest extends ApiTestCase
             'issue_date' => '2026-08-15',
             'currency' => 'EUR',
             'lines' => [['description' => 'Ligne', 'quantity' => '1', 'unit_price_ht' => '10.00', 'vat_rate' => '0.20']],
-        ]);
+        ], ['HTTP_IDEMPOTENCY_KEY' => 'invoice-create-003-key']);
 
         self::assertResponseStatusCodeSame(404);
     }
@@ -112,7 +112,7 @@ final class CreateInvoiceControllerTest extends ApiTestCase
             'issue_date' => '2026-08-15',
             'currency' => 'EUR',
             'lines' => [['description' => 'Ligne', 'quantity' => '1', 'unit_price_ht' => '10.00', 'vat_rate' => '0.20']],
-        ]);
+        ], ['HTTP_IDEMPOTENCY_KEY' => 'invoice-create-tenant-key']);
 
         self::assertResponseStatusCodeSame(404, 'Invoicing.customer_id ne doit jamais traverser deux organization_id (docs/07-data-model.md, section 28).');
     }
@@ -128,7 +128,7 @@ final class CreateInvoiceControllerTest extends ApiTestCase
             'issue_date' => '2026-08-15',
             'currency' => 'EUR',
             'lines' => [],
-        ]);
+        ], ['HTTP_IDEMPOTENCY_KEY' => 'invoice-create-004-key']);
 
         self::assertResponseStatusCodeSame(422);
     }
@@ -144,7 +144,7 @@ final class CreateInvoiceControllerTest extends ApiTestCase
             'issue_date' => '2026-08-15',
             'currency' => 'EUR',
             'lines' => [['description' => 'Ligne', 'quantity' => '0', 'unit_price_ht' => '10.00', 'vat_rate' => '0.20']],
-        ]);
+        ], ['HTTP_IDEMPOTENCY_KEY' => 'invoice-create-005-key']);
 
         self::assertResponseStatusCodeSame(422);
     }
@@ -163,10 +163,13 @@ final class CreateInvoiceControllerTest extends ApiTestCase
             'lines' => [['description' => 'Ligne', 'quantity' => '1', 'unit_price_ht' => '10.00', 'vat_rate' => '0.20']],
         ];
 
-        $client->jsonRequest('POST', '/api/v1/invoices', $payload);
+        // Clés d'idempotence distinctes : sinon la seconde requête rejouerait la première
+        // (App\Shared\Idempotency\Service\IdempotencyStore) au lieu de retenter réellement la
+        // création et de heurter la contrainte unique testée ici.
+        $client->jsonRequest('POST', '/api/v1/invoices', $payload, ['HTTP_IDEMPOTENCY_KEY' => 'invoice-create-006-key-a']);
         self::assertResponseStatusCodeSame(201);
 
-        $client->jsonRequest('POST', '/api/v1/invoices', $payload);
+        $client->jsonRequest('POST', '/api/v1/invoices', $payload, ['HTTP_IDEMPOTENCY_KEY' => 'invoice-create-006-key-b']);
         self::assertResponseStatusCodeSame(409, 'Contrainte unique (organization_id, invoice_number) : voir docs/07-data-model.md section 28.');
     }
 }

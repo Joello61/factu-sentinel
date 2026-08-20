@@ -177,6 +177,9 @@ export interface Invoice {
   status: InvoiceStatus;
   source: InvoiceSource;
   lines: InvoiceLine[];
+  // Phase 7 : présent uniquement sur GET /invoices/{id} (docs/08-api-specification.md,
+  // section 27) - toujours un tableau, jamais absent (peut être vide).
+  documents: DocumentFile[];
   created_at: string;
   updated_at: string;
 }
@@ -263,4 +266,50 @@ export interface ComplianceAnalysisSummary {
   global_result: ComplianceResult | null;
   triggered_at: string;
   completed_at: string | null;
+}
+
+// Phase 7 (docs/08-api-specification.md, section 31 ; docs/07-data-model.md, sections
+// 13-14). Nommé "DocumentFile", jamais "Document" -- collision avec le type DOM global
+// "Document" sinon (../../CLAUDE.md frontend, section 11).
+
+/**
+ * PDF_SIMPLE/FACTURX ont un traitement complet ; UBL/CII sont détectés mais non traités
+ * cette phase (FAILED/FORMAT_NOT_SUPPORTED, jamais un résultat de conformité) ; INCONNU est
+ * une valeur purement défensive côté backend, jamais produite en pratique
+ * (App\Document\Enum\DocumentFileFormat).
+ */
+export type DocumentFileFormat = "PDF_SIMPLE" | "FACTURX" | "UBL" | "CII" | "INCONNU";
+
+export type DocumentProcessingStatus = "UPLOADED" | "PROCESSING" | "PARSED" | "VALIDATED" | "FAILED";
+
+/**
+ * Contrat figé avec le backend (App\Document\Enum\DocumentProcessingFailureReason) :
+ * FORMAT_NOT_SUPPORTED n'est jamais un jugement sur la validité du fichier, contrairement
+ * aux quatre autres valeurs - ne jamais leur donner le même message ni la même catégorie
+ * visuelle (../../CLAUDE.md frontend, section 7).
+ */
+export type DocumentProcessingFailureReason =
+  | "FORMAT_NOT_SUPPORTED"
+  | "MUSTANG_UNAVAILABLE"
+  | "MUSTANG_VALIDATION_FAILED"
+  | "INVALID_DOCUMENT"
+  | "SECURITY_REJECTED";
+
+/**
+ * "suggestions" (jamais "extracted_data"/"data") : rappelle explicitement qu'il ne s'agit
+ * jamais d'une vérité métier, seulement des valeurs à proposer à l'utilisateur, qui doit les
+ * confirmer/corriger avant toute écriture réelle sur Invoice/Customer (../../CLAUDE.md
+ * frontend, section 3 ; invariant central de la Phase 7 côté backend).
+ */
+export interface DocumentFile {
+  id: string;
+  invoice_id: string;
+  file_name: string;
+  file_format: DocumentFileFormat | null;
+  file_size: number;
+  processing_status: DocumentProcessingStatus;
+  failure_reason: DocumentProcessingFailureReason | null;
+  suggestions: Record<string, string> | null;
+  uploaded_at: string;
+  status_url: string;
 }
