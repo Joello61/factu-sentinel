@@ -270,6 +270,8 @@ Cohérent avec `04-product-requirements.md` (section 16, 28) et `03-market-analy
 - document vide ou sans donnée exploitable → distinct d'une erreur technique : le document est traité, mais la plupart des vérifications aboutissent à `A_VERIFIER` faute de données ;
 - échec ou indisponibilité du Validator Container (Mustang) → erreur technique explicite, jamais interprétée comme un résultat de conformité, avec repli possible vers la saisie manuelle.
 
+**Périmètre de formats effectivement livré en Phase 7 (décision produit, docs/12-roadmap.md)** : PDF simple et Factur-X bénéficient d'un traitement complet (identification, extraction limitée, validation Mustang pour Factur-X). UBL et CII sont **détectés** (magic bytes/structure XML reconnue) mais leur traitement n'est **pas couvert** par cette phase - un document XML UBL/CII est accepté techniquement, jamais envoyé au Validator Container, et se termine en erreur technique explicite (`FORMAT_NOT_SUPPORTED`, distincte d'un fichier invalide) plutôt qu'un résultat de conformité. Gap connu et documenté, pas une limitation silencieuse : réévaluer l'effort UBL/CII dans une phase ultérieure si le besoin se confirme, plutôt que d'avoir engagé un chemin Mustang non vérifié pour ces deux formats dès cette phase.
+
 ## 12. Traitements synchrones et asynchrones
 
 | Opération                                                                 | Synchrone / Asynchrone                                                                                                                                                 | Justification                                                                                            |
@@ -571,6 +573,8 @@ flowchart TB
 | Services externes                 | IA, email, vérification (section 16)                                                                                                              | IA : **Mistral** (ADR-007) ; vérification d'entreprise : **API Sirene/INSEE** avec cache (non bloquante) ; email : non tranché | Partiellement - email nécessaire dès le MVP (authentification), vérification d'entreprise et IA peuvent être différées ou simplifiées |
 
 PostgreSQL et Redis sont déployés en **self-hosted/conteneurisé** (Docker) pour le MVP, sans dépendance à un service managé tiers - cohérent avec le principe de minimisation des fournisseurs externes retenu pour cette phase (`10-security-privacy.md`, section 44). Aucun composant d'infrastructure supplémentaire au-delà de ceux listés ci-dessus (moteur de recherche, service mesh) n'est retenu au MVP, conformément au principe de simplicité opérationnelle (section 3).
+
+**Implémenté en Phase 7** (docs/12-roadmap.md) : `docker-compose.yml` porte désormais les services `worker` (second processus Symfony, `messenger:consume async`, même image que `backend`) et `mustang` (Validator Container - image construite depuis `docker/mustang/`, JRE + Mustang-CLI officiel vendoré avec somme de contrôle figée, wrapper HTTP minimal écrit pour ce projet, jamais de port publié). Le worker et `mustang` partagent le même bind-mount source que `backend` en développement : leur script d'entrée dédié (`docker/entrypoint-worker-dev.sh`) attend que `backend` ait terminé sa propre installation plutôt que de la refaire en parallèle (constaté à l'implémentation : le verrouillage de fichier entre conteneurs distincts via `flock` n'est pas fiable sur ce type de bind-mount).
 
 ## 31. Environnements
 

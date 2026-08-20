@@ -427,8 +427,10 @@ Cohérent avec la distinction fondamentale de `07-data-model.md` (section 10) : 
 | ---------------- | ------- | ------------------------------------------------------------------- | ---------------- |
 | `/invoices`      | GET     | Lister les factures (paginé, filtrable par `status`, `customer_id`) | `invoice:read`   |
 | `/invoices`      | POST    | Créer une facture par saisie manuelle (US-INVOICE-002)              | `invoice:create` |
-| `/invoices/{id}` | GET     | Consulter une facture, avec ses lignes                              | `invoice:read`   |
+| `/invoices/{id}` | GET     | Consulter une facture, avec ses lignes et ses documents associés (Phase 7) | `invoice:read`   |
 | `/invoices/{id}` | PATCH   | Modifier une facture (`If-Match` requis, section 21)                | `invoice:update` |
+
+**`documents` (Phase 7, docs/12-roadmap.md)** : `GET /invoices/{id}` inclut un tableau `documents` (forme identique à `data` de `GET /documents/{id}`, section 31) - liste des documents actifs (non supprimés) rattachés à la facture, cohérent avec `docs/11-frontend-design-system.md` section 32. Ajout de champ non cassant (section 44-45) ; les autres endpoints Invoice (`POST`, `PATCH`, `GET` paginé) renvoient `documents: []` par défaut, cette composition n'étant utile qu'à la page de détail.
 
 **Aucun endpoint `/invoices/{id}/validate`, `/invoices/{id}/issue` ou `/invoices/{id}/cancel` n'est créé** - contrairement à l'exemple du gabarit de la mission, qui reflète un cycle de vie d'émission. Notre produit n'émet jamais de facture (`04-product-requirements.md` section 7 et 30 ; `07-data-model.md` section 10 et 29) : le cycle de vie exposé par l'API est celui de l'**analyse**, pas de l'émission (voir section 28 de ce document).
 
@@ -460,7 +462,7 @@ Response: 201 Created
   }
 }
 Errors: 422 (incohérence/absence de ligne, §11 de 07-data-model.md) ; 404 si customer_id introuvable ou appartenant à une autre organisation (jamais 422 dans ce cas précis, cohérent avec la règle générale de la section 42 : ressource inexistante ou cross-tenant = 404, jamais confirmée par un autre code)
-Idempotency: Idempotency-Key recommandée (section 20). **Écart connu (Phase 4, décision D2)** : non honorée par le backend à ce stade - la clé n'est ni lue ni déduplique la création. Différé à l'intégration réelle de Redis/Messenger côté Symfony, qui n'intervient qu'en Phase 7 (Document Processing, `06-technical-architecture.md` section 12 : en Phase 4/5, une facture issue de saisie manuelle reste analysée de façon synchrone, donc sans motif réel de câbler Redis plus tôt). Cet écart contredit littéralement `CLAUDE.md` racine (section 11), qui qualifie cette en-tête d'"obligatoire" sur `POST /invoices` : signalé ici explicitement plutôt que laissé silencieux, à corriger avec l'implémentation de la Phase 7. **Distinct de `POST /invoices/{id}/compliance-analyses`** (section 29-30) : cet endpoint suit un chemin différent depuis la Phase 5, où `Idempotency-Key` est réellement honorée via un store PostgreSQL (`Shared/Idempotency/`), sans dépendre de l'intégration Redis/Messenger réservée à la Phase 7 - l'écart D2 ne concerne donc que `POST /invoices`, pas les deux endpoints indistinctement.
+Idempotency: `Idempotency-Key` **obligatoire et honorée** (section 20 ; `400` si absente) - écart D2 (Phase 4) fermé à l'implémentation de la Phase 7 (docs/12-roadmap.md) via le même store PostgreSQL que `POST /invoices/{id}/compliance-analyses` (`Shared/Idempotency/`), câblé directement dans `App\Invoicing\Controller\CreateInvoiceController` (même précédent que la gestion d'If-Match dans `App\Invoicing\Controller\UpdateInvoiceController` - un en-tête HTTP d'idempotence/concurrence reste une préoccupation du controller, jamais d'`InvoiceService`).
 Audit: Oui
 ```
 
@@ -555,23 +557,35 @@ Le frontend interroge ensuite `GET /compliance-analyses/{id}` (polling, cohéren
 ```text
 POST /documents
 Content-Type: multipart/form-data
-Request: fichier binaire + champ optionnel invoice_id
+Request: fichier binaire + champ invoice_id (obligatoire)
 Response: 202 Accepted
 {
   "data": {
     "id": "uuid",
+    "invoice_id": "uuid",
     "file_name": "facture-fournisseur.pdf",
+    "file_format": null,
+    "file_size": 76030,
     "processing_status": "UPLOADED",
+    "failure_reason": null,
+    "suggestions": null,
+    "uploaded_at": "2026-08-20T05:29:40+00:00",
     "status_url": "/api/v1/documents/{id}"
   }
 }
-Errors: 422 (format non supporté), 413 (fichier trop volumineux, > 20 Mo - limite résolue, décision produit 2026)
+Errors: 400 (Idempotency-Key absente), 422 (format non supporté, invoice_id absent/invalide), 404 (invoice_id inexistant ou d'une autre organisation), 409 (invoice_id d'une facture déjà ANALYZED/ANALYSIS_STALE), 413 (fichier trop volumineux, > 20 Mo - limite résolue, décision produit 2026)
 Async: Oui (traitement de l'extraction)
-Idempotency: Idempotency-Key recommandée
+Idempotency: Idempotency-Key obligatoire et honorée (même store que POST /invoices/{id}/compliance-analyses)
 Audit: Oui
 ```
 
-**Limite de taille et formats acceptés (résolu, décision produit, 2026)** : **20 Mo maximum par fichier** au MVP. Formats explicitement supportés : PDF (simple), Factur-X (PDF avec XML embarqué), et XML CII/UBL dans la mesure où ils sont réellement supportés par le Validator Container (`06-technical-architecture.md`). Aucun autre type de fichier n'est accepté - la validation de format et de taille intervient avant tout traitement (section 55).
+**`invoice_id` obligatoire (résolu, décision produit, Phase 7 - corrige la formulation initiale "champ optionnel" de ce document)** : un document ne peut être importé que rattaché à une `Invoice` de l'organisation appelante dont le statut est `DRAFT` ou `READY_FOR_ANALYSIS` (jamais `ANALYZED`/`ANALYSIS_STALE` - `409`). Contrairement au modèle de données générique (`07-data-model.md` section 13, qui documente `invoice_id` comme optionnel au niveau conceptuel), l'API de cette phase n'expose aucun chemin d'upload sans facture cible : l'interaction d'un import de document avec une facture déjà analysée reste hors périmètre.
+
+**`suggestions` (Phase 7)** : résumé des données extraites (Factur-X uniquement, toujours `null` pour un PDF simple ou un document en échec) destiné à préremplir l'Invoice Editor - **jamais une donnée métier**, l'utilisateur doit confirmer/corriger avant toute écriture réelle sur `Invoice`/`Customer` (docs/06-technical-architecture.md section 11, invariant central de la Phase 7).
+
+**`failure_reason` (Phase 7)** : renseigné uniquement quand `processing_status = FAILED`, une des valeurs `FORMAT_NOT_SUPPORTED`, `MUSTANG_UNAVAILABLE`, `MUSTANG_VALIDATION_FAILED`, `INVALID_DOCUMENT`, `SECURITY_REJECTED` - `FORMAT_NOT_SUPPORTED` (UBL/CII, non traités par cette phase) est explicitement distinct d'une erreur technique, jamais présenté comme un jugement sur la validité du fichier (docs/11-frontend-design-system.md section 37).
+
+**Limite de taille et formats acceptés (résolu, décision produit, 2026)** : **20 Mo maximum par fichier** au MVP. Formats explicitement supportés : PDF (simple), Factur-X (PDF avec XML embarqué), et XML CII/UBL détectés mais non traités (`FORMAT_NOT_SUPPORTED` - décision produit Phase 7, `06-technical-architecture.md` section 11, gap connu documenté). Aucun autre type de fichier n'est accepté - la validation de format et de taille intervient avant tout traitement (section 55).
 
 **Suppression** : `DELETE /documents/{id}` supprime physiquement le fichier du stockage et, le cas échéant, les données extraites contenant des données personnelles/sensibles devenues inutiles, mais **conserve** l'enregistrement d'audit et les résultats de conformité déjà produits - **résolu (décision produit, 2026), harmonisé avec `07-data-model.md` section 30** : le document supprimé reste signalé comme tel dans la traçabilité, sans qu'aucun résultat de conformité déjà produit ne soit perdu (voir aussi section 59).
 
