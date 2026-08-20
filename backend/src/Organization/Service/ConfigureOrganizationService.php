@@ -21,6 +21,7 @@ use Symfony\Bundle\SecurityBundle\Security;
 use Symfony\Component\Uid\Uuid;
 use Symfony\Component\Validator\ConstraintViolation;
 use Symfony\Component\Validator\ConstraintViolationList;
+use Symfony\Component\Validator\ConstraintViolationListInterface;
 use Symfony\Component\Validator\Exception\ValidationFailedException;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
 
@@ -234,7 +235,7 @@ final class ConfigureOrganizationService
      * PHP interne de MergedFiscalContextInput (camelCase) : remappage local à cet endpoint,
      * plutôt que de complexifier le listener générique pour un seul cas.
      */
-    private function toApiFieldNames(ConstraintViolationList $violations): ConstraintViolationList
+    private function toApiFieldNames(ConstraintViolationListInterface $violations): ConstraintViolationList
     {
         $fieldNames = [
             'vatStatus' => 'vat_status',

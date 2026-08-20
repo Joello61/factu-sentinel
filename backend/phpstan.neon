@@ -1,0 +1,14 @@
+includes:
+    - vendor/phpstan/phpstan-symfony/extension.neon
+    - phpstan-baseline.neon
+
+parameters:
+    # Niveau 6 retenu comme point de départ (Phase 10) : couvre les erreurs de typage les
+    # plus significatives (paramètres/retours manquants, appels sur un type incorrect) sans
+    # exiger dès cette phase la discipline la plus stricte (niveau 9, types génériques
+    # complets) sur un code déjà écrit sans analyse statique - à relever explicitement plus
+    # tard si le projet le justifie, jamais abaissé silencieusement.
+    level: 6
+    paths:
+        - src
+    tmpDir: var/cache/phpstan
