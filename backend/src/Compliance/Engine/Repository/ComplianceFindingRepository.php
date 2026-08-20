@@ -40,6 +40,29 @@ final class ComplianceFindingRepository extends ServiceEntityRepository
     }
 
     /**
+     * Variante en masse de findByAnalysis() (Dashboard, Phase 9) : évite un N+1 quand
+     * l'appelant a déjà résolu plusieurs ComplianceAnalysis tenant-scoped (typiquement via
+     * App\Compliance\Engine\Repository\ComplianceAnalysisRepository::findLatestCompletedPerInvoice())
+     * et a besoin de leurs findings en une seule requête.
+     *
+     * @param list<Uuid> $complianceAnalysisIds
+     *
+     * @return list<ComplianceFinding>
+     */
+    public function findByAnalyses(array $complianceAnalysisIds): array
+    {
+        if ([] === $complianceAnalysisIds) {
+            return [];
+        }
+
+        return $this->createQueryBuilder('f')
+            ->andWhere('f.complianceAnalysis IN (:analysisIds)')
+            ->setParameter('analysisIds', $complianceAnalysisIds)
+            ->getQuery()
+            ->getResult();
+    }
+
+    /**
      * Première résolution directe d'un ComplianceFinding par son propre id (Phase 8,
      * POST /compliance-findings/{id}/explanations) : contrairement à findByAnalysis(),
      * l'appelant n'a pas déjà résolu une ComplianceAnalysis tenant-scoped en amont. La
