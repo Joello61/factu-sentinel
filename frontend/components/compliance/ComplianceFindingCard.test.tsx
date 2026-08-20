@@ -1,8 +1,16 @@
-import { describe, expect, it } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ComplianceFindingCard, resolveCorrectionLink } from "./ComplianceFindingCard";
 import type { ComplianceFinding } from "@/lib/api/types";
+
+function jsonResponse(status: number, body: unknown): Response {
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    text: async () => JSON.stringify(body),
+  } as Response;
+}
 
 const CONTEXT = { customerId: "customer-1", invoiceId: "invoice-1" };
 
@@ -69,5 +77,71 @@ describe("ComplianceFindingCard", () => {
     expect(screen.getByText("mention-siren-client")).toBeInTheDocument();
     expect(screen.getByText("docs/02-regulatory-study.md, section 10")).toBeInTheDocument();
     expect(screen.getByText("Élevée")).toBeInTheDocument();
+  });
+});
+
+// docs/11-frontend-design-system.md, section 30-31 : déclenchée à la demande, jamais
+// automatique ; étiquetée et visuellement distincte du message déterministe ; repli calme
+// sur 503, jamais un écran vide ; état dédié sur l'email non vérifié.
+describe("ComplianceFindingCard - Expliquer autrement (US-AI-001)", () => {
+  beforeEach(() => {
+    vi.stubGlobal("fetch", vi.fn());
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("shows the AI explanation, labeled distinctly, on success", async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      jsonResponse(200, {
+        data: {
+          finding_id: SIREN_FINDING.id,
+          explanation: "Votre client professionnel doit être identifié par son numéro SIREN.",
+          source: "Généré par assistance IA à partir du résultat déterministe existant",
+        },
+      }),
+    );
+
+    const user = userEvent.setup();
+    render(<ComplianceFindingCard finding={SIREN_FINDING} context={CONTEXT} />);
+    await user.click(screen.getByRole("button", { name: /expliquer autrement/i }));
+
+    await waitFor(() => expect(screen.getByText("Explication assistée")).toBeInTheDocument());
+    expect(
+      screen.getByText("Votre client professionnel doit être identifié par son numéro SIREN."),
+    ).toBeInTheDocument();
+    // Le message déterministe du finding reste affiché tel quel, jamais remplacé.
+    expect(screen.getByText(SIREN_FINDING.message)).toBeInTheDocument();
+  });
+
+  it("falls back calmly on a 503, keeping the deterministic message visible", async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      jsonResponse(503, { error: { code: "HTTP_ERROR", message: "Indisponible", details: [], request_id: null } }),
+    );
+
+    const user = userEvent.setup();
+    render(<ComplianceFindingCard finding={SIREN_FINDING} context={CONTEXT} />);
+    await user.click(screen.getByRole("button", { name: /expliquer autrement/i }));
+
+    await waitFor(() =>
+      expect(screen.getByText(/n'est pas disponible pour le moment/i)).toBeInTheDocument(),
+    );
+    expect(screen.getByText(SIREN_FINDING.message)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /réessayer/i })).toBeInTheDocument();
+  });
+
+  it("shows a distinct message when email verification is required", async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      jsonResponse(403, {
+        error: { code: "EMAIL_VERIFICATION_REQUIRED", message: "Vérifiez votre email.", details: [], request_id: null },
+      }),
+    );
+
+    const user = userEvent.setup();
+    render(<ComplianceFindingCard finding={SIREN_FINDING} context={CONTEXT} />);
+    await user.click(screen.getByRole("button", { name: /expliquer autrement/i }));
+
+    await waitFor(() => expect(screen.getByText(/vérifiez votre adresse email/i)).toBeInTheDocument());
   });
 });
