@@ -277,7 +277,7 @@ Bien qu'un seul rôle (`OWNER`) existe au MVP (`04-product-requirements.md`, sec
 
 - Utilisateur authentifié mais non membre d'aucune organisation (état transitoire possible, ex. juste après inscription avant configuration).
 - Tentative d'accès à une ressource inexistante (`404`, distinct d'une ressource existante mais appartenant à un autre tenant, section 22).
-- Tentative d'action sur `admin/rule-versions` (`08-api-specification.md`, section 38) avec les seules permissions `OWNER` → doit être strictement refusée, cette API étant réservée à un accès interne distinct.
+- Tentative d'action sur `admin/rule-versions` (`08-api-specification.md`, section 38) avec les seules permissions `OWNER` → doit être strictement refusée, cette API étant réservée à un accès interne distinct. **Différé (revu en Phase 10)** : cet endpoint n'a jamais été implémenté - la publication de `RuleVersion` se fait par migration SQL directe (`App\Tests\Functional\Compliance\RuleVersionNonRetroactivityTest`), jamais via une API. Construire cette API uniquement pour faire passer ce test de rejet serait transformer un hardening de sécurité en nouvelle fonctionnalité (dette documentée `12-roadmap.md`, Phase 10) - ce test reste différé jusqu'à ce que la surface d'administration soit réellement construite, jamais ajouté en la simulant.
 
 **Préparation à l'évolution future** : bien que non nécessaire au MVP, les tests doivent être structurés de façon à pouvoir accueillir un second rôle sans réécriture complète (cohérent avec `06-technical-architecture.md`, section 19).
 
