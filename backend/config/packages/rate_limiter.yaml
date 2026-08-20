@@ -8,3 +8,12 @@ framework:
             policy: sliding_window
             limit: 3
             interval: "15 minutes"
+        # POST /compliance-findings/{id}/explanations et POST /assistant/questions
+        # (docs/08-api-specification.md, section 22 : "dépendance externe coûteuse") -
+        # un seul compteur partagé par organization_id pour les deux endpoints, le budget
+        # IA appartenant à l'usage SaaS de l'organisation, pas à un utilisateur individuel
+        # (plan Phase 8). Valeur initiale à calibrer, aucun seuil documenté par ailleurs.
+        ai_assistant:
+            policy: sliding_window
+            limit: 30
+            interval: "1 hour"

@@ -8,6 +8,7 @@ import { DocumentStatusBadge } from '@/components/ui/DocumentStatusBadge';
 import { FileUpload } from '@/components/ui/FileUpload';
 import { Button } from '@/components/ui/Button';
 import { ComplianceResultSummary } from '@/components/compliance/ComplianceResultSummary';
+import { AssistantQuestionForm } from '@/components/compliance/AssistantQuestionForm';
 import { formatBusinessDate } from '@/lib/format/date';
 import { formatAmount } from '@/lib/format/amount';
 import { useDocumentPolling } from '@/lib/hooks/useDocumentPolling';
@@ -447,6 +448,8 @@ export function InvoiceDetail({ invoiceId }: { invoiceId: string }) {
         ) : (
           <p className="text-sm text-muted-foreground">Cette facture n&apos;a pas encore été analysée.</p>
         )}
+
+        <AssistantQuestionForm />
 
         {invoice.status !== 'DRAFT' ? (
           <Button

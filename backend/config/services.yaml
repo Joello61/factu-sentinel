@@ -32,6 +32,31 @@ services:
     # interface.
     App\Shared\Storage\StorageInterface: '@App\Shared\Storage\LocalFilesystemStorage'
     App\Document\Service\StructuredDocumentValidatorInterface: '@App\Document\Service\MustangValidatorClient'
+    App\AI\Service\AIProviderInterface: '@App\AI\Service\MistralProvider'
+
+    # Constaté à l'implémentation : contrairement à $mustangBaseUrl ci-dessus, ajouter ces
+    # trois valeurs à _defaults.bind ne suffisait pas à les faire résoudre pour
+    # MistralProvider (compilation du conteneur en échec, "you should configure its value
+    # explicitly", alors que la clé de bind correspondait exactement au paramètre par
+    # réflexion) - cause non élucidée avec certitude, contournée en arguments explicites
+    # directement sur cette définition de service, seule approche vérifiée fonctionner.
+    App\AI\Service\MistralProvider:
+        arguments:
+            $mistralApiKey: '%env(MISTRAL_API_KEY)%'
+            $mistralBaseUrl: '%env(MISTRAL_BASE_URL)%'
+            $mistralModel: '%env(MISTRAL_MODEL)%'
 
     # add more service definitions when explicit configuration is needed
     # please note that last definitions always *replace* previous ones
+
+when@test:
+    services:
+        # Jamais d'appel HTTP réel vers Mistral en test (backend/CLAUDE.md, section 13) :
+        # les contrôleurs App\AI\Controller\* passent par le vrai routage/conteneur HTTP
+        # (KernelBrowser), contrairement au test de App\Document\MessageHandler\
+        # ExtractDocumentContentHandler qui instancie son handler directement avec un double
+        # manuel - un override du conteneur est donc nécessaire ici. framework.test: true
+        # (config/packages/framework.yaml) rend ce service accessible depuis les tests via
+        # static::getContainer()->get(FakeAIProvider::class) sans "public: true" explicite.
+        App\Tests\Support\FakeAIProvider: ~
+        App\AI\Service\AIProviderInterface: '@App\Tests\Support\FakeAIProvider'

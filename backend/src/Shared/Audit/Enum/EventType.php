@@ -37,4 +37,15 @@ enum EventType: string
     /** Ajoutés en Phase 7 (Document Processing, docs/12-roadmap.md). */
     case DOCUMENT_UPLOADED = 'DOCUMENT_UPLOADED';
     case DOCUMENT_DELETED = 'DOCUMENT_DELETED';
+
+    /**
+     * Ajoutés en Phase 8 (AI Assistant, docs/12-roadmap.md). newState ne porte jamais le
+     * prompt ni le texte généré (docs/10-security-privacy.md, section 35 : "jamais loggés...
+     * prompts ou réponses IA contenant des données personnelles") - uniquement un indicateur
+     * de succès et un identifiant/une longueur, enregistré que l'appel Mistral réussisse ou
+     * échoue (App\AI\Service\ExplainComplianceFindingService, App\AI\Service\
+     * AnswerAssistantQuestionService).
+     */
+    case COMPLIANCE_FINDING_EXPLAINED = 'COMPLIANCE_FINDING_EXPLAINED';
+    case ASSISTANT_QUESTION_ASKED = 'ASSISTANT_QUESTION_ASKED';
 }

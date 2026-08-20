@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Shared\Http;
 
 use App\Shared\Exception\AuthenticatedIdentityWithoutOrganizationException;
+use App\Shared\Exception\EmailVerificationRequiredException;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpKernel\Event\ExceptionEvent;
@@ -63,6 +64,10 @@ final class ApiExceptionListener implements EventSubscriberInterface
         if ($throwable instanceof AuthenticatedIdentityWithoutOrganizationException) {
             // Violation d'invariant interne, jamais un refus d'autorisation ordinaire (403).
             return [500, 'INTERNAL_ERROR', 'Une erreur interne est survenue.', []];
+        }
+
+        if ($throwable instanceof EmailVerificationRequiredException) {
+            return [403, 'EMAIL_VERIFICATION_REQUIRED', 'Vérifiez votre adresse email pour utiliser cette fonctionnalité.', []];
         }
 
         if ($throwable instanceof AuthenticationException) {

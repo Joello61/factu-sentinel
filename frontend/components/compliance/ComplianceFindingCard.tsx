@@ -1,11 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { ChevronDown } from "lucide-react";
+import { useState } from "react";
+import { ChevronDown, Sparkles } from "lucide-react";
 import { Collapsible } from "radix-ui";
+import { Button } from "@/components/ui/Button";
 import { ComplianceResultBadge } from "@/components/ui/ComplianceResultBadge";
+import { apiRequest, ApiError } from "@/lib/api/client";
 import { formatBusinessDate } from "@/lib/format/date";
-import type { ComplianceFinding, ConfidenceLevel } from "@/lib/api/types";
+import type { ComplianceFinding, ComplianceFindingExplanation, ConfidenceLevel } from "@/lib/api/types";
 
 const CONFIDENCE_LABELS: Record<ConfidenceLevel, string> = {
   ELEVE: "Élevée",
@@ -42,6 +45,18 @@ export function resolveCorrectionLink(
  * toujours visible quand présente -- FR-COMPLIANCE-003), niveau 3 (détail de la règle,
  * derrière une divulgation accessible au clavier, Radix Collapsible déjà installé).
  */
+/**
+ * État de la reformulation IA (docs/11-frontend-design-system.md, section 30 : déclenchée à
+ * la demande, jamais automatique). "email-required" est distinct de "error" -- message et
+ * action de récupération différents (../../CLAUDE.md frontend, section 9).
+ */
+type ExplanationState =
+  | { status: "idle" }
+  | { status: "loading" }
+  | { status: "loaded"; explanation: string }
+  | { status: "error" }
+  | { status: "email-required" };
+
 export function ComplianceFindingCard({
   finding,
   context,
@@ -50,6 +65,27 @@ export function ComplianceFindingCard({
   context: { customerId: string; invoiceId: string };
 }) {
   const correctionLink = resolveCorrectionLink(finding.related_field, context);
+  const [explanationState, setExplanationState] = useState<ExplanationState>({ status: "idle" });
+
+  async function handleRequestExplanation() {
+    setExplanationState({ status: "loading" });
+    try {
+      const result = await apiRequest<ComplianceFindingExplanation>(
+        `/api/v1/compliance-findings/${finding.id}/explanations`,
+        { method: "POST" },
+      );
+      setExplanationState({ status: "loaded", explanation: result.explanation });
+    } catch (error) {
+      if (error instanceof ApiError && error.code === "EMAIL_VERIFICATION_REQUIRED") {
+        setExplanationState({ status: "email-required" });
+        return;
+      }
+      // Le message par défaut de finding.message reste affiché tel quel juste au-dessus
+      // (docs/06-technical-architecture.md, section 14-15 : repli systématique) -- cet état
+      // n'efface jamais rien, il ajoute seulement une note discrète.
+      setExplanationState({ status: "error" });
+    }
+  }
 
   return (
     <div className="rounded-md border border-border p-4">
@@ -66,6 +102,52 @@ export function ComplianceFindingCard({
               </Link>
             ) : null}
           </div>
+        ) : null}
+
+        {explanationState.status === "idle" || explanationState.status === "loading" ? (
+          <Button
+            type="button"
+            variant="secondary"
+            loading={explanationState.status === "loading"}
+            onClick={handleRequestExplanation}
+            className="w-fit"
+          >
+            <Sparkles aria-hidden="true" size={14} />
+            Expliquer autrement
+          </Button>
+        ) : null}
+
+        {/*
+         * Distinction visuelle permanente avec le message ci-dessus (docs/11-frontend-design-system.md,
+         * section 31 : Trust & Transparency) -- fond et libellé "Explication assistée" toujours
+         * présents, jamais la même apparence que le message déterministe du moteur.
+         */}
+        {explanationState.status === "loaded" ? (
+          <div className="rounded-md border border-info/30 bg-info/5 px-3 py-2">
+            <p className="text-xs font-medium text-info">Explication assistée</p>
+            <p className="mt-1 text-sm text-foreground">{explanationState.explanation}</p>
+          </div>
+        ) : null}
+
+        {explanationState.status === "error" ? (
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-xs text-muted-foreground">
+              L&apos;explication assistée n&apos;est pas disponible pour le moment.
+            </p>
+            <button
+              type="button"
+              onClick={handleRequestExplanation}
+              className="text-xs font-medium text-primary hover:underline"
+            >
+              Réessayer
+            </button>
+          </div>
+        ) : null}
+
+        {explanationState.status === "email-required" ? (
+          <p className="text-xs text-muted-foreground">
+            Vérifiez votre adresse email pour utiliser l&apos;explication assistée.
+          </p>
         ) : null}
       </div>
 
