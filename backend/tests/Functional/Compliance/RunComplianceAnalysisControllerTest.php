@@ -104,6 +104,11 @@ final class RunComplianceAnalysisControllerTest extends ApiTestCase
         self::assertNotEmpty($siren['correction_action']);
         self::assertSame('customer.siren', $siren['related_field']);
         self::assertSame(1, $siren['rule']['version']);
+        // docs/11-frontend-design-system.md, section 29 : le niveau 3 du Compliance
+        // Finding UI a besoin de la date d'entrée en vigueur de la règle appliquée.
+        self::assertSame('2026-01-01', $siren['rule']['effective_from']);
+        self::assertArrayHasKey('effective_until', $siren['rule'], 'La clé doit être présente même à null, jamais omise.');
+        self::assertNull($siren['rule']['effective_until']);
     }
 
     public function testSirenPresentProducesConforme(): void

@@ -818,13 +818,16 @@ Toute réponse contenant un `ComplianceFinding` expose systématiquement :
     "id": "mention-siren-client",
     "version": 1,
     "source_reference": "02-regulatory-study.md, section 10",
-    "confidence_level": "ELEVE"
-  },
-  "evaluated_at": "2026-08-17T10:00:00Z"
+    "confidence_level": "ELEVE",
+    "effective_from": "2026-01-01",
+    "effective_until": null
+  }
 }
 ```
 
-Cohérent avec `07-data-model.md` (section 16, 18) : le `finding` référence toujours la **version précise** de la règle utilisée, jamais « la règle en général » - permettant au frontend d'afficher, si nécessaire, que le résultat a été produit avec une version de règle donnée à une date donnée, condition nécessaire à US-HISTORY-001.
+Cohérent avec `07-data-model.md` (section 16, 18) : le `finding` référence toujours la **version précise** de la règle utilisée, jamais « la règle en général » - permettant au frontend d'afficher, si nécessaire, que le résultat a été produit avec une version de règle donnée à une date donnée, condition nécessaire à US-HISTORY-001. `effective_from`/`effective_until` (Phase 6, `11-frontend-design-system.md` section 29 : niveau 3 du Compliance Finding UI, "quand la règle s'applique") sont toujours présents, y compris `effective_until` quand il vaut `null` (RuleVersion encore active) - jamais une clé omise.
+
+**Écart connu, assumé** : ce document mentionnait auparavant un `evaluated_at` par finding, jamais implémenté (Phase 5) et volontairement non ajouté en Phase 6 - un finding est toujours évalué au moment exact de son `ComplianceAnalysis` parente, déjà exposée via `ComplianceAnalysis.completed_at` (section 29-30) ; dupliquer cette date sur chaque finding n'apporterait aucune information supplémentaire pour un coût de schéma réel (nouvelle colonne sur une entité jamais modifiée après création). Ne pas réintroduire ce champ sans un besoin concret qui le justifie.
 
 ## 49. Audit et Request ID
 
