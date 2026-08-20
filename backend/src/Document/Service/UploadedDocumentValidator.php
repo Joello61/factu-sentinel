@@ -36,6 +36,22 @@ final class UploadedDocumentValidator
 
     public function validate(UploadedFile $file): UploadedDocumentValidationResult
     {
+        // PHP peut rejeter l'upload avant même que ce code s'exécute (upload_max_filesize/
+        // post_max_size, ini indépendant de $this->documentMaxSizeBytes) - sans cette
+        // vérification explicite, un fichier trop volumineux au sens de PHP atterrit dans le
+        // "vide ou illisible" ci-dessous (422) au lieu du 413 attendu, quel que soit
+        // l'environnement d'exécution réel.
+        if (!$file->isValid()) {
+            if (\in_array($file->getError(), [\UPLOAD_ERR_INI_SIZE, \UPLOAD_ERR_FORM_SIZE], true)) {
+                throw new HttpException(413, \sprintf(
+                    'Le fichier dépasse la taille maximale autorisée (%d Mo).',
+                    (int) ($this->documentMaxSizeBytes / 1024 / 1024),
+                ));
+            }
+
+            throw new UnprocessableEntityHttpException('Le fichier importé est vide ou illisible.');
+        }
+
         $size = $file->getSize();
         if (null === $size || $size <= 0) {
             throw new UnprocessableEntityHttpException('Le fichier importé est vide ou illisible.');
