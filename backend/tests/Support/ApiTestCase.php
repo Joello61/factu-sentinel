@@ -7,6 +7,7 @@ namespace App\Tests\Support;
 use App\Identity\Entity\Membership;
 use App\Identity\Enum\Role;
 use App\Identity\Entity\User;
+use App\Identity\Repository\UserRepository;
 use App\Organization\Entity\Organization;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
@@ -108,5 +109,25 @@ abstract class ApiTestCase extends WebTestCase
         $em->flush();
 
         return $user;
+    }
+
+    /**
+     * Marque l'email d'un compte déjà créé (registerUser()/createAuthenticatedClient()) comme
+     * vérifié - ces deux méthodes créent volontairement un compte non vérifié par défaut
+     * (User::$emailVerifiedAt reste null), donc tout test touchant à une fonctionnalité gardée
+     * par la vérification email (Phase 8 : App\AI\Controller\*) doit appeler explicitement
+     * cette méthode après authentification.
+     */
+    protected function markEmailVerified(string $email): void
+    {
+        $container = static::getContainer();
+
+        /** @var EntityManagerInterface $em */
+        $em = $container->get(EntityManagerInterface::class);
+        $user = $container->get(UserRepository::class)->findOneByEmail($email);
+        \assert($user instanceof User, "Aucun compte trouvé pour {$email}.");
+
+        $user->markEmailAsVerified();
+        $em->flush();
     }
 }
