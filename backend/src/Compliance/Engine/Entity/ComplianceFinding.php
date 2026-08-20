@@ -83,6 +83,18 @@ class ComplianceFinding
         return $this->id;
     }
 
+    /**
+     * Ajouté en Phase 9 (Dashboard) : App\Compliance\Engine\Repository\
+     * ComplianceFindingRepository::findByAnalyses() résout des findings de plusieurs
+     * ComplianceAnalysis en une seule requête -- l'appelant a besoin de ce
+     * back-reference pour les regrouper, ce que ne permettaient pas les accès
+     * précédents (toujours scopés à une seule analyse déjà connue de l'appelant).
+     */
+    public function getComplianceAnalysis(): ComplianceAnalysis
+    {
+        return $this->complianceAnalysis;
+    }
+
     public function getRuleVersion(): RuleVersion
     {
         return $this->ruleVersion;

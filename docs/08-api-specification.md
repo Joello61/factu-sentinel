@@ -502,6 +502,7 @@ Ressource la plus importante du contrat (`04-product-requirements.md`, Complianc
 | `/eligibility-diagnostics/current`   | GET     | Consulter le diagnostic d'éligibilité courant de l'organisation (US-COMPLIANCE-001) | `compliance:read`   |
 | `/invoices/{id}/compliance-analyses` | POST    | Lancer une analyse de conformité sur une facture (US-COMPLIANCE-002)                | `compliance:create` |
 | `/invoices/{id}/compliance-analyses` | GET     | Lister les analyses d'une facture (US-COMPLIANCE-006)                               | `compliance:read`   |
+| `/compliance-analyses`               | GET     | Historique paginé, toutes factures confondues (US-HISTORY-001, section 29 bis)      | `compliance:read`   |
 | `/compliance-analyses/{id}`          | GET     | Consulter une analyse (statut, résultat global)                                     | `compliance:read`   |
 | `/compliance-analyses/{id}/findings` | GET     | Lister les findings détaillés d'une analyse (US-COMPLIANCE-003/004)                 | `compliance:read`   |
 
@@ -517,6 +518,33 @@ Response: 200 OK
   }
 }
 ```
+
+### 29 bis. Historique organisation-wide (Phase 9)
+
+**Écart comblé (Phase 9, `12-roadmap.md`)** : cet endpoint était référencé dans la matrice Endpoint → User Story (section 52, `GET /compliance-analyses (historique)`) et dans `07-data-model.md` (section 44) sans jamais avoir été spécifié dans ce document - contrat désormais documenté ici plutôt que laissé implicite.
+
+`GET /compliance-analyses`, distinct de `GET /invoices/{id}/compliance-analyses` (déjà scopé à une seule facture) : historique paginé de **toutes** les analyses de l'organisation, toutes factures confondues, anciens et nouveaux résultats tous deux consultables, jamais écrasés (US-COMPLIANCE-006 ; US-HISTORY-001).
+
+```text
+GET /compliance-analyses?page=1&per_page=20&global_result=NON_CONFORME&from=2026-08-01&to=2026-08-31
+Response: 200 OK
+{
+  "data": [
+    {
+      "id": "uuid",
+      "invoice_id": "uuid",
+      "invoice_number": "F-2026-001",
+      "status": "COMPLETED",
+      "global_result": "NON_CONFORME",
+      "triggered_at": "2026-08-15T10:00:00Z",
+      "completed_at": "2026-08-15T10:00:01Z"
+    }
+  ],
+  "meta": { "pagination": { "page": 1, "per_page": 20, "total_count": 1, "total_pages": 1 } }
+}
+```
+
+Filtres (`07-data-model.md`, section 44 : « Filtres (date, statut) ») : `global_result` (une des six valeurs `ComplianceResult`, ignoré silencieusement si absent ou invalide - jamais un `400`, même tolérance que le filtre `status` de `GET /invoices`) ; `from`/`to` (`YYYY-MM-DD`, bornent `triggered_at`, ignorés silencieusement si absents ou mal formés). Contrairement à `GET /invoices/{id}/compliance-analyses`, cette liste porte `invoice_id`/`invoice_number` sur chaque élément - indispensable puisqu'elle n'est jamais déjà scopée à une facture connue de l'appelant.
 
 ## 30. Analyse synchrone vs asynchrone
 
@@ -639,6 +667,38 @@ Response: 200 OK
 
 Cet endpoint agrège des données déjà exposées ailleurs (`compliance-analyses`, `compliance-findings`) sous une forme pré-calculée adaptée à l'affichage du dashboard - il ne renvoie jamais une extraction brute de la base (cohérent avec la consigne de la mission), et ne crée aucune nouvelle entité (`07-data-model.md`, section 42).
 
+**Règles d'agrégation (résolu, décision produit Phase 9)** : cette version ne montrait qu'un seul exemple de valeur pour `global_status`, sans lister l'ensemble des valeurs ni les règles de calcul - comblé ci-dessous, avec la même rigueur que les autres décisions produit de ce document.
+
+**Portée** : le Dashboard agrège la **dernière `ComplianceAnalysis` `COMPLETED` de chaque `Invoice`** de l'organisation, jamais l'historique complet (App\Compliance\Engine\Repository\ComplianceAnalysisRepository::findLatestCompletedPerInvoice()) - une facture corrigée puis réanalysée ne doit plus jamais compter comme un problème ouvert. C'est la différence structurelle avec `GET /compliance-analyses` (section 29 bis), qui liste au contraire l'historique complet, sans jamais écraser une analyse antérieure.
+
+**`global_status`** (`App\Compliance\Engine\Enum\DashboardGlobalStatus`) : enum dédié à 4 valeurs, **jamais une réutilisation de `ComplianceResult`** - sémantique différente, `ComplianceResult` répondant du résultat d'un finding/d'une règle précise, `global_status` d'un agrégat de portefeuille sur plusieurs factures.
+
+| Valeur               | Condition                                                                                   |
+| --------------------- | -------------------------------------------------------------------------------------------- |
+| `AUCUNE_ANALYSE`      | Aucune `ComplianceAnalysis` `COMPLETED` n'existe encore pour l'organisation                   |
+| `ATTENTION_REQUISE`    | `open_issues_count > 0` (précédence la plus forte)                                          |
+| `AVERTISSEMENT`        | `open_issues_count = 0` et `warnings_count > 0`                                              |
+| `CONFORME`             | `open_issues_count = 0` et `warnings_count = 0` (au moins une analyse existe)               |
+
+`AUCUNE_ANALYSE` n'est **jamais** confondu avec `CONFORME` : distingue explicitement « aucune facture analysée » de « toutes les factures analysées sont conformes » (US-DASHBOARD-001, cohérent avec l'empty state dédié de `11-frontend-design-system.md` section 35).
+
+**Bucketing `open_issues_count` / `warnings_count`**, calculé sur les findings des analyses retenues par la portée ci-dessus :
+
+| `ComplianceResult`         | Bucket             |
+| --------------------------- | ------------------- |
+| `NON_CONFORME`              | `open_issues_count`  |
+| `A_VERIFIER`                 | `open_issues_count`  |
+| `INCERTAIN_REGLEMENTAIRE`    | `open_issues_count`  |
+| `AVERTISSEMENT`              | `warnings_count`      |
+| `CONFORME`                   | Aucun des deux        |
+| `NON_APPLICABLE`             | Aucun des deux        |
+
+Justification : les trois états du bucket `open_issues_count` appellent tous une action ou une clarification de l'utilisateur (correction, donnée manquante, incertitude réglementaire à confirmer), même si leur nature diffère - regroupés sous « problème » plutôt que dispersés en trois compteurs distincts, pour rester lisible sur un dashboard volontairement simple (`11-frontend-design-system.md`, section 34 : « à éviter... un dashboard rempli de statistiques génériques »).
+
+**`recommended_actions`** : dérivées uniquement des findings des buckets `open_issues_count` dont `correction_action` est non nul et non vide - un finding sans action concrète n'est jamais transformé en action recommandée. Dédupliquées par message (un même libellé n'apparaît qu'une fois, même sur deux factures distinctes), ordre déterministe (analyse la plus récente d'abord, puis id de finding croissant), plafonné à 5. `App\Compliance\Engine\Service\DashboardAggregator` reste une vue de lecture pure : il ne modifie jamais aucune entité et n'introduit aucune règle de recommandation nouvelle au-delà de ce bucketing.
+
+**`recent_analyses`** : les analyses les plus récentes parmi celles retenues par la portée ci-dessus, triées par `triggered_at` décroissant, plafonné à 5.
+
 ## 34. Notifications API
 
 | Endpoint                   | Méthode | Description                       | Permission            |
@@ -758,7 +818,7 @@ Convention uniforme (détail sections 16, 43) : pagination `?page=1&per_page=20`
 
 **Choix retenu : pagination par page/offset**, plutôt que cursor-based, jugée suffisante pour le volume attendu au MVP (`07-data-model.md`, section 38) et plus simple à implémenter et à consommer côté frontend. Une migration vers une pagination par curseur resterait possible sans changement de contrat côté enveloppe `meta.pagination` si le volume le justifiait un jour (`07-data-model.md`, section 41).
 
-Appliquée systématiquement à : `GET /invoices`, `GET /customers`, `GET /compliance-analyses` (par facture), `GET /compliance-analyses/{id}/findings`, `GET /audit-events`, `GET /notifications`.
+Appliquée systématiquement à : `GET /invoices`, `GET /customers`, `GET /invoices/{id}/compliance-analyses` (par facture), `GET /compliance-analyses` (historique organisation-wide, section 29 bis, Phase 9), `GET /compliance-analyses/{id}/findings`, `GET /audit-events`, `GET /notifications`.
 
 ## 42. HTTP Status Codes
 
