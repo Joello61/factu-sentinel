@@ -15,8 +15,9 @@ type ViewState =
 
 /**
  * Liste des factures (docs/11-frontend-design-system.md, section 32) : client, date, statut
- * d'analyse en priorité - pas de colonne de statut de conformité au MVP de cette page, le
- * Compliance Engine (Phase 5-6) n'existe pas encore.
+ * d'analyse en priorité - pas de colonne de résultat de conformité sur cette liste (réservée
+ * au Dashboard/Historique, Phase 9, docs/11-frontend-design-system.md section 59) : le
+ * résultat détaillé se consulte sur la page de détail de chaque facture.
  */
 export function InvoiceList() {
   const [state, setState] = useState<ViewState>({ status: 'loading' });
