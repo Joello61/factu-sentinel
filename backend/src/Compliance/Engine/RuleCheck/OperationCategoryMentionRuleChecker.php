@@ -8,7 +8,7 @@ use App\Compliance\Engine\RuleEvaluationContext;
 
 /**
  * Règle mention-categorie-operation (docs/02-regulatory-study.md, section 10 ; scénarios
- * REG-002/REG-003 de docs/09-test-strategy.md, section 9, pour l'applicabilité — voir
+ * REG-002/REG-003 de docs/09-test-strategy.md, section 9, pour l'applicabilité - voir
  * App\Compliance\Engine\Service\ComplianceRuleEvaluator pour cette étape).
  *
  * Invoice::getOperationType() est un OperationType non-nullable (Types::STRING,

@@ -18,7 +18,7 @@ use Symfony\Component\Validator\Validator\ValidatorInterface;
 
 /**
  * POST /invoices (docs/08-api-specification.md, section 27 ; US-INVOICE-002 : saisie
- * manuelle uniquement en Phase 4, pas d'import de document — docs/12-roadmap.md, Phase 4).
+ * manuelle uniquement en Phase 4, pas d'import de document - docs/12-roadmap.md, Phase 4).
  *
  * N'honore pas Idempotency-Key (plan Phase 4, décision D2) : écart connu et documenté avec
  * CLAUDE.md racine section 11, différé à l'intégration Redis/Messenger de la Phase 7

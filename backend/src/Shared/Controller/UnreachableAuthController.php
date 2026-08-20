@@ -11,7 +11,7 @@ use Symfony\Component\Routing\Attribute\Route;
  * Déclare les chemins d'authentification comme de vraies routes Symfony. Sans route
  * enregistrée pour un check_path, le RouterListener (kernel.request) lève "No route
  * found" avant que json_login/refresh-jwt n'aient l'occasion d'intercepter la requête sur
- * ce firewall stateless — constaté empiriquement en écrivant les tests d'auth (voir plan
+ * ce firewall stateless - constaté empiriquement en écrivant les tests d'auth (voir plan
  * Phase 2). Ce contrôleur ne doit jamais être réellement exécuté : les authenticators
  * interceptent la requête avant que le contrôleur ne soit invoqué.
  */

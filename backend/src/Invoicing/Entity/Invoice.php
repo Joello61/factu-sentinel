@@ -21,7 +21,7 @@ use Symfony\Component\Uid\Uuid;
  * Facture à des fins d'analyse uniquement, jamais un document destiné à être émis ou
  * transmis (docs/06-technical-architecture.md, section 6 ; docs/07-data-model.md, section
  * 10). Pas de colonne `deleted_at` en Phase 4 : aucun endpoint DELETE n'existe pour cette
- * ressource dans docs/08-api-specification.md section 27 (contrairement à Customer) — voir
+ * ressource dans docs/08-api-specification.md section 27 (contrairement à Customer) - voir
  * plan Phase 4, décision D4. Elle sera ajoutée exactement quand un endpoint de suppression
  * sera spécifié.
  *
@@ -288,7 +288,7 @@ class Invoice implements TenantScopedInterface
      * US-COMPLIANCE-006bis : modifier une facture ANALYZED rend son résultat de conformité
      * obsolète. No-op si le statut n'est pas ANALYZED (jamais de régression depuis
      * ANALYSIS_STALE lui-même, ni depuis DRAFT/READY_FOR_ANALYSIS qui n'ont jamais été
-     * analysés) — même défense que refreshReadinessStatus().
+     * analysés) - même défense que refreshReadinessStatus().
      */
     public function markStale(): void
     {

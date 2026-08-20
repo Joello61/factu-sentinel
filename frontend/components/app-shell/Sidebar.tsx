@@ -1,9 +1,9 @@
-import Link from "next/link";
-import { NAV_ITEMS } from "./nav-items";
+import Link from 'next/link';
+import { NAV_ITEMS } from './nav-items';
 
 /**
  * Navigation principale (docs/11-frontend-design-system.md, section 16-17). Visible en
- * permanence sur desktop ; masquée sur mobile pour cette Phase 1 (App Shell "vide") — le
+ * permanence sur desktop ; masquée sur mobile pour cette Phase 1 (App Shell "vide") - le
  * menu hamburger interactif sera ajouté quand une première page authentifiée réelle
  * existera (section 14, 17), pour éviter de construire un état interactif jetable
  * maintenant.

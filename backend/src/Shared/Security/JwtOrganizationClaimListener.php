@@ -11,12 +11,12 @@ use Symfony\Component\EventDispatcher\Attribute\AsEventListener;
 
 /**
  * Ajoute le claim `org` (UUID de l'Organization du Membership unique de l'utilisateur) au
- * JWT à sa création — jamais `email_verified` : cette information doit rester lue depuis
+ * JWT à sa création - jamais `email_verified` : cette information doit rester lue depuis
  * `GET /users/current`, pas dupliquée dans un token qui n'est pas rafraîchi en temps réel
  * (voir plan Phase 2).
  *
  * Invariant Phase 2 : un User a exactement un Membership actif au MVP
- * (docs/07-data-model.md prévoit 1—N pour une évolution future, non activée ici). Si cet
+ * (docs/07-data-model.md prévoit 1-N pour une évolution future, non activée ici). Si cet
  * invariant est rompu, on refuse d'émettre un jeton plutôt que de choisir arbitrairement.
  */
 final class JwtOrganizationClaimListener

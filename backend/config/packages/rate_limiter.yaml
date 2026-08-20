@@ -3,8 +3,8 @@ framework:
         # /auth/login est protégé nativement par security.yaml (login_throttling).
         # /auth/password/forgot déclenche un envoi d'email : sans limite, c'est un vecteur
         # d'email bombing évident (ajout justifié, hors du périmètre strictement documenté
-        # — voir plan Phase 2).
+        # - voir plan Phase 2).
         password_reset_request:
             policy: sliding_window
             limit: 3
-            interval: '15 minutes'
+            interval: "15 minutes"

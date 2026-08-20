@@ -107,7 +107,7 @@ final class Version20260819172937 extends AbstractMigration
         // diff est un faux positif : cet index partiel (WHERE effective_until IS NULL) est créé
         // à la main en Phase 3 (voir Version20260819121231::up()) car le driver attribute de
         // Doctrine ORM ne représente pas nativement les index partiels dans le mapping
-        // (App\Organization\Entity\FiscalContext, commentaire de classe) — le diff le croit donc
+        // (App\Organization\Entity\FiscalContext, commentaire de classe) - le diff le croit donc
         // orphelin à chaque régénération. Volontairement omise ici : la retirer casserait
         // l'invariant "au plus une ligne courante par organisation" posé en Phase 3.
     }

@@ -13,7 +13,7 @@ use Symfony\Component\Uid\Uuid;
 
 /**
  * DELETE /customers/{id} (docs/08-api-specification.md, section 26) : soft delete
- * uniquement (docs/07-data-model.md, section 30) — jamais de suppression physique.
+ * uniquement (docs/07-data-model.md, section 30) - jamais de suppression physique.
  */
 final class DeleteCustomerController
 {

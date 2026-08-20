@@ -15,7 +15,7 @@ use Symfony\Component\Uid\Uuid;
 /**
  * Active l'isolation tenant (docs/06-technical-architecture.md, ADR-004) juste après
  * qu'un JWT a authentifié une requête (lexik_jwt_authentication.on_jwt_authenticated),
- * avant que le contrôleur ne puisse déclencher la moindre requête Doctrine — jamais un
+ * avant que le contrôleur ne puisse déclencher la moindre requête Doctrine - jamais un
  * kernel.request de priorité approximative.
  *
  * Invariant non négociable : aucune requête Doctrine tenant-scoped n'est exécutée sans

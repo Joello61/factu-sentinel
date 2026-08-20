@@ -11,7 +11,7 @@ use Symfony\Component\BrowserKit\Cookie;
  * single_use=true (config/packages/gesdinet_jwt_refresh_token.yaml) : chaque refresh
  * remplace le token consommé. Une vraie concurrence réseau (deux requêtes HTTP en
  * parallèle) n'est pas simulable avec le client de test en-process, synchrone par nature
- * — l'équivalent testable ici est séquentiel : consommer X une fois (succès), puis le
+ * - l'équivalent testable ici est séquentiel : consommer X une fois (succès), puis le
  * représenter (doit être rejeté), ce qui couvre exactement la garantie que single_use est
  * censé apporter. Une vérification réseau réelle relève du parcours manuel via Nginx
  * (voir plan Phase 2, étape 4).

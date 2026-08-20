@@ -47,7 +47,7 @@ FROM base AS dev
 # d'environnement réelle du conteneur, qui prime alors sur le
 # `<server name="APP_ENV" value="test" force="true">` de backend/phpunit.dist.xml (vérifié :
 # Symfony Dotenv redonne la priorité à un getenv() réel lors du bootEnv() de
-# backend/tests/bootstrap.php) — `docker compose exec backend php bin/phpunit` démarrait
+# backend/tests/bootstrap.php) - `docker compose exec backend php bin/phpunit` démarrait
 # alors silencieusement en environnement "dev" au lieu de "test" (service
 # "test.service_container" introuvable). Ne pas la réintroduire ici sans revoir ce commentaire.
 ENV COMPOSER_ALLOW_SUPERUSER=1

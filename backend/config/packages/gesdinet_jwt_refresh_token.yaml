@@ -2,13 +2,13 @@ gesdinet_jwt_refresh_token:
     refresh_token_class: App\Identity\Entity\RefreshToken
 
     # Valeurs choisies explicitement (docs/10-security-privacy.md, section 12, laissait ces
-    # paramètres à préciser en implémentation) — jamais laissées aux défauts du bundle sans
+    # paramètres à préciser en implémentation) - jamais laissées aux défauts du bundle sans
     # les avoir lues (voir plan Phase 2, point 5).
     ttl: 2592000 # 30 jours.
     single_use: true # Rotation à chaque utilisation ; un token déjà consommé est rejeté.
 
     # reuse_detection (révocation de toute la famille en cas de réutilisation, au-delà du
-    # simple rejet déjà garanti par single_use) : désactivé pour l'instant — sa
+    # simple rejet déjà garanti par single_use) : désactivé pour l'instant - sa
     # configuration déclenche une erreur de compilation du conteneur sur la version 3.0.0
     # installée ("service non-existent %...reuse_detection.cache%"), à investiguer/signaler
     # en amont plutôt qu'à contourner indéfiniment. single_use seul satisfait déjà

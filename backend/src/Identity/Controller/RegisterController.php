@@ -21,7 +21,7 @@ use Symfony\Component\Routing\Attribute\Route;
 
 /**
  * US-AUTH-001 : crée le compte, une Organization vide, et le Membership(OWNER) qui les
- * relie — en une seule transaction (invariant Phase 2, voir plan). Ne connecte pas
+ * relie - en une seule transaction (invariant Phase 2, voir plan). Ne connecte pas
  * automatiquement l'utilisateur (pas de jeton renvoyé ici) : le frontend enchaîne
  * immédiatement avec POST /auth/login, ce qui évite de dupliquer la logique d'émission de
  * jeton déjà gérée par le firewall (json_login) plutôt que de la reproduire manuellement

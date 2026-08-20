@@ -1,38 +1,45 @@
-"use client";
+'use client';
 
-import Link from "next/link";
-import { useEffect, useState } from "react";
-import { apiRequestPaginated } from "@/lib/api/client";
-import { InvoiceStatusBadge } from "@/components/ui/InvoiceStatusBadge";
-import { formatBusinessDate } from "@/lib/format/date";
-import { formatAmount } from "@/lib/format/amount";
-import type { Invoice } from "@/lib/api/types";
+import Link from 'next/link';
+import { useEffect, useState } from 'react';
+import { apiRequestPaginated } from '@/lib/api/client';
+import { InvoiceStatusBadge } from '@/components/ui/InvoiceStatusBadge';
+import { formatBusinessDate } from '@/lib/format/date';
+import { formatAmount } from '@/lib/format/amount';
+import type { Invoice } from '@/lib/api/types';
 
 type ViewState =
-  | { status: "loading" }
-  | { status: "error"; message: string }
-  | { status: "ready"; invoices: Invoice[] };
+  | { status: 'loading' }
+  | { status: 'error'; message: string }
+  | { status: 'ready'; invoices: Invoice[] };
 
 /**
  * Liste des factures (docs/11-frontend-design-system.md, section 32) : client, date, statut
- * d'analyse en priorité — pas de colonne de statut de conformité au MVP de cette page, le
- * Compliance Engine (Phase 5-6) n'existe pas encore.
+ * d'analyse en priorité - pas de colonne de résultat de conformité sur cette liste (réservée
+ * au Dashboard/Historique, Phase 9, docs/11-frontend-design-system.md section 59) : le
+ * résultat détaillé se consulte sur la page de détail de chaque facture.
  */
 export function InvoiceList() {
-  const [state, setState] = useState<ViewState>({ status: "loading" });
+  const [state, setState] = useState<ViewState>({ status: 'loading' });
 
   useEffect(() => {
     let cancelled = false;
 
     (async () => {
       try {
-        const { data } = await apiRequestPaginated<Invoice>("/api/v1/invoices?per_page=50");
+        const { data } = await apiRequestPaginated<Invoice>(
+          '/api/v1/invoices?per_page=50',
+        );
         if (!cancelled) {
-          setState({ status: "ready", invoices: data });
+          setState({ status: 'ready', invoices: data });
         }
       } catch {
         if (!cancelled) {
-          setState({ status: "error", message: "Impossible de charger la liste des factures pour le moment." });
+          setState({
+            status: 'error',
+            message:
+              'Impossible de charger la liste des factures pour le moment.',
+          });
         }
       }
     })();
@@ -54,19 +61,26 @@ export function InvoiceList() {
         </Link>
       </div>
 
-      {state.status === "loading" ? <p className="text-sm text-muted-foreground">Chargement…</p> : null}
+      {state.status === 'loading' ? (
+        <p className="text-sm text-muted-foreground">Chargement…</p>
+      ) : null}
 
-      {state.status === "error" ? (
-        <p role="alert" className="rounded-md border border-error bg-error/10 px-3 py-2 text-sm text-error">
+      {state.status === 'error' ? (
+        <p
+          role="alert"
+          className="rounded-md border border-error bg-error/10 px-3 py-2 text-sm text-error"
+        >
           {state.message}
         </p>
       ) : null}
 
-      {state.status === "ready" && 0 === state.invoices.length ? (
-        <p className="text-sm text-muted-foreground">Aucune facture enregistrée pour le moment.</p>
+      {state.status === 'ready' && 0 === state.invoices.length ? (
+        <p className="text-sm text-muted-foreground">
+          Aucune facture enregistrée pour le moment.
+        </p>
       ) : null}
 
-      {state.status === "ready" && state.invoices.length > 0 ? (
+      {state.status === 'ready' && state.invoices.length > 0 ? (
         <div className="overflow-x-auto rounded-md border border-border">
           <table className="w-full text-left text-sm">
             <thead className="bg-surface text-muted-foreground">
@@ -81,8 +95,12 @@ export function InvoiceList() {
             <tbody>
               {state.invoices.map((invoice) => (
                 <tr key={invoice.id} className="border-t border-border">
-                  <td className="px-4 py-2 text-foreground">{invoice.invoice_number ?? "—"}</td>
-                  <td className="px-4 py-2 text-muted-foreground">{formatBusinessDate(invoice.issue_date)}</td>
+                  <td className="px-4 py-2 text-foreground">
+                    {invoice.invoice_number ?? '-'}
+                  </td>
+                  <td className="px-4 py-2 text-muted-foreground">
+                    {formatBusinessDate(invoice.issue_date)}
+                  </td>
                   <td className="px-4 py-2 tabular-nums text-foreground">
                     {formatAmount(invoice.total_amount_ttc, invoice.currency)}
                   </td>
@@ -90,7 +108,10 @@ export function InvoiceList() {
                     <InvoiceStatusBadge status={invoice.status} />
                   </td>
                   <td className="px-4 py-2 text-right">
-                    <Link href={`/invoices/${invoice.id}`} className="text-sm font-medium text-primary hover:underline">
+                    <Link
+                      href={`/invoices/${invoice.id}`}
+                      className="text-sm font-medium text-primary hover:underline"
+                    >
                       Consulter
                     </Link>
                   </td>

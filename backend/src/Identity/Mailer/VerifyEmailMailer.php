@@ -11,7 +11,7 @@ use SymfonyCasts\Bundle\VerifyEmail\VerifyEmailHelperInterface;
 
 /**
  * Envoie le lien de vérification d'email (US-AUTH-001, non bloquant pour l'usage de base
- * du compte — docs/08-api-specification.md, section 7). Transport dev/test : MAILER_DSN
+ * du compte - docs/08-api-specification.md, section 7). Transport dev/test : MAILER_DSN
  * "null://null" (aucun envoi réel, voir .env).
  */
 final readonly class VerifyEmailMailer
@@ -29,7 +29,7 @@ final readonly class VerifyEmailMailer
         // La signature est générée pour la route API elle-même : sa query string
         // (expires, signature, ...) est ensuite recopiée telle quelle dans le lien
         // frontend envoyé par email. Le frontend affiche une page, puis rappelle
-        // GET /api/v1/auth/verify-email/{id} avec cette même query string — chemin et
+        // GET /api/v1/auth/verify-email/{id} avec cette même query string - chemin et
         // paramètres identiques à ce qui a été signé, condition nécessaire à la validation
         // (VerifyEmailHelper::validateEmailConfirmationFromRequest).
         $signature = $this->verifyEmailHelper->generateSignature(
@@ -51,7 +51,7 @@ final readonly class VerifyEmailMailer
         $email = (new Email())
             ->from($this->mailerFrom)
             ->to($user->getEmail())
-            ->subject('Vérifiez votre adresse email — FactuSentinel')
+            ->subject('Vérifiez votre adresse email - FactuSentinel')
             ->text(sprintf("Confirmez votre adresse email en suivant ce lien :\n%s", $verifyUrl));
 
         $this->mailer->send($email);

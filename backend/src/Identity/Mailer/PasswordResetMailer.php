@@ -29,7 +29,7 @@ final readonly class PasswordResetMailer
         $email = (new Email())
             ->from($this->mailerFrom)
             ->to($user->getEmail())
-            ->subject('Réinitialisation de votre mot de passe — FactuSentinel')
+            ->subject('Réinitialisation de votre mot de passe - FactuSentinel')
             ->text(sprintf("Réinitialisez votre mot de passe en suivant ce lien :\n%s\n\nCe lien expire dans un délai limité.", $resetUrl));
 
         $this->mailer->send($email);

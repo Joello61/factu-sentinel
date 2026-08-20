@@ -15,7 +15,7 @@ use Symfony\Component\Uid\Uuid;
 
 /**
  * Compte individuel. Un User n'a pas de organization_id direct : il est rattaché à une ou
- * plusieurs organisations via Membership (docs/07-data-model.md, section 4-5) — au MVP,
+ * plusieurs organisations via Membership (docs/07-data-model.md, section 4-5) - au MVP,
  * un seul Membership actif (décision Phase 2, voir plan).
  *
  * `getRoles()` retourne un rôle Symfony Security générique (`ROLE_USER`), distinct du

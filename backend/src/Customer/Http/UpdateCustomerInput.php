@@ -11,7 +11,7 @@ use Symfony\Component\Validator\Constraints as Assert;
  * Représente le Customer après fusion de la requête PATCH avec l'état existant
  * (App\Customer\Service\CustomerService::update()) : jamais mappé directement depuis la
  * requête HTTP via #[MapRequestPayload], pour la même raison que
- * App\Organization\Http\MergedFiscalContextInput — distinguer "champ absent" de "champ
+ * App\Organization\Http\MergedFiscalContextInput - distinguer "champ absent" de "champ
  * explicitement null" est nécessaire à la sémantique de PATCH partiel
  * (docs/08-api-specification.md, section 26).
  */

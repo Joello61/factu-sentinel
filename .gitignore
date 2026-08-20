@@ -1,4 +1,4 @@
-# .gitignore global — FactuSentinel
+# .gitignore global - FactuSentinel
 #
 # Ce fichier couvre uniquement ce qui n'est pas déjà couvert par les .gitignore
 # spécifiques de backend/ (Symfony/PHP) et frontend/ (Next.js/TypeScript).
@@ -19,9 +19,9 @@ desktop.ini
 *.swo
 *~
 
-# Variables d'environnement et secrets — UNIQUEMENT à la racine du dépôt (le "/" ancre
+# Variables d'environnement et secrets - UNIQUEMENT à la racine du dépôt (le "/" ancre
 # le motif ici ; sans lui, ".env" s'appliquerait aussi à backend/.env, qui doit au
-# contraire être committé par convention Symfony — seul backend/.env.local est un secret).
+# contraire être committé par convention Symfony - seul backend/.env.local est un secret).
 /.env
 /.env.local
 /.env.*.local

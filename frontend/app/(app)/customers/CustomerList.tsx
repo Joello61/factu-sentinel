@@ -1,20 +1,20 @@
-"use client";
+'use client';
 
-import Link from "next/link";
-import { useEffect, useState } from "react";
-import { apiRequestPaginated } from "@/lib/api/client";
-import type { Customer, CustomerType } from "@/lib/api/types";
+import Link from 'next/link';
+import { useEffect, useState } from 'react';
+import { apiRequestPaginated } from '@/lib/api/client';
+import type { Customer, CustomerType } from '@/lib/api/types';
 
 const CUSTOMER_TYPE_LABELS: Record<CustomerType, string> = {
-  PROFESSIONNEL_FRANCAIS: "Professionnel français",
-  PARTICULIER: "Particulier",
-  PROFESSIONNEL_ETRANGER: "Professionnel étranger",
+  PROFESSIONNEL_FRANCAIS: 'Professionnel français',
+  PARTICULIER: 'Particulier',
+  PROFESSIONNEL_ETRANGER: 'Professionnel étranger',
 };
 
 type ViewState =
-  | { status: "loading" }
-  | { status: "error"; message: string }
-  | { status: "ready"; customers: Customer[] };
+  | { status: 'loading' }
+  | { status: 'error'; message: string }
+  | { status: 'ready'; customers: Customer[] };
 
 /**
  * Liste des clients (US-CUSTOMER-001, docs/11-frontend-design-system.md, section 24) :
@@ -23,20 +23,26 @@ type ViewState =
  * détermine les règles de conformité applicables.
  */
 export function CustomerList() {
-  const [state, setState] = useState<ViewState>({ status: "loading" });
+  const [state, setState] = useState<ViewState>({ status: 'loading' });
 
   useEffect(() => {
     let cancelled = false;
 
     (async () => {
       try {
-        const { data } = await apiRequestPaginated<Customer>("/api/v1/customers?per_page=50");
+        const { data } = await apiRequestPaginated<Customer>(
+          '/api/v1/customers?per_page=50',
+        );
         if (!cancelled) {
-          setState({ status: "ready", customers: data });
+          setState({ status: 'ready', customers: data });
         }
       } catch {
         if (!cancelled) {
-          setState({ status: "error", message: "Impossible de charger la liste des clients pour le moment." });
+          setState({
+            status: 'error',
+            message:
+              'Impossible de charger la liste des clients pour le moment.',
+          });
         }
       }
     })();
@@ -58,19 +64,26 @@ export function CustomerList() {
         </Link>
       </div>
 
-      {state.status === "loading" ? <p className="text-sm text-muted-foreground">Chargement…</p> : null}
+      {state.status === 'loading' ? (
+        <p className="text-sm text-muted-foreground">Chargement…</p>
+      ) : null}
 
-      {state.status === "error" ? (
-        <p role="alert" className="rounded-md border border-error bg-error/10 px-3 py-2 text-sm text-error">
+      {state.status === 'error' ? (
+        <p
+          role="alert"
+          className="rounded-md border border-error bg-error/10 px-3 py-2 text-sm text-error"
+        >
           {state.message}
         </p>
       ) : null}
 
-      {state.status === "ready" && 0 === state.customers.length ? (
-        <p className="text-sm text-muted-foreground">Aucun client enregistré pour le moment.</p>
+      {state.status === 'ready' && 0 === state.customers.length ? (
+        <p className="text-sm text-muted-foreground">
+          Aucun client enregistré pour le moment.
+        </p>
       ) : null}
 
-      {state.status === "ready" && state.customers.length > 0 ? (
+      {state.status === 'ready' && state.customers.length > 0 ? (
         <div className="overflow-x-auto rounded-md border border-border">
           <table className="w-full text-left text-sm">
             <thead className="bg-surface text-muted-foreground">
@@ -86,11 +99,20 @@ export function CustomerList() {
               {state.customers.map((customer) => (
                 <tr key={customer.id} className="border-t border-border">
                   <td className="px-4 py-2 text-foreground">{customer.name}</td>
-                  <td className="px-4 py-2 text-foreground">{CUSTOMER_TYPE_LABELS[customer.customer_type]}</td>
-                  <td className="px-4 py-2 text-muted-foreground">{customer.siren ?? "—"}</td>
-                  <td className="px-4 py-2 text-muted-foreground">{customer.country}</td>
+                  <td className="px-4 py-2 text-foreground">
+                    {CUSTOMER_TYPE_LABELS[customer.customer_type]}
+                  </td>
+                  <td className="px-4 py-2 text-muted-foreground">
+                    {customer.siren ?? '-'}
+                  </td>
+                  <td className="px-4 py-2 text-muted-foreground">
+                    {customer.country}
+                  </td>
                   <td className="px-4 py-2 text-right">
-                    <Link href={`/customers/${customer.id}`} className="text-sm font-medium text-primary hover:underline">
+                    <Link
+                      href={`/customers/${customer.id}`}
+                      className="text-sm font-medium text-primary hover:underline"
+                    >
                       Modifier
                     </Link>
                   </td>

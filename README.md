@@ -16,16 +16,16 @@ En développement actif, phase de conception achevée. Voir `docs/12-roadmap.md`
 
 ## Stack technique
 
-| Couche | Choix |
-|---|---|
-| Frontend | Next.js, TypeScript, Tailwind CSS v4 |
-| Backend | Symfony (PHP), monolithe modulaire |
-| Base de données | PostgreSQL |
-| Traitement asynchrone / cache | Redis |
-| Validation Factur-X / UBL / CII | Mustangproject (conteneur isolé) |
-| IA | Mistral |
-| Infrastructure | Docker, Nginx |
-| CI/CD | GitHub Actions |
+| Couche                          | Choix                                |
+| ------------------------------- | ------------------------------------ |
+| Frontend                        | Next.js, TypeScript, Tailwind CSS v4 |
+| Backend                         | Symfony (PHP), monolithe modulaire   |
+| Base de données                 | PostgreSQL                           |
+| Traitement asynchrone / cache   | Redis                                |
+| Validation Factur-X / UBL / CII | Mustangproject (conteneur isolé)     |
+| IA                              | Mistral                              |
+| Infrastructure                  | Docker, Nginx                        |
+| CI/CD                           | GitHub Actions                       |
 
 Détail complet et justifications architecturales : `docs/06-technical-architecture.md`.
 
@@ -33,31 +33,31 @@ Détail complet et justifications architecturales : `docs/06-technical-architect
 
 ```text
 .
-├── backend/     API Symfony (PHP) — voir backend/CLAUDE.md
-├── frontend/    Application Next.js — voir frontend/CLAUDE.md
+├── backend/     API Symfony (PHP) - voir backend/CLAUDE.md
+├── frontend/    Application Next.js - voir frontend/CLAUDE.md
 ├── docker/      Configuration de conteneurisation (en construction)
 ├── infra/       Configuration d'infrastructure (en construction)
-└── docs/        Documentation de conception — source de vérité du projet
+└── docs/        Documentation de conception - source de vérité du projet
 ```
 
 ## Documentation
 
 Le dossier `docs/` est la source de vérité fonctionnelle, réglementaire, architecturale et produit du projet. À lire avant toute contribution significative :
 
-| Document | Contenu |
-|---|---|
-| `docs/01-intent-note.md` | Vision, cible, positionnement, hors périmètre |
-| `docs/02-regulatory-study.md` | Réglementation française de la facturation électronique |
-| `docs/03-market-analysis.md` | Marché, concurrence, hypothèses |
-| `docs/04-product-requirements.md` | Exigences produit, Business Rules, décisions produit |
-| `docs/05-user-stories.md` | Parcours utilisateurs, critères d'acceptation |
-| `docs/06-technical-architecture.md` | Architecture, modules, décisions d'architecture (ADR) |
-| `docs/07-data-model.md` | Modèle de données |
-| `docs/08-api-specification.md` | Contrats de l'API |
-| `docs/09-test-strategy.md` | Stratégie de test |
-| `docs/10-security-privacy.md` | Sécurité et confidentialité (RGPD) |
-| `docs/11-frontend-design-system.md` | Système de design |
-| `docs/12-roadmap.md` | Séquencement, phases, milestones |
+| Document                            | Contenu                                                 |
+| ----------------------------------- | ------------------------------------------------------- |
+| `docs/01-intent-note.md`            | Vision, cible, positionnement, hors périmètre           |
+| `docs/02-regulatory-study.md`       | Réglementation française de la facturation électronique |
+| `docs/03-market-analysis.md`        | Marché, concurrence, hypothèses                         |
+| `docs/04-product-requirements.md`   | Exigences produit, Business Rules, décisions produit    |
+| `docs/05-user-stories.md`           | Parcours utilisateurs, critères d'acceptation           |
+| `docs/06-technical-architecture.md` | Architecture, modules, décisions d'architecture (ADR)   |
+| `docs/07-data-model.md`             | Modèle de données                                       |
+| `docs/08-api-specification.md`      | Contrats de l'API                                       |
+| `docs/09-test-strategy.md`          | Stratégie de test                                       |
+| `docs/10-security-privacy.md`       | Sécurité et confidentialité (RGPD)                      |
+| `docs/11-frontend-design-system.md` | Système de design                                       |
+| `docs/12-roadmap.md`                | Séquencement, phases, milestones                        |
 
 Les règles de développement (architecture, sécurité, réglementation, IA, Git, workflow) sont définies dans `CLAUDE.md` à la racine, complété par `backend/CLAUDE.md` et `frontend/CLAUDE.md`.
 
@@ -67,7 +67,7 @@ Les règles de développement (architecture, sécurité, réglementation, IA, Gi
 
 - PHP >= 8.4, Composer
 - Node.js (voir `frontend/package.json` pour la version des dépendances)
-- PostgreSQL, Redis (conteneurisation Docker prévue, non encore en place — voir `docs/12-roadmap.md`, Phase 0-1)
+- PostgreSQL, Redis (conteneurisation Docker prévue, non encore en place - voir `docs/12-roadmap.md`, Phase 0-1)
 
 ### Backend
 
@@ -89,4 +89,4 @@ Ces instructions reflètent l'état actuel (squelettes Symfony et Next.js) et é
 
 ## Licence
 
-Distribué sous licence MIT — voir [LICENSE](LICENSE).
+Distribué sous licence MIT - voir [LICENSE](LICENSE).

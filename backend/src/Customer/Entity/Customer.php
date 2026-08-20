@@ -20,7 +20,7 @@ use Symfony\Component\Uid\Uuid;
  *
  * siren reste nullable même pour un PROFESSIONNEL_FRANCAIS : son absence n'est jamais une
  * erreur de validation à la création (05-user-stories.md, US-CUSTOMER-002 ; CLAUDE.md racine
- * section 9, BR-COMPLIANCE-003/ADR-002) — seul le Compliance Engine (Phase 5, inexistant à ce
+ * section 9, BR-COMPLIANCE-003/ADR-002) - seul le Compliance Engine (Phase 5, inexistant à ce
  * stade) qualifiera cette absence en A_VERIFIER. Voir plan Phase 4, décision D1.
  *
  * Pas d'historisation (décision confirmée, docs/07-data-model.md section 8) : le snapshot

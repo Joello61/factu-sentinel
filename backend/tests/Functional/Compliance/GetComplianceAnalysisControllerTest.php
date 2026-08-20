@@ -66,6 +66,16 @@ final class GetComplianceAnalysisControllerTest extends ApiTestCase
         self::assertSame($analysisId, $data['id']);
         self::assertSame('COMPLETED', $data['status']);
         self::assertNotEmpty($data['findings']);
+
+        // docs/11-frontend-design-system.md, section 29 : chaque finding doit exposer la
+        // date d'entrée en vigueur de sa règle, y compris quand effective_until est null
+        // (clé toujours présente, jamais omise).
+        foreach ($data['findings'] as $finding) {
+            self::assertArrayHasKey('effective_from', $finding['rule']);
+            self::assertNotEmpty($finding['rule']['effective_from']);
+            self::assertArrayHasKey('effective_until', $finding['rule']);
+            self::assertNull($finding['rule']['effective_until']);
+        }
     }
 
     public function testFindingsEndpointMatchesEmbeddedFindings(): void

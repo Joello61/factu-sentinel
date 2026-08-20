@@ -11,7 +11,7 @@ namespace App\Compliance\Rules\Enum;
  * (format-facture-electronique) ont une règle réelle. QUALIFICATION_OPERATION n'est
  * volontairement pas ajoutée : l'applicabilité e-invoicing/e-reporting est portée par
  * conditions.applicability de chaque RuleVersion concernée (Compliance/Engine), pas par une
- * règle distincte qui produirait son propre ComplianceFinding (voir plan Phase 5) — une
+ * règle distincte qui produirait son propre ComplianceFinding (voir plan Phase 5) - une
  * catégorie n'est ajoutée qu'avec une règle réelle qui l'utilise.
  */
 enum RuleCategory: string
