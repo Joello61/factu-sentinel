@@ -121,7 +121,7 @@ Cohérent avec `07-data-model.md` (section 32) :
 | `compliance-analyses/{id}/findings`                    | Oui, sous-ressource                                             | US-COMPLIANCE-003/004                                                                                                                                                        |
 | `regulatory-rules`                                     | Oui, en lecture seule et périmètre limité (section 34)          | Support de US-COMPLIANCE-003 (source affichée)                                                                                                                               |
 | `notifications`                                        | Oui                                                             | US-NOTIFICATION-001                                                                                                                                                          |
-| `assistant/explanations`                               | Oui                                                             | US-AI-001/002                                                                                                                                                                |
+| `compliance-findings/{id}/explanations`, `assistant/questions` | Oui                                                       | US-AI-001/002                                                                                                                                                                |
 | `integrations`                                         | Non exposée au MVP                                              | Aucune intégration active au MVP (`06-technical-architecture.md` section 16)                                                                                                 |
 | `subscriptions`                                        | Non exposée au MVP                                              | Non implémentée au cœur du MVP, architecture extensible prévue (`07-data-model.md` section 24) - orientation Freemium + abonnement Pro provisoire, validation marché requise |
 | `audit-events`                                         | Oui, restreint et en lecture seule                              | US-HISTORY-001 (partiellement - voir section 41)                                                                                                                             |
@@ -668,13 +668,35 @@ Response: 200 OK
     "source": "Généré par assistance IA à partir du résultat déterministe existant"
   }
 }
-Errors: 503 (fournisseur IA indisponible) → dans ce cas, le frontend doit utiliser le message par défaut déjà présent dans le finding (ComplianceFinding.message, 07-data-model.md §18), jamais bloquer l'affichage du résultat lui-même (fallback, 06-technical-architecture.md §14-15).
-Async: Oui (dépendance externe).
+Errors: 403 EMAIL_VERIFICATION_REQUIRED (email non vérifié, §7) ; 404 (finding inexistant ou appartenant à une autre organisation, jamais 403 pour ce cas précis, §46) ; 429 (limite de débit dépassée, §22) ; 503 (fournisseur IA indisponible) → dans ce cas, le frontend doit utiliser le message par défaut déjà présent dans le finding (ComplianceFinding.message, 07-data-model.md §18), jamais bloquer l'affichage du résultat lui-même (fallback, 06-technical-architecture.md §14-15).
+Async: Non - synchrone, un seul appel HTTP borné au fournisseur IA dans le cycle requête/réponse (timeout court, pas de retry automatique, cohérent avec 06-technical-architecture.md §16). Décision Phase 8, cohérente avec le précédent de la Phase 5 sur POST /invoices/{id}/compliance-analyses (§30) : le chemin 202/status_url documenté comme capacité générale de l'architecture n'est pas retenu ici, la latence d'un appel Mistral pour une reformulation courte restant bornée et ne justifiant pas un worker Messenger.
 Idempotency: Non nécessaire (opération de lecture augmentée, sans effet persistant sur ComplianceFinding).
-Audit: Oui - trace de la reformulation produite, sans modification de l'entité source.
+Audit: Oui - trace de la tentative (succès/échec, identifiant du finding), sans jamais inclure le prompt ni le texte généré (10-security-privacy.md §35).
 ```
 
 **Contrainte structurelle du contrat** : cet endpoint ne prend **jamais** en paramètre l'ensemble d'une facture ou d'une organisation - uniquement l'identifiant d'un `ComplianceFinding` déjà produit. Cette restriction du contrat lui-même est ce qui empêche, au niveau de l'API, que l'IA reçoive plus de contexte que nécessaire (minimisation, cohérent avec `06-technical-architecture.md` section 14).
+
+```text
+POST /assistant/questions
+Request:
+{
+  "question": "string (1 à 500 caractères)"
+}
+Response: 200 OK
+{
+  "data": {
+    "question": "string (reprise telle quelle)",
+    "answer": "string (réponse ancrée dans 02-regulatory-study.md)",
+    "source": "Généré par assistance IA à partir de l'étude réglementaire du produit (02-regulatory-study.md)"
+  }
+}
+Errors: 403 EMAIL_VERIFICATION_REQUIRED (email non vérifié, §7) ; 422 VALIDATION_ERROR (question vide ou supérieure à 500 caractères, §15) ; 429 (limite de débit dépassée, §22, budget partagé avec /compliance-findings/{id}/explanations) ; 503 (fournisseur IA indisponible) → aucun contenu de repli à afficher ici (contrairement à l'endpoint d'explication, il n'existe pas de message par défaut préexistant pour une question libre), le frontend affiche un message calme invitant à réessayer.
+Async: Non - même principe que POST /compliance-findings/{id}/explanations ci-dessus.
+Idempotency: Non nécessaire.
+Audit: Oui - trace de la tentative (succès/échec, longueur de la question), jamais la question elle-même ni la réponse générée (10-security-privacy.md §35).
+```
+
+**Ancrage de la réponse (US-AI-002, décision Phase 8)** : le contexte transmis au fournisseur IA pour cet endpoint inclut le texte intégral de `02-regulatory-study.md` (~20k tokens, fenêtre de contexte du modèle retenu très largement suffisante - vérifié sur la documentation Mistral actuelle au moment de l'implémentation), jamais un mécanisme de recherche/retrieval ni un glossaire séparé qui dupliquerait ce contenu et risquerait de diverger de la source. Le prompt système impose explicitement de ne jamais présenter une information comme provenant de l'étude si elle n'y figure pas réellement, et de préserver les mentions "à confirmer" de l'étude plutôt que de les présenter comme certaines.
 
 ## 36. Integrations API
 
