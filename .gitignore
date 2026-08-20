@@ -42,3 +42,7 @@ logs/
 # Archives temporaires
 *.tmp
 *.bak
+
+# Sauvegardes locales (docker/backup/, Phase 10) - jamais une sauvegarde réelle committée,
+# même chiffrée.
+/backups/
