@@ -70,6 +70,7 @@ final class GetDashboardControllerTest extends ApiTestCase
     public function testInvoiceWithMissingSirenYieldsAttentionRequiseWithRecommendedAction(): void
     {
         $client = $this->createAuthenticatedClient('dashboard-attention@example.test');
+        $this->markEmailVerified('dashboard-attention@example.test');
         $this->configureFiscalContext($client);
 
         // SIREN manquant sur un client professionnel français -> NON_CONFORME (REG-004).
@@ -88,6 +89,7 @@ final class GetDashboardControllerTest extends ApiTestCase
     public function testInvoiceWithoutIssuesYieldsConforme(): void
     {
         $client = $this->createAuthenticatedClient('dashboard-conforme@example.test');
+        $this->markEmailVerified('dashboard-conforme@example.test');
         $this->configureFiscalContext($client);
 
         // SIREN présent, client professionnel français -> pas de NON_CONFORME sur cette règle.
@@ -103,6 +105,7 @@ final class GetDashboardControllerTest extends ApiTestCase
     public function testReanalyzingAnInvoiceOnlyCountsTheLatestAnalysis(): void
     {
         $client = $this->createAuthenticatedClient('dashboard-reanalyze@example.test');
+        $this->markEmailVerified('dashboard-reanalyze@example.test');
         $this->configureFiscalContext($client);
 
         $client->jsonRequest('POST', '/api/v1/customers', [
@@ -143,6 +146,7 @@ final class GetDashboardControllerTest extends ApiTestCase
     {
         $client = static::createClient();
         $tokenA = $this->loginAs($client, 'dashboard-tenant-a@example.test');
+        $this->markEmailVerified('dashboard-tenant-a@example.test');
         $tokenB = $this->loginAs($client, 'dashboard-tenant-b@example.test');
 
         $client->setServerParameter('HTTP_AUTHORIZATION', 'Bearer '.$tokenA);

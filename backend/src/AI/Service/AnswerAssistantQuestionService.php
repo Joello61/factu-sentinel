@@ -10,8 +10,8 @@ use App\Identity\Entity\User;
 use App\Shared\Audit\AuditLogger;
 use App\Shared\Audit\Enum\ActorType;
 use App\Shared\Audit\Enum\EventType;
-use App\Shared\Exception\EmailVerificationRequiredException;
 use App\Shared\Security\CurrentOrganizationResolver;
+use App\Shared\Security\EmailVerificationGuard;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\SecurityBundle\Security;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
@@ -35,6 +35,7 @@ final class AnswerAssistantQuestionService
         private readonly AuditLogger $auditLogger,
         private readonly Security $security,
         private readonly CurrentOrganizationResolver $currentOrganizationResolver,
+        private readonly EmailVerificationGuard $emailVerificationGuard,
         #[Autowire(service: 'limiter.ai_assistant')]
         private readonly RateLimiterFactory $rateLimiter,
     ) {
@@ -43,7 +44,7 @@ final class AnswerAssistantQuestionService
     /** @return array{status: int, body: array<string, mixed>} */
     public function answer(string $question): array
     {
-        $this->requireVerifiedEmail();
+        $this->emailVerificationGuard->assertVerified();
 
         $limit = $this->rateLimiter->create($this->currentOrganizationResolver->getOrganizationId()->toRfc4122())->consume();
         if (!$limit->isAccepted()) {
@@ -61,14 +62,6 @@ final class AnswerAssistantQuestionService
         $this->audit(\strlen($question), success: true);
 
         return ['status' => 200, 'body' => ['data' => AssistantAnswerView::create($question, $answer)]];
-    }
-
-    private function requireVerifiedEmail(): void
-    {
-        $user = $this->security->getUser();
-        if (!$user instanceof User || !$user->isEmailVerified()) {
-            throw new EmailVerificationRequiredException();
-        }
     }
 
     private function audit(int $questionLength, bool $success): void

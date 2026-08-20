@@ -172,6 +172,7 @@ final class RuleVersionNonRetroactivityTest extends ApiTestCase
     private function runScenario(): void
     {
         $client = $this->createAuthenticatedClient('e2e-006-non-retro@example.test');
+        $this->markEmailVerified('e2e-006-non-retro@example.test');
         $this->configureFiscalContext($client);
 
         $client->jsonRequest('POST', '/api/v1/customers', [

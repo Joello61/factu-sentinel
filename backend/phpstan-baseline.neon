@@ -1,0 +1,136 @@
+# Baseline générée en Phase 10 (docs/12-roadmap.md), à l'introduction de PHPStan (niveau 6,
+# backend/phpstan.neon) sur le code déjà existant des Phases 1 à 9. 20 erreurs, toutes
+# inspectées et catégorisées manuellement avant génération (jamais générée à l'aveugle) :
+# 19 sont des faux positifs structurels sur des entités Doctrine dont les propriétés sont
+# hydratées par réflexion ORM ou écrites via SQL direct (App\Shared\Idempotency\Entity\
+# IdempotencyKey, App\Shared\Idempotency\Repository\IdempotencyKeyRepository) plutôt que par
+# des setters PHP normaux - PHPStan ne peut pas tracer ces écritures, ce ne sont jamais de
+# vrais bugs. La 20e (App\Kernel::getAllowedEnvs, "unused") est un point d'extension du
+# squelette Symfony par défaut, jamais appelé directement par ce projet mais faisant partie
+# du contrat de base de Kernel. Un vrai problème de typage trouvé lors de cette même
+# inspection (App\Organization\Service\ConfigureOrganizationService::toApiFieldNames)
+# a été corrigé directement dans le code plutôt que baselined ici. Cette baseline ne doit
+# jamais être régénérée pour faire taire une nouvelle erreur sur du code écrit après son
+# introduction - toute régénération ultérieure doit être un acte délibéré, visible dans le
+# diff de la PR qui l'accompagne, jamais un geste de confort pour faire passer la CI.
+parameters:
+	ignoreErrors:
+		-
+			message: '#^Property App\\Compliance\\Engine\\Entity\\ComplianceAnalysis\:\:\$contextSnapshot \(App\\Compliance\\Engine\\Entity\\ContextSnapshot\|null\) is never assigned App\\Compliance\\Engine\\Entity\\ContextSnapshot so it can be removed from the property type\.$#'
+			identifier: property.unusedType
+			count: 1
+			path: src/Compliance/Engine/Entity/ComplianceAnalysis.php
+
+		-
+			message: '#^Property App\\Compliance\\Engine\\Entity\\ContextSnapshot\:\:\$complianceAnalysis is never read, only written\.$#'
+			identifier: property.onlyWritten
+			count: 1
+			path: src/Compliance/Engine/Entity/ContextSnapshot.php
+
+		-
+			message: '#^Property App\\Compliance\\Rules\\Entity\\RuleVersion\:\:\$effectiveUntil \(DateTimeImmutable\|null\) is never assigned DateTimeImmutable so it can be removed from the property type\.$#'
+			identifier: property.unusedType
+			count: 1
+			path: src/Compliance/Rules/Entity/RuleVersion.php
+
+		-
+			message: '#^Strict comparison using \=\=\= between null and \(int\|false\) will always evaluate to false\.$#'
+			identifier: identical.alwaysFalse
+			count: 1
+			path: src/Document/Service/UploadedDocumentValidator.php
+
+		-
+			message: '#^Property App\\Identity\\Entity\\ResetPasswordRequest\:\:\$id is never read, only written\.$#'
+			identifier: property.onlyWritten
+			count: 1
+			path: src/Identity/Entity/ResetPasswordRequest.php
+
+		-
+			message: '#^Class App\\Identity\\Repository\\UserRepository implements generic interface Symfony\\Component\\Security\\Core\\User\\UserProviderInterface but does not specify its types\: TUser$#'
+			identifier: missingType.generics
+			count: 1
+			path: src/Identity/Repository/UserRepository.php
+
+		-
+			message: '#^Property App\\Invoicing\\Entity\\InvoiceLine\:\:\$invoice is never read, only written\.$#'
+			identifier: property.onlyWritten
+			count: 1
+			path: src/Invoicing/Entity/InvoiceLine.php
+
+		-
+			message: '#^Method App\\Kernel\:\:getAllowedEnvs\(\) is unused\.$#'
+			identifier: method.unused
+			count: 1
+			path: src/Kernel.php
+
+		-
+			message: '#^Property App\\Organization\\Entity\\Organization\:\:\$country \(string\|null\) is never assigned string so it can be removed from the property type\.$#'
+			identifier: property.unusedType
+			count: 1
+			path: src/Organization/Entity/Organization.php
+
+		-
+			message: '#^Property App\\Organization\\Entity\\Organization\:\:\$legalForm \(string\|null\) is never assigned string so it can be removed from the property type\.$#'
+			identifier: property.unusedType
+			count: 1
+			path: src/Organization/Entity/Organization.php
+
+		-
+			message: '#^Property App\\Organization\\Entity\\Organization\:\:\$siren \(string\|null\) is never assigned string so it can be removed from the property type\.$#'
+			identifier: property.unusedType
+			count: 1
+			path: src/Organization/Entity/Organization.php
+
+		-
+			message: '#^Property App\\Organization\\Entity\\Organization\:\:\$siret \(string\|null\) is never assigned string so it can be removed from the property type\.$#'
+			identifier: property.unusedType
+			count: 1
+			path: src/Organization/Entity/Organization.php
+
+		-
+			message: '#^Property App\\Organization\\Entity\\Organization\:\:\$tradeName \(string\|null\) is never assigned string so it can be removed from the property type\.$#'
+			identifier: property.unusedType
+			count: 1
+			path: src/Organization/Entity/Organization.php
+
+		-
+			message: '#^Property App\\Shared\\Idempotency\\Entity\\IdempotencyKey\:\:\$createdAt is unused\.$#'
+			identifier: property.unused
+			count: 1
+			path: src/Shared/Idempotency/Entity/IdempotencyKey.php
+
+		-
+			message: '#^Property App\\Shared\\Idempotency\\Entity\\IdempotencyKey\:\:\$expiresAt is unused\.$#'
+			identifier: property.unused
+			count: 1
+			path: src/Shared/Idempotency/Entity/IdempotencyKey.php
+
+		-
+			message: '#^Property App\\Shared\\Idempotency\\Entity\\IdempotencyKey\:\:\$id is never written, only read\.$#'
+			identifier: property.onlyRead
+			count: 1
+			path: src/Shared/Idempotency/Entity/IdempotencyKey.php
+
+		-
+			message: '#^Property App\\Shared\\Idempotency\\Entity\\IdempotencyKey\:\:\$idempotencyKey is unused\.$#'
+			identifier: property.unused
+			count: 1
+			path: src/Shared/Idempotency/Entity/IdempotencyKey.php
+
+		-
+			message: '#^Property App\\Shared\\Idempotency\\Entity\\IdempotencyKey\:\:\$organizationId is unused\.$#'
+			identifier: property.unused
+			count: 1
+			path: src/Shared/Idempotency/Entity/IdempotencyKey.php
+
+		-
+			message: '#^Property App\\Shared\\Idempotency\\Entity\\IdempotencyKey\:\:\$responseBody is never written, only read\.$#'
+			identifier: property.onlyRead
+			count: 1
+			path: src/Shared/Idempotency/Entity/IdempotencyKey.php
+
+		-
+			message: '#^Property App\\Shared\\Idempotency\\Entity\\IdempotencyKey\:\:\$responseStatus is never written, only read\.$#'
+			identifier: property.onlyRead
+			count: 1
+			path: src/Shared/Idempotency/Entity/IdempotencyKey.php

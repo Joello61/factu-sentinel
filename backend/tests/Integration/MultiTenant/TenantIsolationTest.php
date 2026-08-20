@@ -210,6 +210,8 @@ final class TenantIsolationTest extends ApiTestCase
     public function testTcTenant007DoctrineLevelIsolationOnComplianceAnalysis(): void
     {
         [$client, $tokenA, $tokenB] = $this->tokensForTwoTenants('tenant-a-007@example.test', 'tenant-b-007@example.test');
+        $this->markEmailVerified('tenant-a-007@example.test');
+        $this->markEmailVerified('tenant-b-007@example.test');
 
         $client->setServerParameter('HTTP_AUTHORIZATION', 'Bearer '.$tokenA);
         $client->jsonRequest('PATCH', '/api/v1/organizations/current', [
@@ -258,5 +260,33 @@ final class TenantIsolationTest extends ApiTestCase
         }
 
         $em->getFilters()->disable('tenant_filter');
+    }
+
+    /**
+     * Phase 10 : GET /audit-events (docs/08-api-specification.md, section 39), écart
+     * d'implémentation fermé cette phase. AuditLogEntry n'implémentant pas
+     * TenantScopedInterface (voir son docblock), ce filtrage est manuel côté
+     * App\Shared\Audit\Repository\AuditLogEntryRepository - ce test vérifie donc au niveau
+     * API, pas seulement Doctrine, qu'aucune fuite cross-tenant n'est possible sur ce
+     * nouvel endpoint.
+     */
+    public function testTcTenant008ApiIsolationOnAuditEvents(): void
+    {
+        [$client, $tokenA, $tokenB] = $this->tokensForTwoTenants('tenant-a-008@example.test', 'tenant-b-008@example.test');
+
+        $client->setServerParameter('HTTP_AUTHORIZATION', 'Bearer '.$tokenA);
+        $client->jsonRequest('PATCH', '/api/v1/organizations/current', ['legal_name' => 'Organisation A']);
+        self::assertResponseStatusCodeSame(200);
+
+        $client->jsonRequest('GET', '/api/v1/audit-events');
+        self::assertResponseStatusCodeSame(200);
+        $bodyA = $this->jsonBody($client);
+        self::assertGreaterThan(0, $bodyA['meta']['pagination']['total_count'], 'Organisation A doit voir ses propres événements.');
+
+        $client->setServerParameter('HTTP_AUTHORIZATION', 'Bearer '.$tokenB);
+        $client->jsonRequest('GET', '/api/v1/audit-events');
+        self::assertResponseStatusCodeSame(200);
+        $bodyB = $this->jsonBody($client);
+        self::assertSame(0, $bodyB['meta']['pagination']['total_count'], 'Aucun événement de A ne doit fuiter vers B.');
     }
 }

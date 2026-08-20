@@ -3,8 +3,16 @@ nelmio_cors:
         origin_regex: true
         allow_origin: ['%env(CORS_ALLOW_ORIGIN)%']
         allow_methods: ['GET', 'OPTIONS', 'POST', 'PUT', 'PATCH', 'DELETE']
-        allow_headers: ['Content-Type', 'Authorization']
-        expose_headers: ['Link']
+        # Idempotency-Key (POST /invoices/{id}/compliance-analyses, POST /documents),
+        # If-Match (PATCH /invoices/{id}, verrouillage optimiste) : en-têtes déjà envoyés par
+        # des endpoints existants, jamais couverts jusqu'ici par la politique CORS
+        # (docs/10-security-privacy.md, section 21) - Phase 10.
+        allow_headers: ['Content-Type', 'Authorization', 'Idempotency-Key', 'If-Match', 'X-Request-ID']
+        # ETag/X-Request-ID doivent être lisibles par le client pour le verrouillage
+        # optimiste (If-Match) et la corrélation d'incident (docs/10-security-privacy.md,
+        # section 33) - sans expose_headers, un navigateur cross-origin ne peut pas les lire
+        # via l'API Fetch/XHR, même s'ils sont bien présents dans la réponse HTTP.
+        expose_headers: ['Link', 'ETag', 'X-Request-ID']
         max_age: 3600
     paths:
         '^/': null

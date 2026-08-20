@@ -74,6 +74,7 @@ final class RunComplianceAnalysisControllerTest extends ApiTestCase
     public function testWithoutFiscalContextReturns409(): void
     {
         $client = $this->createAuthenticatedClient('compliance-run-002@example.test');
+        $this->markEmailVerified('compliance-run-002@example.test');
         // Pas de configureFiscalContext() : Customer/Invoice ne dépendent pas de FiscalContext.
         $customerId = $this->createCustomer($client);
         $invoiceId = $this->createInvoice($client, $customerId);
@@ -87,6 +88,7 @@ final class RunComplianceAnalysisControllerTest extends ApiTestCase
     public function testMissingSirenProducesNonConformeWithCorrectionAction(): void
     {
         $client = $this->createAuthenticatedClient('compliance-run-003@example.test');
+        $this->markEmailVerified('compliance-run-003@example.test');
         $this->configureFiscalContext($client);
         $customerId = $this->createCustomer($client, 'PROFESSIONNEL_FRANCAIS', null);
         $invoiceId = $this->createInvoice($client, $customerId);
@@ -114,6 +116,7 @@ final class RunComplianceAnalysisControllerTest extends ApiTestCase
     public function testSirenPresentProducesConforme(): void
     {
         $client = $this->createAuthenticatedClient('compliance-run-004@example.test');
+        $this->markEmailVerified('compliance-run-004@example.test');
         $this->configureFiscalContext($client);
         $customerId = $this->createCustomer($client);
         $invoiceId = $this->createInvoice($client, $customerId);
@@ -129,6 +132,7 @@ final class RunComplianceAnalysisControllerTest extends ApiTestCase
     public function testVatExemptOperationIsNonApplicable(): void
     {
         $client = $this->createAuthenticatedClient('compliance-run-005@example.test');
+        $this->markEmailVerified('compliance-run-005@example.test');
         $this->configureFiscalContext($client);
         $customerId = $this->createCustomer($client, 'PROFESSIONNEL_FRANCAIS', null);
         $invoiceId = $this->createInvoice($client, $customerId, 'Article 261 CGI');
@@ -146,6 +150,7 @@ final class RunComplianceAnalysisControllerTest extends ApiTestCase
     public function testIdempotencyKeyReplayReturnsSameResponseWithoutCreatingSecondAnalysis(): void
     {
         $client = $this->createAuthenticatedClient('compliance-run-006@example.test');
+        $this->markEmailVerified('compliance-run-006@example.test');
         $this->configureFiscalContext($client);
         $customerId = $this->createCustomer($client);
         $invoiceId = $this->createInvoice($client, $customerId);
@@ -162,6 +167,24 @@ final class RunComplianceAnalysisControllerTest extends ApiTestCase
 
         $client->jsonRequest('GET', sprintf('/api/v1/invoices/%s/compliance-analyses', $invoiceId));
         self::assertCount(1, $this->jsonBody($client)['data'], 'Une seule ComplianceAnalysis doit avoir été créée.');
+    }
+
+    /**
+     * Phase 10 (docs/10-security-privacy.md, section 12 ; dette documentée
+     * docs/12-roadmap.md, Phase 8) : la vérification email, jusqu'ici appliquée uniquement
+     * à l'assistant IA, s'étend désormais au déclenchement d'analyses.
+     */
+    public function testEmailNotVerifiedReturns403(): void
+    {
+        $client = $this->createAuthenticatedClient('compliance-run-011@example.test');
+        $this->configureFiscalContext($client);
+        $customerId = $this->createCustomer($client);
+        $invoiceId = $this->createInvoice($client, $customerId);
+
+        $this->runAnalysis($client, $invoiceId, 'unverified-key-011');
+
+        self::assertResponseStatusCodeSame(403);
+        self::assertSame('EMAIL_VERIFICATION_REQUIRED', $this->jsonBody($client)['error']['code']);
     }
 
     public function testUnknownInvoiceReturns404(): void
@@ -195,6 +218,7 @@ final class RunComplianceAnalysisControllerTest extends ApiTestCase
     public function testInvoiceStatusBecomesAnalyzed(): void
     {
         $client = $this->createAuthenticatedClient('compliance-run-009@example.test');
+        $this->markEmailVerified('compliance-run-009@example.test');
         $this->configureFiscalContext($client);
         $customerId = $this->createCustomer($client);
         $invoiceId = $this->createInvoice($client, $customerId);
@@ -204,5 +228,31 @@ final class RunComplianceAnalysisControllerTest extends ApiTestCase
 
         $client->jsonRequest('GET', '/api/v1/invoices/'.$invoiceId);
         self::assertSame('ANALYZED', $this->jsonBody($client)['data']['status']);
+    }
+
+    /**
+     * Phase 10 (docs/10-security-privacy.md, section 18) : rate limiting sur le
+     * déclenchement d'analyses, jamais couvert avant cette phase. Même patron que
+     * App\Tests\Functional\AI\ExplainComplianceFindingControllerTest::testRateLimitReturns429AfterExhaustingLimiter.
+     */
+    public function testRateLimitReturns429AfterExhaustingLimiter(): void
+    {
+        $client = $this->createAuthenticatedClient('compliance-run-010@example.test');
+        $this->markEmailVerified('compliance-run-010@example.test');
+        $this->configureFiscalContext($client);
+        $customerId = $this->createCustomer($client);
+        $invoiceId = $this->createInvoice($client, $customerId);
+
+        // config/packages/rate_limiter.yaml: compliance_analysis_trigger = 60/heure. Même
+        // facture réanalysée à chaque itération (US-COMPLIANCE-006 : toujours autorisé),
+        // seule la clé Idempotency-Key change pour éviter un simple rejeu.
+        for ($i = 0; $i < 60; ++$i) {
+            $this->runAnalysis($client, $invoiceId, 'rate-limit-key-'.$i);
+            self::assertResponseStatusCodeSame(200);
+        }
+
+        $this->runAnalysis($client, $invoiceId, 'rate-limit-key-over');
+
+        self::assertResponseStatusCodeSame(429);
     }
 }

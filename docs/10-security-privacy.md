@@ -559,9 +559,9 @@ Facteurs à prendre en compte pour évaluer la nécessité d'une analyse d'impac
 ## 49. Secure Development Lifecycle
 
 - **Code review** : même pour un développeur solo, une relecture différée à froid du code touchant au Compliance Engine, à l'autorisation ou aux secrets est recommandée avant fusion (cohérent avec `09-test-strategy.md`, section 42, tests manuels sur les zones sensibles).
-- **Secret scanning** : détection automatisée d'un secret accidentellement commité (section 27), intégrée au pipeline CI/CD.
+- **Secret scanning** : détection automatisée d'un secret accidentellement commité (section 27), intégrée au pipeline CI/CD - `gitleaks/gitleaks-action` (`.github/workflows/lint.yml`, job `secret-scan`), Phase 10.
 - **Dependency scanning** : section 48.
-- **SAST** (analyse statique) : intégré au pipeline pour détecter les schémas de code à risque (injection, gestion d'erreurs dangereuse) avant l'exécution.
+- **SAST** (analyse statique) : intégré au pipeline pour détecter les schémas de code à risque (injection, gestion d'erreurs dangereuse) avant l'exécution - `github/codeql-action` (job `codeql`), Phase 10. **Limité au frontend (JavaScript/TypeScript)** : PHP n'est pas un langage supporté par CodeQL (vérifié à l'implémentation, écosystème actuel de l'outil, pas une limitation propre à ce projet). `PHPStan` (`backend/phpstan.neon`, job `backend-lint`) est également intégré au pipeline mais reste une analyse de **qualité et de sûreté de typage**, jamais un SAST sécurité à lui seul - ne jamais présenter "SAST réalisé par PHPStan" dans une communication future sur ce projet. **Aucun SAST sécurité dédié n'existe donc pour le backend PHP à ce stade** - dette technique connue, structurelle à l'écosystème actuel, à réévaluer si un outil mature (ex. analyse par teinture/*taint analysis* dédiée à PHP) apparaît ou si le produit justifie l'investissement d'une solution commerciale.
 - **DAST** (analyse dynamique) : pertinent en environnement de staging (`09-test-strategy.md`, section 7), non nécessaire à chaque commit.
 - **Branches protégées** : aucune fusion directe vers la branche de production sans passage par le pipeline de tests (`09-test-strategy.md`, section 46) et les release gates (section 62 de ce document).
 
@@ -763,50 +763,59 @@ Cette matrice, complète pour les exigences critiques (P0), illustre la structur
 
 ## 68. Production Security Checklist
 
+Revue en Phase 10 (docs/12-roadmap.md) : chaque case cochée porte une preuve (fichier/test),
+jamais cochée par anticipation. Les points qui dépendent d'un hébergement réel - non choisi
+à ce stade, l'environnement actuel restant Docker Compose local + CI - sont marqués
+`DIFFÉRÉ - Phase 13 - nécessite une infrastructure hébergée` plutôt que cochés ou
+silencieusement retirés (une checklist entièrement cochée ici serait un signal d'alarme, pas
+une garantie).
+
 **Application**
 
-- [ ] Authentification et hashing des mots de passe conformes (section 13)
-- [ ] Autorisation vérifiée côté serveur sur chaque endpoint tenant-scoped (sections 15-17)
-- [ ] Validation stricte de toute entrée utilisateur (section 19)
-- [ ] Tests d'isolation multi-tenant passés et bloquants (section 62)
+- [x] Authentification et hashing des mots de passe conformes (section 13) - Argon2id (`auto`, `backend/config/packages/security.yaml`), `login_throttling` (5/15min) ; Phase 2, `backend/tests/Functional/Auth/`
+- [x] Autorisation vérifiée côté serveur sur chaque endpoint tenant-scoped (sections 15-17) - `App\Shared\Security\CurrentOrganizationResolver` + `App\Shared\Doctrine\TenantFilter`, centralisés ; `backend/tests/Integration/MultiTenant/TenantIsolationTest.php` (TC-TENANT-001 à 008, étendu Phase 10) + scénarios cross-tenant par ressource (Document, Dashboard, Historique, IA, Audit)
+- [x] Validation stricte de toute entrée utilisateur (section 19) - Symfony Validator sur chaque DTO d'entrée, `422` testé par endpoint
+- [x] Tests d'isolation multi-tenant passés et bloquants (section 62) - `TenantIsolationTest` (8 scénarios), job CI `backend-lint` bloquant sur `php bin/phpunit`
 
 **API**
 
-- [ ] HTTPS forcé sur l'ensemble des endpoints (section 25)
-- [ ] Politique CORS restrictive appliquée (section 21)
-- [ ] Rate limiting actif sur l'authentification et les opérations coûteuses (section 18)
-- [ ] Contrat d'erreur ne révélant aucun détail technique interne (section 18)
-- [ ] En-têtes de sécurité configurés (section 47)
+- [ ] HTTPS forcé sur l'ensemble des endpoints (section 25) - `DIFFÉRÉ - Phase 13 - nécessite une infrastructure hébergée` (préparation faite : `App\Shared\Http\HstsHeaderListener`, désactivé par défaut - `HSTS_ENABLED=false`, `backend/.env`)
+- [x] Politique CORS restrictive appliquée (section 21) - `backend/config/packages/nelmio_cors.yaml` (`CORS_ALLOW_ORIGIN` par environnement, jamais de wildcard), en-têtes métier complétés Phase 10 (`Idempotency-Key`, `If-Match`, `X-Request-ID`)
+- [x] Rate limiting actif sur l'authentification et les opérations coûteuses (section 18) - `login_throttling`, `password_reset_request`, `ai_assistant` (Phases 2/8) + `compliance_analysis_trigger`, `document_upload` (Phase 10) - `backend/config/packages/rate_limiter.yaml`, tests `testRateLimitReturns429AfterExhaustingLimiter` par endpoint
+- [x] Contrat d'erreur ne révélant aucun détail technique interne (section 18) - `App\Shared\Http\ApiExceptionListener`, revu Phase 10, aucune régression trouvée
+- [x] En-têtes de sécurité configurés (section 47) - `App\Shared\Http\SecurityHeadersListener` (backend) + `frontend/next.config.ts` (frontend) - Phase 10, `backend/tests/Functional/Shared/SecurityHeadersTest.php`
 
 **Documents**
 
-- [ ] Validation par contenu réel (magic bytes), pas seulement extension/MIME (section 22)
-- [ ] Parseurs XML configurés contre XXE (section 23)
-- [ ] URLs de téléchargement temporaires et non prévisibles (section 24)
-- [ ] Antivirus/sandboxing activé sur les fichiers uploadés - requis à ce stade, non indispensable seulement au MVP local/dev (section 22)
+- [x] Validation par contenu réel (magic bytes), pas seulement extension/MIME (section 22) - `App\Document\Service\UploadedDocumentValidator` ; Phase 7
+- [x] Parseurs XML configurés contre XXE (section 23) - Validator Container Mustang isolé (ADR-008) ; Phase 7
+- [x] URLs de téléchargement temporaires et non prévisibles (section 24) - `GET /documents/{id}/content` authentifié à chaque appel, jamais d'URL publique (stockage local du MVP) ; Phase 7
+- [ ] Antivirus/sandboxing activé sur les fichiers uploadés - `DIFFÉRÉ - Phase 13 - nécessite une infrastructure hébergée` (non indispensable au MVP local/dev par décision produit déjà actée, section 22/69 ; requis avant une mise en production réelle)
 
 **Données**
 
-- [ ] Chiffrement en transit systématique (section 25)
-- [ ] Chiffrement au repos activé (base de données, stockage) (section 25)
-- [ ] Politique de rétention documentée, même si certaines durées restent « à confirmer juridiquement » (section 38)
-- [ ] Sauvegardes chiffrées et testées (sections 37, 54)
+- [ ] Chiffrement en transit systématique (section 25) - `DIFFÉRÉ - Phase 13 - nécessite une infrastructure hébergée` (TLS dépend de l'hébergeur retenu)
+- [ ] Chiffrement au repos activé (base de données, stockage) (section 25) - `DIFFÉRÉ - Phase 13 - nécessite une infrastructure hébergée`
+- [x] Politique de rétention documentée, même si certaines durées restent « à confirmer juridiquement » (section 38) - déjà documentée section 38, incertitudes juridiques explicitement signalées, pas un point bloquant pour cette case
+- [x] Sauvegardes chiffrées et testées (sections 37, 54) - `docker/backup/backup.sh`/`restore.sh` (gpg AES256, clé jamais stockée avec l'archive) - Phase 10, restauration testée manuellement avec vérification de cohérence croisée `Document` ↔ fichier ↔ `DocumentProcessingRecord` (voir `docker/backup/README.md`)
 
 **IA**
 
-- [ ] Contexte transmis strictement minimisé (section 29)
-- [ ] Fournisseur IA évalué selon la grille de la section 30 avant activation
-- [ ] Comportement de repli fonctionnel en cas d'indisponibilité du fournisseur (section 28)
-- [ ] Protections contre le prompt injection en place (section 31)
+- [x] Contexte transmis strictement minimisé (section 29) - Phase 8
+- [x] Fournisseur IA évalué selon la grille de la section 30 avant activation - Mistral, Phase 8 (points contractuels résiduels notés section 30, non bloquants au MVP)
+- [x] Comportement de repli fonctionnel en cas d'indisponibilité du fournisseur (section 28) - Phase 8
+- [x] Protections contre le prompt injection en place (section 31) - Phase 8
 
 **Infrastructure**
 
-- [ ] Aucun secret dans le code source ou les images de conteneur (sections 26-27)
-- [ ] Réseau interne non exposé directement à Internet (section 52)
-- [ ] Environnements strictement isolés (section 53)
-- [ ] Monitoring et alerting actifs sur les événements critiques (sections 36-37)
+- [x] Aucun secret dans le code source ou les images de conteneur (sections 26-27) - `backend/.env` committé sans valeur réelle, secrets via `.env.local`/variables CI ; scan automatisé ajouté Phase 10 (`gitleaks/gitleaks-action`, `.github/workflows/lint.yml`)
+- [x] Réseau interne non exposé directement à Internet (section 52) - `docker-compose.yml` : PostgreSQL/Redis liés à `127.0.0.1`, Mustang sans port publié, Nginx seul point d'entrée ; déjà vrai depuis la Phase 0-1
+- [ ] Environnements strictement isolés (section 53) - `DIFFÉRÉ - Phase 13 - nécessite une infrastructure hébergée` (local/CI seulement à ce stade, aucun staging/production distinct)
+- [ ] Monitoring et alerting actifs sur les événements critiques (sections 36-37) - `DIFFÉRÉ - Phase 13 - nécessite une infrastructure hébergée`
 
 **RGPD**
+
+Hors périmètre de la Phase 10 (points juridiques, non techniques - voir section 69) :
 
 - [ ] Cartographie des données personnelles tenue à jour (section 9)
 - [ ] Bases légales validées juridiquement (section 41)

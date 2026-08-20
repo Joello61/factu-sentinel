@@ -129,6 +129,7 @@ final class UpdateInvoiceControllerTest extends ApiTestCase
     public function testModifyingAnAnalyzedInvoiceMarksItStale(): void
     {
         $client = $this->createAuthenticatedClient('invoice-update-006@example.test');
+        $this->markEmailVerified('invoice-update-006@example.test');
         $client->jsonRequest('PATCH', '/api/v1/organizations/current', [
             'fiscal_context' => [
                 'vat_status' => 'ASSUJETTI_REDEVABLE',

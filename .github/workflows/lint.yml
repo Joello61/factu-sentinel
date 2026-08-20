@@ -51,11 +51,27 @@ jobs:
       - name: Install dependencies
         run: composer install --no-interaction --no-progress --prefer-dist
 
+      # docs/10-security-privacy.md, section 48 - Phase 10 : aucun scan de dépendances
+      # n'existait avant cette phase. Bloquant par défaut (composer audit échoue dès qu'une
+      # avisory est trouvée) - aucun seuil de sévérité personnalisé, comportement natif de
+      # la commande (vérifié sur Composer 2.10, section 3 de ../../CLAUDE.md).
+      - name: Audit dependencies (composer audit)
+        run: composer audit
+
       - name: Generate JWT keypair
         run: php bin/console lexik:jwt:generate-keypair --skip-if-exists
 
       - name: Lint PHP syntax
         run: find src -type f -name '*.php' -print0 | xargs -0 -n1 -P "$(nproc)" php -l
+
+      # docs/10-security-privacy.md, section 49 - Phase 10 : analyse de qualité/sûreté de
+      # typage (backend/phpstan.neon, niveau 6). Distinct d'un SAST sécurité : PHP n'est pas
+      # un langage supporté par CodeQL (vérifié en implémentation, écosystème actuel) - voir
+      # le job "codeql" ci-dessous, limité au frontend JS/TS pour cette raison. Aucun SAST
+      # sécurité dédié n'existe donc pour ce backend PHP à ce stade (dette technique connue,
+      # documentée docs/10-security-privacy.md section 68).
+      - name: Static analysis (PHPStan)
+        run: vendor/bin/phpstan analyse --no-progress
 
       - name: Create test database
         run: php bin/console doctrine:database:create --if-not-exists
@@ -86,8 +102,60 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # docs/10-security-privacy.md, section 48 - Phase 10. --audit-level=high : ignore le
+      # bruit de sévérité faible/moyenne non actionnable, cohérent avec la release gate
+      # "vulnérabilité critique" de la section 62 - toute avisory high/critical bloque.
+      - name: Audit dependencies (npm audit)
+        run: npm audit --audit-level=high
+
       - name: Lint
         run: npm run lint
 
       - name: Run tests
         run: npm run test
+
+  secret-scan:
+    name: Secret scanning (gitleaks)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      # docs/10-security-privacy.md, section 49 - Phase 10 : aucun scan de secrets n'existait
+      # avant cette phase. fetch-depth: 0 requis par gitleaks pour parcourir l'historique
+      # complet (documentation officielle gitleaks-action vérifiée le 20/08/2026), donc
+      # isolé dans son propre job plutôt que d'alourdir le clone des jobs de lint/test.
+      - name: Checkout (full history)
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      # v3 (v2 déprécié, incompatible avec le runtime Node 24 des runners GitHub à partir du
+      # 16/09/2026, vérifié le 20/08/2026). Aucune licence requise pour un dépôt appartenant
+      # à un compte personnel (vérifié dans la documentation officielle) - à revoir si ce
+      # dépôt devait un jour appartenir à une organisation GitHub.
+      - name: Run gitleaks
+        uses: gitleaks/gitleaks-action@v3
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  codeql:
+    name: CodeQL (JavaScript/TypeScript)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      # docs/10-security-privacy.md, section 49 - Phase 10. Frontend uniquement : PHP n'est
+      # pas un langage supporté par CodeQL (vérifié le 20/08/2026, ../../CLAUDE.md section 3)
+      # - voir le commentaire du job "backend-lint" pour la conséquence sur le backend.
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v4
+        with:
+          languages: javascript-typescript
+
+      - name: Perform CodeQL analysis
+        uses: github/codeql-action/analyze@v4

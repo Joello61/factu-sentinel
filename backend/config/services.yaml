@@ -19,6 +19,7 @@ services:
             string $storageLocalBasePath: '%env(STORAGE_LOCAL_PATH)%'
             int $documentMaxSizeBytes: '%env(int:DOCUMENT_MAX_SIZE_BYTES)%'
             string $mustangBaseUrl: '%env(MUSTANG_BASE_URL)%'
+            bool $hstsEnabled: '%env(bool:HSTS_ENABLED)%'
 
     # makes classes in src/ available to be used as services
     # this creates a service per class whose id is the fully-qualified class name

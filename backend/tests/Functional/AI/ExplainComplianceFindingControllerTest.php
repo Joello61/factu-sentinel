@@ -84,7 +84,14 @@ final class ExplainComplianceFindingControllerTest extends ApiTestCase
     public function testEmailNotVerifiedReturns403(): void
     {
         $client = $this->createAuthenticatedClient('ai-explain-001@example.test');
+        // Depuis la Phase 10, POST /invoices/{id}/compliance-analyses exige lui aussi un
+        // email vérifié (App\Shared\Security\EmailVerificationGuard) - vérifié le temps de
+        // constituer le finding, puis remis à l'état non vérifié pour tester réellement le
+        // rejet de POST /compliance-findings/{id}/explanations par un compte non vérifié,
+        // qui reste l'objet précis de ce test.
+        $this->markEmailVerified('ai-explain-001@example.test');
         $findingId = $this->createNonConformeFindingId($client);
+        $this->markEmailUnverified('ai-explain-001@example.test');
 
         $client->jsonRequest('POST', sprintf('/api/v1/compliance-findings/%s/explanations', $findingId));
 

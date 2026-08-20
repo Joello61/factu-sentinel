@@ -58,6 +58,7 @@ final class ListComplianceAnalysisHistoryControllerTest extends ApiTestCase
     public function testListReturnsInvoiceNumberAndPaginationAcrossInvoices(): void
     {
         $client = $this->createAuthenticatedClient('history-list@example.test');
+        $this->markEmailVerified('history-list@example.test');
         $this->configureFiscalContext($client);
 
         $first = $this->createAnalyzedInvoice($client, null, 'a');
@@ -77,6 +78,7 @@ final class ListComplianceAnalysisHistoryControllerTest extends ApiTestCase
     public function testFilterByGlobalResult(): void
     {
         $client = $this->createAuthenticatedClient('history-filter@example.test');
+        $this->markEmailVerified('history-filter@example.test');
         $this->configureFiscalContext($client);
 
         $nonConforme = $this->createAnalyzedInvoice($client, null, 'nc');
@@ -95,6 +97,7 @@ final class ListComplianceAnalysisHistoryControllerTest extends ApiTestCase
     public function testInvalidGlobalResultFilterIsIgnored(): void
     {
         $client = $this->createAuthenticatedClient('history-invalid-filter@example.test');
+        $this->markEmailVerified('history-invalid-filter@example.test');
         $this->configureFiscalContext($client);
         $this->createAnalyzedInvoice($client, null, 'x');
 
@@ -107,6 +110,7 @@ final class ListComplianceAnalysisHistoryControllerTest extends ApiTestCase
     {
         $client = static::createClient();
         $tokenA = $this->loginAs($client, 'history-tenant-a@example.test');
+        $this->markEmailVerified('history-tenant-a@example.test');
         $tokenB = $this->loginAs($client, 'history-tenant-b@example.test');
 
         $client->setServerParameter('HTTP_AUTHORIZATION', 'Bearer '.$tokenA);
