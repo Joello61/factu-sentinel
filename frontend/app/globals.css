@@ -15,6 +15,16 @@
   --color-warning: #ed6c02;
   --color-error: #d32f2f;
   --color-info: #0288d1;
+  /*
+   * Système de conformité (11-frontend-design-system.md, section 5) : les cinq autres
+   * états (CONFORME/AVERTISSEMENT/NON_CONFORME/A_VERIFIER/NON_APPLICABLE) réutilisent
+   * délibérément success/warning/error/info/neutral ci-dessus -- jamais pour un message
+   * générique hors conformité (ex. un toast "enregistré"), seule une discipline d'usage
+   * dans les composants, pas un token séparé. INCERTAIN_REGLEMENTAIRE est le seul état
+   * sans équivalent sémantique existant (section 5 suggère explicitement un violet, teinte
+   * inutilisée ailleurs, pour signaler une incertitude de la source elle-même).
+   */
+  --color-uncertain: #6a1b9a;
 
   --color-background: #ffffff;
   --color-surface: #ffffff;
@@ -29,6 +39,7 @@
   --color-warning: var(--color-warning);
   --color-error: var(--color-error);
   --color-info: var(--color-info);
+  --color-uncertain: var(--color-uncertain);
 
   --color-background: var(--color-background);
   --color-surface: var(--color-surface);

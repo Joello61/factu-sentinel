@@ -12,3 +12,20 @@ export function formatBusinessDate(isoDate: string): string {
     timeZone: "UTC",
   });
 }
+
+/**
+ * Horodatage ISO 8601 UTC (docs/08-api-specification.md, section 17-18 : ex.
+ * ComplianceAnalysis.completed_at), converti au fuseau local uniquement à l'affichage
+ * (../../CLAUDE.md frontend, section 4). Distinct de formatBusinessDate() : une date métier
+ * (issue_date) n'a jamais d'heure, un horodatage technique en a toujours une -- utile ici
+ * pour distinguer deux analyses relancées le même jour (US-COMPLIANCE-006).
+ */
+export function formatTimestamp(isoTimestamp: string): string {
+  return new Date(isoTimestamp).toLocaleString("fr-FR", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}

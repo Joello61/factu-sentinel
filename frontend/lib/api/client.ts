@@ -139,4 +139,27 @@ export async function apiRequestPaginated<T>(
   return parsePaginatedEnvelope<T>(response);
 }
 
+/**
+ * Variante de apiRequest() qui expose aussi l'en-tête ETag de la réponse
+ * (docs/08-api-specification.md, section 21) : nécessaire pour préparer le `If-Match` du
+ * PATCH suivant (verrouillage optimiste). apiRequest() jette les en-têtes, ce dont se
+ * contentent la plupart des appelants -- seule l'édition de facture a besoin de celui-ci.
+ */
+export async function apiRequestWithEtag<T>(
+  path: string,
+  init: ApiRequestInit = {},
+): Promise<{ data: T; etag: string | null }> {
+  const response = await performRequest(path, init);
+
+  if (response.status === 401 && init.auth !== false) {
+    const token = await config.refreshAccessToken();
+    if (token) {
+      const retryResponse = await performRequest(path, init);
+      return { data: await parseEnvelope<T>(retryResponse), etag: retryResponse.headers.get('ETag') };
+    }
+  }
+
+  return { data: await parseEnvelope<T>(response), etag: response.headers.get('ETag') };
+}
+
 export { ApiError } from './types';

@@ -143,9 +143,11 @@ export interface PaginationMeta {
 export type OperationType = "VENTE_BIEN" | "PRESTATION_SERVICE" | "MIXTE";
 
 /**
- * ANALYZED/ANALYSIS_STALE ne sont jamais produits avant la Phase 5 (Compliance Engine,
- * inexistant à ce stade) : déclarés ici pour que le type reflète fidèlement le contrat,
- * jamais un simple `string` (../../CLAUDE.md frontend, section 11).
+ * Cycle de vie d'analyse d'une facture (docs/07-data-model.md, section 29). ANALYZED est
+ * atteint par App\Compliance\Engine\Service\RunComplianceAnalysisService, ANALYSIS_STALE par
+ * une modification de facture après analyse (US-COMPLIANCE-006bis) -- jamais de retour vers
+ * DRAFT/READY_FOR_ANALYSIS une fois l'un de ces deux statuts atteint. Déclaré comme union de
+ * littéraux, jamais un simple `string` (../../CLAUDE.md frontend, section 11).
  */
 export type InvoiceStatus = "DRAFT" | "READY_FOR_ANALYSIS" | "ANALYZED" | "ANALYSIS_STALE";
 
@@ -194,4 +196,71 @@ export interface CreateInvoicePayload {
   lines: InvoiceLineInputPayload[];
   invoice_number?: string | null;
   vat_exemption_reason?: string | null;
+}
+
+/**
+ * PATCH /invoices/{id} (docs/08-api-specification.md, section 21, 27) : même forme que la
+ * création, App\Invoicing\Service\InvoiceService::update() acceptant un payload complet et
+ * suivant chaque champ pour décider de la transition ANALYZED -> ANALYSIS_STALE (US-COMPLIANCE-006bis),
+ * jamais un diff partiel côté client.
+ */
+export type UpdateInvoicePayload = CreateInvoicePayload;
+
+// Phase 6 (docs/08-api-specification.md, sections 29-30, 48 ; docs/07-data-model.md,
+// sections 16, 18 ; 05-user-stories.md, section 8).
+
+export type ComplianceResult =
+  | "CONFORME"
+  | "NON_CONFORME"
+  | "AVERTISSEMENT"
+  | "NON_APPLICABLE"
+  | "A_VERIFIER"
+  | "INCERTAIN_REGLEMENTAIRE";
+
+export type ComplianceAnalysisStatus = "PENDING" | "RUNNING" | "COMPLETED" | "FAILED";
+
+export type ConfidenceLevel = "ELEVE" | "MOYEN" | "FAIBLE";
+
+/**
+ * Bloc `rule` exposé sur chaque ComplianceFinding (docs/08-api-specification.md, section 48) :
+ * la version précise de la règle appliquée, jamais « la règle en général » (ADR-003).
+ * effective_until reste `null` tant que la RuleVersion est encore active -- la clé est
+ * toujours présente, jamais omise.
+ */
+export interface RuleReference {
+  id: string;
+  version: number;
+  source_reference: string;
+  confidence_level: ConfidenceLevel;
+  effective_from: string;
+  effective_until: string | null;
+}
+
+export interface ComplianceFinding {
+  id: string;
+  result: ComplianceResult;
+  message: string;
+  related_field: string | null;
+  observed_value: string | null;
+  correction_action: string | null;
+  rule: RuleReference;
+}
+
+export interface ComplianceAnalysis {
+  id: string;
+  invoice_id: string;
+  status: ComplianceAnalysisStatus;
+  global_result: ComplianceResult | null;
+  triggered_at: string;
+  completed_at: string | null;
+  findings: ComplianceFinding[];
+}
+
+/** Forme allégée renvoyée par GET /invoices/{id}/compliance-analyses (liste paginée, sans findings). */
+export interface ComplianceAnalysisSummary {
+  id: string;
+  status: ComplianceAnalysisStatus;
+  global_result: ComplianceResult | null;
+  triggered_at: string;
+  completed_at: string | null;
 }
