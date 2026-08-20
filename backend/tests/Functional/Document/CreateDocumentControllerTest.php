@@ -240,6 +240,36 @@ final class CreateDocumentControllerTest extends ApiTestCase
         self::assertSame($firstDocumentId, $secondDocumentId);
     }
 
+    /**
+     * SEC-DOC-001 (docs/10-security-privacy.md, section 22) : séquences de traversée de
+     * répertoire neutralisées avant tout usage du nom de fichier - jamais utilisé comme tel
+     * pour construire un chemin de stockage (App\Shared\Storage\LocalFilesystemStorage
+     * génère de toute façon sa propre référence opaque), mais conservé pour l'affichage sous
+     * une forme sûre.
+     */
+    public function testDangerousFileNameIsSanitized(): void
+    {
+        $client = $this->createAuthenticatedClient('doc-create-010@example.test');
+        $this->configureFiscalContext($client);
+        $customerId = $this->createCustomer($client);
+        $invoiceId = $this->createInvoice($client, $customerId, $this->readyInvoiceLines());
+
+        $file = new UploadedFile(
+            self::FIXTURES_DIR.'/pdf-simple.pdf',
+            "../../../etc/passwd\x00.pdf",
+            'application/pdf',
+            null,
+            true,
+        );
+        $client->request('POST', '/api/v1/documents', ['invoice_id' => $invoiceId], ['file' => $file], ['HTTP_IDEMPOTENCY_KEY' => 'doc-key-dangerous-001']);
+
+        self::assertResponseStatusCodeSame(202);
+        $fileName = $this->jsonBody($client)['data']['file_name'];
+        self::assertStringNotContainsString('..', $fileName);
+        self::assertStringNotContainsString('/', $fileName);
+        self::assertStringNotContainsString("\x00", $fileName);
+    }
+
     public function testMissingInvoiceIdReturns422(): void
     {
         $client = $this->createAuthenticatedClient('doc-create-009@example.test');

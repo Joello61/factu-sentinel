@@ -106,6 +106,48 @@ final class ExtractDocumentContentHandlerTest extends KernelTestCase
     }
 
     /**
+     * Invariant architectural le plus important de la phase (plan Phase 7, revue) : ce
+     * handler ne crée jamais d'Invoice/Customer et n'écrit jamais dedans, même quand
+     * l'extraction "trouve" des valeurs différentes de celles réellement enregistrées. Un
+     * futur changement qui romprait cette frontière (écriture directe depuis ce handler)
+     * doit faire échouer ce test explicitement, jamais rester une régression silencieuse.
+     */
+    public function testHandlerNeverMutatesInvoiceOrCustomer(): void
+    {
+        [$em, $document, $record, $organizationId] = $this->setUpDocument();
+        $invoiceId = $document->getInvoice()->getId();
+        $customerId = $document->getInvoice()->getCustomer()->getId();
+
+        $originalCustomerName = $document->getInvoice()->getCustomer()->getName();
+        $originalCustomerSiren = $document->getInvoice()->getCustomer()->getSiren();
+        $originalInvoiceNumber = $document->getInvoice()->getInvoiceNumber();
+        $originalOperationType = $document->getInvoice()->getOperationType();
+
+        $validator = new FakeStructuredDocumentValidator();
+        // Suggestion délibérément différente des valeurs réelles ci-dessus : si le handler
+        // écrivait quoi que ce soit depuis l'extraction, ce test le détecterait.
+        $validator->extractResult = MustangExtractionResult::xmlFound(
+            '<CrossIndustryInvoice><ExchangedDocument><ID>SUGGESTED-999</ID></ExchangedDocument>'
+            .'<SupplyChainTradeTransaction><ApplicableHeaderTradeAgreement><BuyerTradeParty>'
+            .'<Name>Nom Suggéré Différent</Name><ID>999999999</ID></BuyerTradeParty>'
+            .'</ApplicableHeaderTradeAgreement></SupplyChainTradeTransaction></CrossIndustryInvoice>',
+        );
+
+        $this->invokeHandler($validator, $document, $record, $organizationId);
+
+        $em->clear();
+        /** @var Invoice $reloadedInvoice */
+        $reloadedInvoice = $em->find(Invoice::class, $invoiceId);
+        /** @var Customer $reloadedCustomer */
+        $reloadedCustomer = $em->find(Customer::class, $customerId);
+
+        self::assertSame($originalCustomerName, $reloadedCustomer->getName());
+        self::assertSame($originalCustomerSiren, $reloadedCustomer->getSiren());
+        self::assertSame($originalInvoiceNumber, $reloadedInvoice->getInvoiceNumber());
+        self::assertSame($originalOperationType, $reloadedInvoice->getOperationType());
+    }
+
+    /**
      * Invariant d'idempotence (plan Phase 7, correction demandée) : une redélivrance
      * Messenger du même message, sur une tentative déjà terminale, est un no-op strict.
      */
