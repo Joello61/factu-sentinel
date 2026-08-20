@@ -12,8 +12,8 @@ use App\Identity\Entity\User;
 use App\Shared\Audit\AuditLogger;
 use App\Shared\Audit\Enum\ActorType;
 use App\Shared\Audit\Enum\EventType;
-use App\Shared\Exception\EmailVerificationRequiredException;
 use App\Shared\Security\CurrentOrganizationResolver;
+use App\Shared\Security\EmailVerificationGuard;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\SecurityBundle\Security;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
@@ -42,6 +42,7 @@ final class ExplainComplianceFindingService
         private readonly AuditLogger $auditLogger,
         private readonly Security $security,
         private readonly CurrentOrganizationResolver $currentOrganizationResolver,
+        private readonly EmailVerificationGuard $emailVerificationGuard,
         #[Autowire(service: 'limiter.ai_assistant')]
         private readonly RateLimiterFactory $rateLimiter,
     ) {
@@ -52,7 +53,7 @@ final class ExplainComplianceFindingService
     {
         $finding = $this->resolveFinding($findingId);
 
-        $this->requireVerifiedEmail();
+        $this->emailVerificationGuard->assertVerified();
 
         $limit = $this->rateLimiter->create($this->currentOrganizationResolver->getOrganizationId()->toRfc4122())->consume();
         if (!$limit->isAccepted()) {
@@ -86,14 +87,6 @@ final class ExplainComplianceFindingService
         }
 
         return $finding;
-    }
-
-    private function requireVerifiedEmail(): void
-    {
-        $user = $this->security->getUser();
-        if (!$user instanceof User || !$user->isEmailVerified()) {
-            throw new EmailVerificationRequiredException();
-        }
     }
 
     private function buildContext(ComplianceFinding $finding): ComplianceFindingExplanationContext
