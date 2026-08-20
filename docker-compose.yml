@@ -54,6 +54,14 @@ services:
       target: dev
     entrypoint: ['docker-entrypoint-worker-dev.sh']
     command: php bin/console messenger:consume async --time-limit=3600 --memory-limit=256M -vv
+    # --time-limit fait volontairement sortir ce process avec le code 0 après 1h (pratique
+    # Symfony Messenger courante, évite l'accumulation de fuites mémoire d'un process PHP
+    # long-lived) - sans cette politique de redémarrage, cette sortie volontaire deviendrait
+    # une panne silencieuse et définitive du traitement asynchrone (constaté après
+    # implémentation : le worker s'est arrêté sans qu'aucun message ne le relance). Aucun
+    # autre service de ce fichier n'a de mécanisme d'auto-extinction comparable, cette
+    # politique reste donc spécifique à "worker".
+    restart: unless-stopped
     environment:
       DATABASE_URL: 'postgresql://${POSTGRES_USER:-factusentinel}:${POSTGRES_PASSWORD:-factusentinel}@postgres:5432/${POSTGRES_DB:-factusentinel}?serverVersion=18&charset=utf8'
       REDIS_URL: 'redis://redis:6379'
