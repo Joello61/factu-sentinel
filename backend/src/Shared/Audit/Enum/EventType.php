@@ -33,4 +33,8 @@ enum EventType: string
      */
     case COMPLIANCE_ANALYSIS_COMPLETED = 'COMPLIANCE_ANALYSIS_COMPLETED';
     case COMPLIANCE_ANALYSIS_FAILED = 'COMPLIANCE_ANALYSIS_FAILED';
+
+    /** Ajoutés en Phase 7 (Document Processing, docs/12-roadmap.md). */
+    case DOCUMENT_UPLOADED = 'DOCUMENT_UPLOADED';
+    case DOCUMENT_DELETED = 'DOCUMENT_DELETED';
 }
