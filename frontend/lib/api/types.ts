@@ -268,6 +268,24 @@ export interface ComplianceAnalysisSummary {
   completed_at: string | null;
 }
 
+// Phase 8 - AI Assistant (docs/08-api-specification.md, section 35 ; US-AI-001/002).
+// "source" est une chaîne fixe renvoyée par le backend (jamais construite côté client) --
+// distincte du "rule.source_reference" d'un ComplianceFinding, qui reste la seule source
+// réglementaire à proprement parler (../../CLAUDE.md frontend, section 9 : AI Trust &
+// Transparency, trois niveaux jamais confondus).
+
+export interface ComplianceFindingExplanation {
+  finding_id: string;
+  explanation: string;
+  source: string;
+}
+
+export interface AssistantAnswer {
+  question: string;
+  answer: string;
+  source: string;
+}
+
 // Phase 7 (docs/08-api-specification.md, section 31 ; docs/07-data-model.md, sections
 // 13-14). Nommé "DocumentFile", jamais "Document" -- collision avec le type DOM global
 // "Document" sinon (../../CLAUDE.md frontend, section 11).
