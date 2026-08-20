@@ -2,18 +2,37 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { apiRequest, apiRequestPaginated, ApiError } from '@/lib/api/client';
+import { apiRequest, apiRequestPaginated, apiRequestUpload, ApiError } from '@/lib/api/client';
 import { InvoiceStatusBadge } from '@/components/ui/InvoiceStatusBadge';
+import { DocumentStatusBadge } from '@/components/ui/DocumentStatusBadge';
+import { FileUpload } from '@/components/ui/FileUpload';
 import { Button } from '@/components/ui/Button';
 import { ComplianceResultSummary } from '@/components/compliance/ComplianceResultSummary';
 import { formatBusinessDate } from '@/lib/format/date';
 import { formatAmount } from '@/lib/format/amount';
+import { useDocumentPolling } from '@/lib/hooks/useDocumentPolling';
 import type {
   Customer,
   Invoice,
+  DocumentFile,
+  DocumentProcessingFailureReason,
   ComplianceAnalysis,
   ComplianceAnalysisSummary,
 } from '@/lib/api/types';
+
+/**
+ * FORMAT_NOT_SUPPORTED n'est jamais un jugement sur le fichier, contrairement aux autres
+ * valeurs (docs/08-api-specification.md, section 31 ; ../../../CLAUDE.md frontend, section
+ * 7) - messages distincts, jamais un texte générique unique pour "FAILED".
+ */
+const FAILURE_REASON_MESSAGES: Record<DocumentProcessingFailureReason, string> = {
+  FORMAT_NOT_SUPPORTED:
+    "Ce format (UBL/CII) n'est pas encore pris en charge par FactuSentinel. Le fichier n'est pas nécessairement invalide - utilisez la saisie manuelle en complément.",
+  MUSTANG_UNAVAILABLE: 'Le traitement est temporairement indisponible. Réessayez dans quelques instants.',
+  MUSTANG_VALIDATION_FAILED: "Le document n'a pas pu être validé techniquement.",
+  INVALID_DOCUMENT: "Le fichier n'a pas pu être lu. Vérifiez qu'il n'est pas corrompu.",
+  SECURITY_REJECTED: "Le fichier a été rejeté lors de la validation de sécurité.",
+};
 
 type ViewState =
   | { status: 'loading' }
@@ -73,6 +92,29 @@ async function fetchLatestAnalysis(invoiceId: string): Promise<ComplianceAnalysi
 export function InvoiceDetail({ invoiceId }: { invoiceId: string }) {
   const [state, setState] = useState<ViewState>({ status: 'loading' });
   const [triggerState, setTriggerState] = useState<TriggerState>({ status: 'idle' });
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  // Un seul document suivi à la fois (un dropzone -> un upload à la fois) : voir
+  // frontend/lib/hooks/useDocumentPolling.ts pour les bornes du polling lui-même.
+  const [pollingDocumentId, setPollingDocumentId] = useState<string | null>(null);
+
+  useDocumentPolling(pollingDocumentId, (updated) => {
+    setState((current) => {
+      if ('ready' !== current.status) {
+        return current;
+      }
+      return {
+        ...current,
+        invoice: {
+          ...current.invoice,
+          documents: current.invoice.documents.map((document) => (document.id === updated.id ? updated : document)),
+        },
+      };
+    });
+    if ('VALIDATED' === updated.processing_status || 'FAILED' === updated.processing_status) {
+      setPollingDocumentId(null);
+    }
+  });
 
   useEffect(() => {
     let cancelled = false;
@@ -120,6 +162,38 @@ export function InvoiceDetail({ invoiceId }: { invoiceId: string }) {
       cancelled = true;
     };
   }, [invoiceId]);
+
+  async function handleFileUpload(file: File) {
+    setUploading(true);
+    setUploadError(null);
+
+    const formData = new FormData();
+    formData.append('invoice_id', invoiceId);
+    formData.append('file', file);
+
+    try {
+      const document = await apiRequestUpload<DocumentFile>('/api/v1/documents', formData, {
+        // Une clé fraîche par upload : chaque dépôt de fichier est une intention distincte
+        // (même principe que handleTriggerAnalysis ci-dessous).
+        'Idempotency-Key': crypto.randomUUID(),
+      });
+
+      setState((current) =>
+        'ready' !== current.status
+          ? current
+          : { ...current, invoice: { ...current.invoice, documents: [document, ...current.invoice.documents] } },
+      );
+      setPollingDocumentId(document.id);
+    } catch (error) {
+      setUploadError(
+        error instanceof ApiError
+          ? error.message
+          : "Le document n'a pas pu être importé pour le moment. Réessayez.",
+      );
+    } finally {
+      setUploading(false);
+    }
+  }
 
   async function handleTriggerAnalysis() {
     if ('ready' !== state.status) {
@@ -284,6 +358,60 @@ export function InvoiceDetail({ invoiceId }: { invoiceId: string }) {
             {formatAmount(invoice.total_amount_ttc, invoice.currency)}
           </span>
         </p>
+      </div>
+
+      <div className="flex flex-col gap-3">
+        <h2 className="text-sm font-semibold text-foreground">Documents</h2>
+
+        {invoice.documents.length > 0 ? (
+          <ul className="flex flex-col gap-2">
+            {invoice.documents.map((document) => (
+              <li key={document.id} className="rounded-md border border-border p-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-sm font-medium text-foreground">{document.file_name}</span>
+                  <DocumentStatusBadge status={document.processing_status} />
+                </div>
+                {document.failure_reason ? (
+                  <p
+                    role="alert"
+                    className={`mt-2 text-xs ${
+                      'FORMAT_NOT_SUPPORTED' === document.failure_reason ? 'text-muted-foreground' : 'text-warning'
+                    }`}
+                  >
+                    {FAILURE_REASON_MESSAGES[document.failure_reason]}
+                  </p>
+                ) : null}
+                {document.suggestions ? (
+                  <div className="mt-2 rounded-md bg-info/10 px-3 py-2 text-xs text-foreground">
+                    <p className="font-medium text-info">Suggestions extraites du document</p>
+                    <p className="mt-1 text-muted-foreground">
+                      À vérifier et confirmer vous-même dans les champs ci-dessus - ces valeurs ne sont jamais
+                      enregistrées automatiquement.
+                    </p>
+                    <dl className="mt-1.5 flex flex-col gap-0.5">
+                      {Object.entries(document.suggestions).map(([key, value]) => (
+                        <div key={key} className="flex gap-1.5">
+                          <dt className="text-muted-foreground">{key} :</dt>
+                          <dd className="text-foreground">{value}</dd>
+                        </div>
+                      ))}
+                    </dl>
+                  </div>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-sm text-muted-foreground">Aucun document importé pour cette facture.</p>
+        )}
+
+        {invoice.status === 'DRAFT' || invoice.status === 'READY_FOR_ANALYSIS' ? (
+          <FileUpload onFileSelected={handleFileUpload} disabled={uploading} error={uploadError} />
+        ) : (
+          <p className="text-xs text-muted-foreground">
+            Cette facture a déjà été analysée : l&apos;import de document n&apos;est plus disponible.
+          </p>
+        )}
       </div>
 
       <div className="flex flex-col gap-3">

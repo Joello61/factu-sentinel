@@ -27,6 +27,7 @@ function invoiceFixture(status: string) {
     vat_exemption_reason: null,
     status,
     source: "SAISIE_MANUELLE",
+    documents: [],
     lines: [
       {
         id: "line-1",
