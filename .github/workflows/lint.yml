@@ -139,6 +139,82 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+  e2e:
+    name: E2E (Playwright)
+    runs-on: ubuntu-latest
+    steps:
+      # docs/12-roadmap.md, Phase 11 (MVP Validation) : E2E-001 à E2E-005
+      # (docs/09-test-strategy.md, section 38) - E2E-006 déjà couvert au niveau backend en
+      # Phase 9 (RuleVersionNonRetroactivityTest), voir la précision de la section 25 de la
+      # roadmap. Pile complète démarrée via docker-compose.yml (jamais réimplémentée en
+      # services GitHub Actions séparés : nginx/backend/frontend/postgres/redis/mustang sont
+      # déjà câblés entre eux dans ce fichier) + docker-compose.e2e.yml (Mailpit, test-only -
+      # jamais utilisé par les jobs backend-lint/frontend-lint ci-dessus).
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Build stack images
+        run: docker compose -f docker-compose.yml -f docker-compose.e2e.yml build
+
+      - name: Start stack
+        run: docker compose -f docker-compose.yml -f docker-compose.e2e.yml up -d
+
+      # backend/frontend n'ont pas de HEALTHCHECK Docker natif (docker-compose.yml) : cette
+      # boucle applicative attend que Nginx -> Symfony -> PostgreSQL réponde réellement,
+      # plutôt que de supposer un délai fixe suffisant.
+      - name: Wait for the stack to be ready
+        run: |
+          for i in $(seq 1 60); do
+            if curl -sf http://localhost:8080/api/health > /dev/null; then
+              echo "Backend ready."
+              break
+            fi
+            if [ "$i" -eq 60 ]; then
+              echo "Backend did not become ready in time." >&2
+              docker compose -f docker-compose.yml -f docker-compose.e2e.yml logs backend
+              exit 1
+            fi
+            sleep 5
+          done
+
+      - name: Run database migrations
+        run: docker compose -f docker-compose.yml -f docker-compose.e2e.yml exec -T backend php bin/console doctrine:migrations:migrate --no-interaction
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Install Playwright Chromium
+        working-directory: frontend/e2e
+        run: npx playwright install --with-deps chromium
+
+      - name: Run Playwright E2E suite
+        working-directory: frontend/e2e
+        env:
+          PLAYWRIGHT_BASE_URL: http://localhost:8080
+          MAILPIT_BASE_URL: http://localhost:8025
+          CI: "true"
+        run: npx playwright test
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: frontend/playwright-report/
+          retention-days: 14
+
+      - name: Stop stack
+        if: always()
+        run: docker compose -f docker-compose.yml -f docker-compose.e2e.yml down -v
+
   codeql:
     name: CodeQL (JavaScript/TypeScript)
     runs-on: ubuntu-latest
