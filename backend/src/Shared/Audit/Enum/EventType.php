@@ -57,4 +57,19 @@ enum EventType: string
      */
     case USER_UPDATED = 'USER_UPDATED';
     case USER_DELETED = 'USER_DELETED';
+
+    /**
+     * Ajoutés en Phase 14 (Rôles d'organisation & Notifications internes,
+     * docs/12-roadmap.md). MEMBER_INVITED/MEMBER_INVITATION_ACCEPTED ne portent jamais le
+     * jeton d'invitation, en clair ou haché, dans previousState/newState (même discipline
+     * que USER_UPDATED ci-dessus pour les mots de passe) - uniquement Invitation.id.
+     * TEAM_NOTIFICATION_SENT ne porte jamais le contenu du message, uniquement le nombre de
+     * destinataires.
+     */
+    case MEMBER_INVITED = 'MEMBER_INVITED';
+    case MEMBER_INVITATION_ACCEPTED = 'MEMBER_INVITATION_ACCEPTED';
+    case MEMBER_INVITATION_REVOKED = 'MEMBER_INVITATION_REVOKED';
+    case MEMBER_ROLE_CHANGED = 'MEMBER_ROLE_CHANGED';
+    case MEMBER_REMOVED = 'MEMBER_REMOVED';
+    case TEAM_NOTIFICATION_SENT = 'TEAM_NOTIFICATION_SENT';
 }
