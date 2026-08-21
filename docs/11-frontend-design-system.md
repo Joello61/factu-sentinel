@@ -634,10 +634,24 @@ Ce document est le **Design System** : règles, tokens, principes, patterns, con
 | Liste des clients                   | Gérer les clients associés aux factures               | Persona 1, SB      | Ajouter un client                 | Table/Cards, Form System                                         |
 | Historique                          | Consulter les analyses passées (US-HISTORY-001)       | Tous               | Consulter une analyse             | Table paginée, Compliance Result UI                              |
 | Dashboard                           | Vue synthétique de conformité (US-DASHBOARD-001)      | Persona SB         | Traiter un problème prioritaire   | Dashboard patterns (section 34)                                  |
-| Notifications                       | Consulter les rappels d'échéance (P2)                 | Tous               | Marquer comme lue                 | Notification list                                                |
-| Paramètres                          | Gérer le compte (US-SETTINGS-001/002)                 | Tous               | Enregistrer / Supprimer le compte | Form System, Confirmation Patterns                               |
+| Notifications                       | Consulter les rappels d'échéance et les messages reçus (système, équipe, plateforme) | Tous | Marquer comme lue         | Notification list                                                |
+| Paramètres                          | Gérer le compte (US-SETTINGS-001/002, Phase 13)       | Tous               | Enregistrer / Supprimer le compte | Form System, Confirmation Patterns                               |
+| Gestion d'équipe (Phase 14)         | Inviter/gérer/retirer un membre, composer une notification d'équipe (`EPIC-TEAM`) | OWNER, ADMIN | Inviter un membre        | Table/Cards, Form System, Confirmation Patterns                  |
+| Sélection d'organisation (Phase 14) | Choisir l'organisation active si l'utilisateur appartient à plusieurs (`POST /auth/select-organization`) | Tous (multi-organisation) | Sélectionner | Liste simple, badge de rôle par organisation |
+| Administration - Organisations (Phase 15) | Lister/consulter/suspendre une organisation (US-PLATFORMADMIN-001/002) | PlatformAdministrator | Suspendre / Réactiver | Table/Cards, Confirmation Patterns (action sensible) |
+| Administration - Audit (Phase 15)   | Consulter l'audit trail cross-tenant (US-PLATFORMADMIN-003) | PlatformAdministrator | Filtrer                | Table paginée                                                    |
+| Administration - Notification ciblée (Phase 15) | Composer une notification individuelle/organisation/segment/diffusion globale (US-PLATFORMADMIN-004) | PlatformAdministrator | Envoyer | Form System, sélecteur de ciblage, confirmation renforcée pour `target_type=ALL` |
+| Administration - Santé applicative (Phase 15) | Consulter les indicateurs de santé applicative (US-PLATFORMADMIN-005) | PlatformAdministrator | - | Stat tiles, indicateurs de statut |
+| Administration - Analytics (Phase 16) | Consulter les statistiques agrégées et leur évolution (US-ANALYTICS-001/002) | PlatformAdministrator | Filtrer par période | Stat tiles, graphiques d'évolution temporelle (premiers du produit) |
 
 **Aucune page « Émission de facture », « Comptabilité » ou « Paiement »** n'est créée - hors périmètre strict (section 16).
+
+**Zone Administration (Phase 15-16)** : regroupe les pages ci-dessus réservées au rôle
+`PlatformAdministrator` - visuellement et structurellement distincte du reste de l'inventaire,
+soit comme application front séparée soit comme zone de route strictement isolée
+(`06-technical-architecture.md`, ADR-009), jamais un simple lien conditionnel dans la navigation
+existante. Décision de structure exacte actée au moment de l'implémentation (section 17 bis de
+`10-security-privacy.md`), pas présumée ici.
 
 ## 60. Page Templates
 

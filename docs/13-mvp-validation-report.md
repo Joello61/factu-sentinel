@@ -27,7 +27,7 @@ hors périmètre (comptabilité, paie, CRM, paiement intégré).
   déploiement en build de production** - voir section 10 (Limites connues).
 - Backend en `APP_ENV=dev` (comme `docker-compose.yml` de base) - pas d'environnement de
   staging distinct (non encore choisi, `docs/12-roadmap.md` section 27 : Staging = Phase
-  10-11 sur le papier, en pratique toujours Phase 13 faute d'hébergeur retenu, cohérent avec
+  10-11 sur le papier, en pratique toujours Phase 17 faute d'hébergeur retenu, cohérent avec
   le bilan Phase 10).
 - Navigateur : Chromium uniquement (Playwright, décision produit validée en revue de plan
   Phase 11).
@@ -138,9 +138,9 @@ réelle - point à confirmer visuellement dès qu'un environnement le permettra.
 - gitleaks/CodeQL (jobs GitHub Actions dédiés) : **confirmés verts sur la PR #10**, run réel
   sur push de cette branche - aucun secret détecté, aucune alerte CodeQL JS/TS.
 - Décision pentest (`10-security-privacy.md` section 61) : **DL-011** (`docs/12-roadmap.md`
-  section 50) - non requis avant la Private Beta, requis avant la Phase 13.
+  section 50) - non requis avant la Private Beta, requis avant la Phase 17.
 - Production Security Checklist (`10-security-privacy.md` section 68) : aucune case rouverte
-  cette phase n'a régressé ; les items déjà `DIFFÉRÉ - Phase 13 - nécessite une infrastructure
+  cette phase n'a régressé ; les items déjà `DIFFÉRÉ - Phase 17 - nécessite une infrastructure
   hébergée` le restent (aucune infrastructure inventée pour les cocher).
 - Comportement du rate limiter `login_throttling` observé et documenté (section 3) - contrôle
   de sécurité fonctionnant comme prévu (SEC-AUTH-002), pas une régression.
@@ -221,7 +221,7 @@ contournées dans un test :
 
 - `next build` reste cassé (bug amont Next.js 16.0.x-16.3.1, non lié à ce projet) : ce
   rapport valide le MVP tel qu'il tourne en `next dev`, pas un build de production. Point à
-  ré-évaluer avant la Phase 13 (soit le bug amont sera corrigé, soit une décision de stack
+  ré-évaluer avant la Phase 17 (soit le bug amont sera corrigé, soit une décision de stack
   explicite sera nécessaire - jamais silencieuse).
 - Chromium uniquement en E2E (décision produit) - Firefox/Safari desktop et mobile
   (`09-test-strategy.md` section 40) non couverts par l'automatisation, à valider
@@ -249,7 +249,7 @@ pour la première fois via un navigateur réel, en local et en CI)**, régressio
 accessibilité) restent explicitement "surveillés", pas complets - cohérent avec leur statut
 documenté, jamais présentés comme achevés.
 
-Ce verdict ne s'étend pas à la Phase 13 (mise en production commerciale) : `next build`
+Ce verdict ne s'étend pas à la Phase 17 (mise en production commerciale) : `next build`
 cassé, environnements staging/production inexistants, et l'ensemble des points RGPD/juridiques
 de `10-security-privacy.md` section 68 restent hors périmètre de cette phase, comme documenté
 depuis la Phase 10.

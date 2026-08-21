@@ -14,7 +14,7 @@ freelance qui pense être déjà en règle"). Elle valide une hypothèse produit
 
 **Terminologie importante, à ne jamais confondre** : cette phase n'utilise **aucun
 environnement de staging**. Le vrai staging (`docs/12-roadmap.md` section 27) reste un
-chantier Phase 13, non anticipé ici. Ce qui est décrit ci-dessous est **la stack de
+chantier Phase 17, non anticipé ici. Ce qui est décrit ci-dessous est **la stack de
 développement existante (`docker-compose.yml`), exposée temporairement et sous supervision**
 via un tunnel éphémère - jamais une infrastructure durcie, jamais un service disponible en
 continu.
@@ -24,7 +24,7 @@ Deux décisions produit encadrent tout ce document (`docs/12-roadmap.md`, Decisi
 1. **Pas d'hébergement public** - `docs/13-mvp-validation-report.md` (section 2, 10, 11)
    documente qu'aucun hébergeur n'est retenu et que `next build` échoue de façon déterministe
    sur un bug amont Next.js toujours ouvert (vérifié le 21/08/2026, y compris sur des versions
-   plus récentes que celle installée). Plutôt que d'anticiper la Phase 13, l'accès bêta passe
+   plus récentes que celle installée). Plutôt que d'anticiper la Phase 17, l'accès bêta passe
    par un tunnel temporaire pointant sur la stack de développement existante.
 2. **Pas de mécanisme de feedback in-app** - `FR-TRUST-001` (signalement in-app d'un désaccord,
    `04-product-requirements.md` section 18) reste priorité **Future**, inchangée par cette
@@ -178,7 +178,7 @@ confronté au périmètre déjà défini (`04-product-requirements.md` section 3
 
 - Pas de build de production Next.js (`next build` cassé, bug amont) - le testeur utilise
   `next dev`, dont l'overlay d'erreur React est plus verbeux qu'une vraie production. Non
-  corrigé ici, réservé à la Phase 13.
+  corrigé ici, réservé à la Phase 17.
 - Pas de vrai fournisseur email - Mailpit + relais manuel par le développeur (section 5).
 - Aucune haute disponibilité - le Quick Tunnel n'offre aucune SLA, cohérent avec un usage
   ponctuel supervisé.

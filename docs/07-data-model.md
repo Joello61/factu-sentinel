@@ -66,10 +66,11 @@ erDiagram
 ```
 
 - **User** - compte individuel. Attributs : identifiant, email, informations d'authentification (hors périmètre de détail, voir `10-security-privacy.md`), date de création.
-- **Membership** - relation entre un `User` et une `Organization`, porteuse du `Role`. Un `User` peut avoir plusieurs `Membership` (utile si une même personne gère plusieurs entreprises - cas plausible mais non explicitement documenté dans le PRD ; **proposition à confirmer**, cohérente avec le fait qu'un `User` n'a pas de `organization_id` direct).
-- **Role** - au MVP, un seul rôle existe : **propriétaire** (`04-product-requirements.md`, section 21). Le modèle prévoit néanmoins l'entité `Role` comme une valeur d'énumération simple plutôt qu'un système RBAC complexe, pour ne pas sur-concevoir un besoin non justifié au MVP (cohérent avec la consigne « ne crée pas de RBAC complexe sans justification »). Aucune entité `Permission` séparée n'est créée au MVP : un rôle unique ne nécessite pas de table de permissions distincte.
+- **Membership** - relation entre un `User` et une `Organization`, porteuse du `Role`. **Tranché (décision produit du 21/08/2026, DEC-009)** : un `User` **peut** avoir plusieurs `Membership` - un par `Organization` à laquelle il appartient, chacun avec son propre `Role` (ex. `OWNER` d'une organisation, `COLLABORATOR` d'une autre). Question précédemment ouverte, désormais résolue par **oui** ; cohérent avec le fait qu'un `User` n'a pas de `organization_id` direct.
+- **Role** - **révisé (Phase 14, DEC-009)** : trois valeurs - **`OWNER`** (contrôle complet de l'organisation), **`ADMIN`** (administration opérationnelle, sans les actions les plus sensibles réservées à `OWNER`), **`COLLABORATOR`** (usage métier courant, sans gestion d'équipe). Reste une énumération simple portée par `Membership`, pas un système RBAC complexe avec entité `Permission` séparée - la matrice de permissions (`04-product-requirements.md` section 21.1) reste codée en dur par rôle, cohérent avec le principe « ne crée pas de RBAC complexe sans justification » : trois valeurs fixes ne justifient toujours pas une table de permissions dynamique.
 - **Session** - non modélisée comme entité métier dans ce document : sa nature (jeton, session serveur) relève d'une décision de sécurité renvoyée à `10-security-privacy.md`, pas du modèle de données métier.
-- **Invitation** - non créée au MVP, cohérente avec l'absence de gestion multi-utilisateurs prioritaire (`04-product-requirements.md`, section 21).
+- **Invitation** (nouvelle entité, Phase 14) - matérialise une invitation en attente (FR-TEAM-001) : `id`, `organization_id`, `email` invité, `role` proposé, `invited_by` (référence `User`), `status` (`pending`/`accepted`/`expired`/`revoked`), `created_at`, `expires_at`. Devient un `Membership` une fois acceptée ; jamais fusionnée avec `Membership` lui-même (une invitation en attente n'accorde aucun accès).
+- **PlatformAdministrator** (nouvelle entité, Phase 15, ADR-009) - **structurellement séparée** de `User` : jamais un indicateur booléen sur l'entité tenant-scoped existante, cohérent avec le principe que l'isolation tenant ne doit jamais reposer sur la seule discipline du code (`06-technical-architecture.md`, section 20). Attributs : `id`, `email`, informations d'authentification propres (MFA obligatoire, `10-security-privacy.md`), `created_at`. N'a **aucune** relation avec `Organization`/`Membership` - un même individu ne peut pas être à la fois `PlatformAdministrator` et titulaire d'un `Membership` sur le même compte (identités séparées, même si la même personne physique peut légitimement posséder les deux comptes distincts).
 
 ## 6. Organization / Company
 
@@ -86,6 +87,7 @@ Conformément à la consigne de ne pas tout regrouper dans une seule entité, l'
 | legal_form (forme juridique) | Enum/String | Utile au contexte, non central au MVP |
 | country | String | Nécessaire pour distinguer entreprise établie en France (périmètre de la réforme, `02-regulatory-study.md` section 6-7) |
 | created_at | DateTime | Suivi standard |
+| suspended_at | DateTime, nullable | **Nouveau (Phase 15, US-PLATFORMADMIN-002)** - renseigné par une action `PlatformAdministrator` (jamais par un `OWNER`/`ADMIN` de l'organisation elle-même). Une organisation suspendue conserve toutes ses données (jamais une suppression) mais perd l'accès applicatif pour l'ensemble de ses membres tant que ce champ est renseigné. |
 
 **Address** (voir section 9 pour la justification de la séparation)
 
@@ -355,16 +357,26 @@ Cette approche différenciée évite de dupliquer systématiquement toutes les d
 
 ## 21. Notifications
 
-**Notification**
+**Notification** - **étendue en Phase 14/15** pour porter, au-delà du rappel système déjà
+modélisé au MVP, une notification composée par un humain (`OWNER`/`ADMIN` d'organisation ou
+`PlatformAdministrator`). Champs `sender_type`/`sender_id` et `target_type`/`target_criteria`
+**conçus dès la Phase 14** avec l'ensemble des valeurs déjà prévues (y compris celles
+utilisables seulement à partir de la Phase 15), pour éviter une migration de schéma cassante
+entre les deux phases.
+
 | Attribut | Type conceptuel | Description |
 |---|---|---|
 | id | UUID | |
-| organization_id | Reference | Tenant-scoped |
-| recipient_user_id | Reference | |
-| notification_type | Enum (`echeance_obligation`, ...) | Au MVP/V1, limité au rappel d'échéance (US-NOTIFICATION-001, `05-user-stories.md`) - les autres types identifiés en section 19 du PRD restent Future |
-| channel | Enum (`email`) | Un seul canal au MVP (`06-technical-architecture.md` section 29 : pas de temps réel) |
+| organization_id | Reference, **nullable** | Tenant-scoped pour une notification système ou d'organisation ; **null** pour une notification émise par un `PlatformAdministrator` (portée cross-tenant, jamais rattachée à une seule organisation) |
+| recipient_user_id | Reference, nullable | Rempli uniquement quand `target_type = USER` ou lors de l'éclatement d'une notification à portée `ORGANIZATION_MEMBERS`/`SEGMENT`/`ALL` en une ligne par destinataire effectif (choix d'implémentation à confirmer : éclatement immédiat vs résolution différée à l'envoi) |
+| notification_type | Enum (`echeance_obligation`, `message_organisation`, `message_plateforme`, ...) | Étendu en Phase 14 (`message_organisation`) et Phase 15 (`message_plateforme`) - les types Future de la section 19 du PRD restent non engagés |
+| sender_type | Enum (`SYSTEM`, `ORGANIZATION_OWNER`, `PLATFORM_ADMIN`) | **Nouveau (Phase 14)**. `SYSTEM` pour les rappels automatiques déjà existants ; `ORGANIZATION_OWNER` pour un `OWNER`/`ADMIN` notifiant son équipe (Phase 14) ; `PLATFORM_ADMIN` réservé à la Phase 15 |
+| sender_id | Reference, nullable | `User.id` ou `PlatformAdministrator.id` selon `sender_type` ; null si `sender_type = SYSTEM` |
+| target_type | Enum (`USER`, `ORGANIZATION_MEMBERS`, `SEGMENT`, `ALL`) | **Nouveau (Phase 14 : `USER`/`ORGANIZATION_MEMBERS` utilisables ; Phase 15 : `SEGMENT`/`ALL` utilisables)** - énumération complète posée dès la Phase 14 pour éviter une migration ultérieure |
+| target_criteria | JSON structuré, nullable | Rempli uniquement si `target_type = SEGMENT` (Phase 15) - critères réutilisant les champs déjà modélisés sur `FiscalContext` (statut TVA, catégorie de taille), jamais un champ dupliqué |
+| channel | Enum (`email`, `in_app`) | `in_app` ajouté en Phase 14 - une notification composée par un humain n'a pas nécessairement besoin d'un envoi email pour être utile |
 | status | Enum (`pending`, `sent`, `failed`) | |
-| source_diagnostic_id | Reference vers `EligibilityDiagnostic` (voir ci-dessous) | L'échéance rappelée provient du diagnostic d'éligibilité |
+| source_diagnostic_id | Reference vers `EligibilityDiagnostic` (voir ci-dessous), nullable | Rempli uniquement pour `notification_type = echeance_obligation` |
 | scheduled_for | DateTime | |
 | sent_at | DateTime, optionnel | |
 
@@ -394,6 +406,18 @@ Cette approche différenciée évite de dupliquer systématiquement toutes les d
 | last_error | String, optionnel | |
 
 **Exigence de sécurité, signalée sans être détaillée ici** : aucun secret (clé d'API, identifiant d'accès à un fournisseur externe) n'est stocké comme un champ texte en clair dans `IntegrationConfig`. Le modèle prévoit un champ `secret_reference` (référence opaque vers un mécanisme de gestion de secrets externe à la base de données), dont le détail d'implémentation relève strictement de `10-security-privacy.md`.
+
+**AiCallLogEntry** (nouvelle entité, Phase 15) - jusqu'ici, le volume/coût des appels IA n'était mentionné que documentairement (`06-technical-architecture.md`, section 15) sans être persisté ; nécessaire à `US-PLATFORMADMIN-005` (santé applicative) et `US-ANALYTICS-001` (statistiques d'usage).
+| Attribut | Type conceptuel | Description |
+|---|---|---|
+| id | UUID | |
+| organization_id | Reference | Tenant-scoped - permet une agrégation par organisation si nécessaire |
+| endpoint | Enum (`explanation`, `assistant_question`) | Les deux endpoints IA existants (`06-technical-architecture.md` section 15) |
+| succeeded | Boolean | Distingue un appel réussi d'un repli vers `explanation_template` non reformulé (jamais un échec silencieux non tracé) |
+| estimated_cost | Decimal, optionnel | Estimation du coût, jamais un montant facturé réel (le fournisseur IA reste l'autorité de facturation) |
+| created_at | DateTime | |
+
+Ne contient **jamais** le contenu du prompt ni la réponse générée (cohérent avec l'audit existant de l'IA, `06-technical-architecture.md` section 15 : « sans jamais persister le prompt ni le texte généré ») - uniquement des métadonnées d'usage agrégables.
 
 ## 23. External References
 
@@ -434,15 +458,19 @@ Cette approche différenciée évite de dupliquer systématiquement toutes les d
 | ContextSnapshot          | Tenant-scoped (via `ComplianceAnalysis`)                     |                                                                                              |
 | EligibilityDiagnostic    | Tenant-scoped                                                |                                                                                              |
 | AuditLogEntry            | Tenant-scoped, nullable pour événements globaux (section 20) |                                                                                              |
-| Notification             | Tenant-scoped                                                |                                                                                              |
+| Notification             | Tenant-scoped, `organization_id` **nullable** (section 21)   | Null pour une notification `PLATFORM_ADMIN` (portée cross-tenant)                            |
 | IntegrationConfig        | Globale ou tenant-scoped selon le type (section 22)          |                                                                                              |
 | ExternalReference        | Suit l'entité référencée                                     | Non utilisée au MVP (section 23)                                                             |
+| Invitation               | Tenant-scoped                                                | **Nouveau (Phase 14)** - appartient à une `Organization`                                     |
+| PlatformAdministrator    | **Globale, hors modèle tenant** (Phase 15, ADR-009)          | N'appartient à aucune `Organization` - jamais soumise au `TenantFilter`                       |
+| AiCallLogEntry           | Tenant-scoped                                                | **Nouveau (Phase 15)** - agrégée en lecture cross-tenant par `PlatformAdministrator`, jamais écrite depuis ce rôle |
 
 ## 26. Relationships & Cardinalities
 
 ```text
 Organization    1 --- N Membership
-User            1 --- N Membership
+User            1 --- N Membership          (un User peut appartenir a plusieurs Organization, Phase 14, DEC-009)
+Organization    1 --- N Invitation          (Phase 14)
 Organization    1 --- N Address
 Organization    1 --- N FiscalContext           (historise dans le temps)
 Organization    1 --- N Customer
@@ -507,6 +535,15 @@ Cette décomposition est cohérente avec `06-technical-architecture.md` (section
 **Multi-tenancy**
 
 - Aucune relation entre deux entités tenant-scoped ne doit traverser deux `organization_id` différents (par exemple, une `Invoice` ne peut référencer qu'un `Customer` de la même `Organization`) - invariant transversal à garantir au niveau base de données autant que possible (section 37).
+
+**Organization (Phase 15)**
+
+- `suspended_at` ne peut être renseigné/retiré que par une action `PlatformAdministrator`, jamais par un `OWNER`/`ADMIN` de l'organisation elle-même (US-PLATFORMADMIN-002) - toute écriture de ce champ doit être journalisée dans l'audit trail cross-tenant.
+
+**Membership / PlatformAdministrator (Phase 14-15)**
+
+- Un compte `PlatformAdministrator` ne possède jamais de `Membership` associé au même identifiant de connexion - identités structurellement séparées (ADR-009), jamais un simple rôle supplémentaire sur `User`.
+- Un `ADMIN` ne peut jamais modifier le rôle d'un `OWNER` ni le retirer de l'organisation (matrice de permissions, `04-product-requirements.md` section 21.1) - invariant à garantir au niveau de la couche d'autorisation, pas seulement de l'interface.
 
 ## 29. States & Transitions
 
@@ -798,7 +835,7 @@ Toutes les fonctionnalités P0 du MVP (`04-product-requirements.md`, section 8) 
 | Invoice modifiée après analyse : nouvelle version ou invalidation en place ?                                                                             | **Résolu : invalidation en place**, statut `ANALYSIS_STALE`, pas de nouvelle `Invoice` (section 29).                                                                                 |
 | Valeurs exactes de `company_size_category`                                                                                                               | **Résolu** : dérivée de `employees_count`, `annual_turnover`, `annual_balance_sheet_total` (section 7).                                                                              |
 | Équivalence `ComplianceRule`/`ComplianceRuleVersion`/`ComplianceEvaluation` avec les entités de ce document                                              | **Résolu** : équivalence de nomenclature documentée, pas de duplication d'entités, écarts de nommage assumés (section 18).                                                           |
-| `Membership` en 1:N - un `User` peut-il gérer plusieurs `Organization` ?                                                                                 | **Reste ouvert** : proposition cohérente avec le modèle mais non explicitement confirmée par le PRD (section 5).                                                                     |
+| ~~`Membership` en 1:N - un `User` peut-il gérer plusieurs `Organization` ?~~ | **Résolu (DEC-009, 21/08/2026) : oui**, un `Membership` distinct par `Organization`, chacun avec son propre `Role` (section 5). |
 | `EligibilityDiagnostic` comme entité explicitement nommée                                                                                                | **Résolu, confirmé en Phase 3** : implémentée comme spécifié en section 21 (amendée), déjà cohérente avec `08-api-specification.md` et `backend/CLAUDE.md` avant cette confirmation. |
 | Choix précis entre contrainte déclarative et vérification applicative pour les contraintes complexes (chevauchement de périodes, cohérence multi-tenant) | **Reste ouvert** : dépend du SGBD retenu, relève de l'implémentation (section 34).                                                                                                   |
 | Délai précis de purge après soft delete d'un compte utilisateur/organisation                                                                             | **Reste ouvert** : non couvert par les décisions produit 2026, à trancher avec `10-security-privacy.md` (section 36).                                                                |
@@ -813,7 +850,10 @@ Toutes les fonctionnalités P0 du MVP (`04-product-requirements.md`, section 8) 
 | ------------------------ | ----------------------------------- | ------------------------------------------------------------------------------ | ------------------------------------------ | -------------------------------------------------------------------------- | ---------------------------------------------------------------- | -------------------------------------------------------------------------- |
 | Authentification         | Utilisateur non connecté / connecté | Créer un compte, se connecter, récupérer l'accès                               | Identifiants                               | Session/jeton, profil `User`                                               | -                                                                | Non                                                                        |
 | Organisation             | Propriétaire                        | Configurer/modifier `Organization` et `FiscalContext`                          | Statut TVA, taille, identité légale        | `Organization`, `FiscalContext` courant, `EligibilityDiagnostic` recalculé | BR-ELIGIBILITY-001 (section 28)                                  | Non                                                                        |
-| Membres                  | Propriétaire                        | Consulter les membres (V1/Future)                                              | -                                          | Liste de `Membership`                                                      | -                                                                | Non                                                                        |
+| Équipe (Phase 14)        | OWNER, ADMIN                        | Inviter/lister/modifier le rôle/retirer un membre                              | Email, rôle proposé                        | `Invitation`, `Membership`                                                 | Matrice de permissions (PRD section 21.1)                        | Non                                                                        |
+| Notifications d'équipe (Phase 14) | OWNER, ADMIN                | Composer et envoyer une notification aux membres de l'organisation             | Destinataires, message                     | `Notification` (`sender_type=ORGANIZATION_OWNER`, `target_type=ORGANIZATION_MEMBERS`) | Matrice de permissions (PRD section 21.1)                        | Non                                                                        |
+| Administration plateforme (Phase 15) | PlatformAdministrator     | Lister organisations/comptes, suspendre/réactiver, consulter l'audit cross-tenant, envoyer une notification ciblée/segmentée/diffusée, consulter la santé applicative | Critères de ciblage, message                | `Organization[]`, `User[]`, `AuditLogEntry[]` cross-tenant, `Notification` (`sender_type=PLATFORM_ADMIN`), indicateurs de santé | Jamais via `TenantFilter` (ADR-009), audit systématique          | Non                                                                        |
+| Analytics plateforme (Phase 16) | PlatformAdministrator         | Consulter des statistiques agrégées et leur évolution dans le temps            | Filtres temporels                          | Agrégats en lecture (organisations, utilisateurs, analyses)                | Lecture seule, même autorisation que l'administration plateforme | Non                                                                        |
 | Clients                  | Propriétaire                        | Créer/modifier un `Customer` associé à une facture                             | Type, SIREN, pays                          | `Customer`                                                                 | Conditionnel : SIREN requis si professionnel français            | Non                                                                        |
 | Factures                 | Propriétaire                        | Importer un document ou saisir manuellement une facture                        | Fichier ou données structurées             | `Invoice`, `Document` (si applicable)                                      | Distinction analyse/émission (section 10)                        | Oui si extraction de document nécessaire                                   |
 | Documents                | Propriétaire                        | Suivre le traitement d'un document, le consulter, le supprimer                 | -                                          | `Document`, `DocumentProcessingRecord.status`                              | Suppression logique/physique différenciée (section 30)           | Oui pour le traitement initial                                             |

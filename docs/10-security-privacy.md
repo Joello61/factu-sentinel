@@ -49,7 +49,7 @@ Ce produit manipule des données financières (factures, montants, TVA), des don
 
 **Menaces externes** : attaquant internet automatisé (scan, brute force) ; compte utilisateur compromis (identifiants réutilisés/fuités ailleurs) ; fraudeur cherchant à faire produire un faux résultat de conformité à des fins de couverture ; upload de fichier malveillant se faisant passer pour une facture.
 
-**Menaces internes** : risque limité au MVP compte tenu du rôle unique (`OWNER`) et de l'absence d'équipe (développeur solo) ; reste pertinent pour un accès administratif interne mal contrôlé (section 17 de `08-api-specification.md`, API d'administration).
+**Menaces internes** : risque limité au MVP (Phases 0-12) compte tenu du rôle unique (`OWNER`) et de l'absence d'équipe (développeur solo) ; pertinent pour un accès administratif interne mal contrôlé (`08-api-specification.md`, section 38.1, API Regulatory Rules). **Élevé depuis la Phase 15 (DEC-010)** : l'introduction du rôle `PlatformAdministrator` (cross-tenant, `06-technical-architecture.md` ADR-009) change fondamentalement l'ampleur de ce risque - la compromission d'un compte tenant reste limitée à une organisation, alors que la compromission d'un `PlatformAdministrator` expose potentiellement **toutes** les organisations. Voir section 17 bis (nouvelle) pour les contrôles dédiés.
 
 **Menaces applicatives** : IDOR (section 17), injection (section 19), XSS (section 19), CSRF (section 20), SSRF (pertinence limitée, section 19), upload malveillant (section 22), mauvaise gestion de session (section 14).
 
@@ -73,7 +73,8 @@ Appliqué aux composants principaux (`06-technical-architecture.md`, section 6),
 | Stockage objet              | Accès à une URL de téléchargement sans autorisation      | Remplacement d'un fichier existant                                                                                        | Absence de log d'accès                                                                                                             | URL prévisible ou trop longue durée de vie (section 24)                         | Non pertinent au MVP                                                                                 | Non pertinent                                                                               |
 | AI Gateway / Provider       | Non pertinent directement                                | Réponse manipulée en transit (TLS, section 25)                                                                            | Absence de trace de l'échange → mitigée section 33                                                                                 | **Risque majeur** - fuite de contexte au-delà du strict nécessaire (section 29) | Coût incontrôlé (`06-technical-architecture.md`, section 15)                                         | Non pertinent (l'IA n'a structurellement aucun privilège d'écriture, section 32)            |
 | Intégrations externes       | Compromission des identifiants d'un fournisseur          | Falsification d'une réponse externe                                                                                       | Absence de log de synchronisation                                                                                                  | Fuite via un fournisseur tiers                                                  | Indisponibilité du fournisseur                                                                       | Non pertinent au MVP (aucune intégration active)                                            |
-| Administration (interne)    | Usurpation de l'accès admin                              | Modification non autorisée d'une règle                                                                                    | Absence de traçabilité d'une création de règle → mitigée section 33                                                                | Exposition de l'API admin publiquement                                          | Non pertinent                                                                                        | **Risque élevé si mal isolée** de l'API utilisateur (`08-api-specification.md`, section 38) |
+| Administration (interne, Regulatory Rules) | Usurpation de l'accès admin                | Modification non autorisée d'une règle                                                                                    | Absence de traçabilité d'une création de règle → mitigée section 33                                                                | Exposition de l'API admin publiquement                                          | Non pertinent                                                                                        | **Risque élevé si mal isolée** de l'API utilisateur (`08-api-specification.md`, section 38.1) |
+| **Platform Admin (Phase 15, nouveau)** | Usurpation d'un compte `PlatformAdministrator` (**MFA obligatoire en contrôle direct**) | Suspension abusive d'une organisation, notification frauduleuse diffusée à tous les utilisateurs | Absence de traçabilité d'une action cross-tenant → **mitigée obligatoirement**, jamais optionnellement (section 17 bis) | **Risque le plus élevé du produit** - un accès cross-tenant mal isolé exposerait toutes les organisations simultanément (section 16) | Diffusion globale mal maîtrisée impactant tous les utilisateurs (`08-api-specification.md` section 22) | **Risque structurel principal de cette phase** - c'est précisément pour le contenir qu'ADR-009 exige une identité séparée, jamais un simple rôle sur `User` |
 
 ## 7. Trust Boundaries
 
@@ -105,6 +106,8 @@ Backend (modules métier, 06-technical-architecture.md §6)
 | Backend → Object Storage     | Fichiers, référence opaque                                 | Accès direct non autorisé          | URLs temporaires, contrôle d'accès (section 24)                                        |
 | Backend → AI Provider        | Contexte minimisé d'un `ComplianceFinding`                 | Fuite de données, prompt injection | Minimisation stricte (section 29), traitement du contenu comme non fiable (section 31) |
 | Backend → External Providers | Selon fournisseur (email : adresse ; vérification : SIREN) | Fuite via un tiers compromis       | DPA, vérification de la localisation (section 44)                                      |
+| Internet → Platform Admin (Phase 15) | Identifiants + MFA, jamais un jeton tenant-scoped   | Usurpation, contournement du MFA, confusion avec le chemin tenant | Authentification et autorisation structurellement séparées du reste de l'API (ADR-009), MFA obligatoire, surface isolée (application séparée ou route strictement isolée, section 17 bis) |
+| Platform Admin → Backend (cross-tenant) | Requêtes explicitement cross-tenant, jamais via `TenantFilter` | Accès non audité, élévation de privilège | Audit systématique et obligatoire de chaque accès (section 17 bis), jamais un accès silencieux |
 
 ## 8. Data Classification
 
@@ -199,14 +202,29 @@ Reprend et précise `06-technical-architecture.md` (section 19) et `08-api-speci
 
 Rappel du principe fondamental : **l'autorisation n'est jamais déterminée côté client** - chaque requête est revalidée côté serveur, quelle que soit l'interface qui l'a émise (`08-api-specification.md`, section 8-9).
 
-Au MVP, un seul rôle (`OWNER`) existe (`04-product-requirements.md`, section 21) : toute action authentifiée est vérifiée sur deux axes systématiquement, jamais un seul :
+**Historique (MVP, Phases 0-12)** : un seul rôle (`OWNER`) existait (`04-product-requirements.md`, section 21 historique) : toute action authentifiée était vérifiée sur deux axes systématiquement, jamais un seul :
 
 1. **L'utilisateur est bien membre actif de l'organisation** dont il tente d'agir sur les données.
 2. **La ressource ciblée appartient bien à cette organisation** (section 17).
 
 Cette double vérification doit être appliquée à **chaque** endpoint manipulant une ressource tenant-scoped, sans exception et sans mutualisation implicite - un oubli sur un seul endpoint suffirait à créer une brèche (cohérent avec `09-test-strategy.md`, section 22, tests bloquants).
 
-**Préparation à l'évolution future** (rôles multiples, persona secondaire C) : la vérification d'autorisation doit être centralisée dans une couche unique plutôt que dupliquée dans chaque handler, pour que l'ajout futur d'un rôle ne nécessite pas de revoir chaque endpoint individuellement (cohérent avec `06-technical-architecture.md`, section 19).
+**Depuis la Phase 14 (DEC-009)** : un troisième axe s'ajoute aux deux ci-dessus, désormais
+vérifié systématiquement pour toute action - **le rôle de l'appelant au sein de cette
+organisation autorise-t-il cette action précise ?** (matrice `OWNER`/`ADMIN`/`COLLABORATOR`,
+`04-product-requirements.md` section 21.1). Cette vérification reste **centralisée dans une
+couche unique**, jamais dupliquée par endpoint - c'est précisément la préparation anticipée
+ci-dessous qui a permis cette extension sans réécrire chaque handler.
+
+**Depuis la Phase 15 (DEC-010)** : le rôle `PlatformAdministrator` suit un chemin
+d'autorisation **entièrement distinct**, jamais une extension de la matrice ci-dessus - aucune
+des trois vérifications tenant-scoped (membre actif, appartenance de ressource, rôle
+d'organisation) ne s'applique à ce rôle, qui n'a par construction ni organisation ni
+`Membership`. Sa propre autorisation est détaillée en section 17 bis.
+
+(Historique, réalisé) L'architecture d'autorisation avait été conçue pour pouvoir accueillir
+un rôle supplémentaire sans réécriture complète (cohérent avec `06-technical-architecture.md`,
+section 19/39) - c'est ce qui a rendu possible l'extension des Phases 14-15 ci-dessus.
 
 ## 16. Multi-Tenant Security
 
@@ -221,9 +239,10 @@ Cette double vérification doit être appliquée à **chaque** endpoint manipula
 | Cache (si introduit ultérieurement)       | Toute clé de cache doit inclure le `organization_id` - **aucun cache partagé entre tenants** ne doit être introduit sans cette garantie                                                                                                                                                                    |
 | Logs                                      | Les entrées de logs incluent le `organization_id` pour le diagnostic, mais ne sont jamais exposées à un autre tenant (accès restreint à l'exploitation interne, section 35)                                                                                                                                |
 | Jobs asynchrones                          | **Point d'attention particulier** : chaque job doit porter explicitement le `organization_id` du tenant d'origine dans son payload, et le worker qui le traite doit appliquer ce contexte à chaque opération qu'il effectue - un job qui « oublierait » son tenant d'origine serait une brèche potentielle |
-| Notifications                             | Envoyées uniquement au(x) membre(s) de l'organisation concernée                                                                                                                                                                                                                                            |
+| Notifications                             | Envoyées uniquement au(x) membre(s) de l'organisation concernée, **sauf** une notification `sender_type=PLATFORM_ADMIN` (Phase 15) qui traverse délibérément les tenants par construction (même exception que la ligne Platform Admin ci-dessous, jamais un cas distinct) |
 | Exports (si introduits ultérieurement)    | Aucun export ne doit pouvoir agréger des données de plusieurs tenants                                                                                                                                                                                                                                      |
 | IA                                        | Le contexte transmis à l'AI Gateway (section 29) ne concerne jamais qu'un seul tenant à la fois, jamais un contexte agrégé                                                                                                                                                                                 |
+| Platform Admin (Phase 15)                 | **Seule exception structurelle et volontaire** à ce tableau : le module `PlatformAdmin` (`06-technical-architecture.md`, ADR-009) accède délibérément à travers plusieurs tenants, jamais via le filtrage automatique ci-dessus mais via des requêtes explicitement cross-tenant, réservées à ce module, systématiquement auditées (section 17 bis) - toute autre partie du code reste soumise sans exception au filtrage par `organization_id` |
 
 ## 17. IDOR / Broken Access Control
 
@@ -238,6 +257,67 @@ Tenant ownership (la ressource {id} appartient-elle à l'organisation de l'appel
 ```
 
 Si l'une de ces trois conditions échoue, la réponse est **`404 Not Found`**, jamais `403 Forbidden`, pour ne pas confirmer l'existence d'une ressource appartenant à une autre organisation (cohérent avec `08-api-specification.md`, section 42 et 60) - ce comportement doit être strictement uniforme sur l'ensemble de l'API, y compris pour les sous-ressources (`compliance-analyses/{id}/findings`, `documents/{id}/content`).
+
+**IDOR intra-organisation (Phase 14, nouveau)** : la même discipline s'applique désormais **à
+l'intérieur** d'une organisation, entre rôles. Un `COLLABORATOR` tentant d'accéder à une action
+réservée à `OWNER`/`ADMIN` (`04-product-requirements.md` section 21.1) doit recevoir `403`,
+pas `404` (l'existence de la ressource elle-même - un autre membre, une invitation - n'est pas
+une information à cacher à un collègue de la même organisation, contrairement à une ressource
+d'un autre tenant). Un `ADMIN` tentant une action réservée à `OWNER` (modifier/retirer
+l'`OWNER` lui-même) suit la même règle.
+
+**Accès cross-tenant du `PlatformAdministrator` (Phase 15)** : cette route de vérification à
+trois conditions ne s'applique **jamais** à ce rôle - il n'a ni organisation ni `Membership`
+sur lequel appliquer une condition de tenant ownership. Son propre modèle d'autorisation
+(liste explicite d'actions permises, jamais un accès implicite) est détaillé en section 17 bis.
+Un jeton `PlatformAdministrator` présenté sur un endpoint tenant normal doit être rejeté
+(`401`, jeton non reconnu pour ce contexte d'authentification - jamais traité comme un
+utilisateur tenant-scoped ordinaire).
+
+## 17 bis. Sécurité de l'administration plateforme (Phase 15, ADR-009)
+
+Section dédiée, à la mesure du risque introduit par cette phase (section 5, section 6 STRIDE -
+« risque le plus élevé du produit »). S'applique exclusivement au rôle `PlatformAdministrator`,
+jamais aux rôles d'organisation `OWNER`/`ADMIN`/`COLLABORATOR`.
+
+**Authentification** :
+
+- **MFA obligatoire, sans exception** - exigence de sécurité actée (DEC-010,
+  `04-product-requirements.md` section 21.2), jamais une option activable. Mécanisme précis
+  (TOTP, clé de sécurité physique) à choisir en implémentation en vérifiant les recommandations
+  actuelles (`CLAUDE.md` section 3), non figé ici.
+- Authentification **structurellement séparée** du mécanisme JWT tenant-scoped (ADR-007) -
+  jamais le même émetteur de jeton, jamais une simple revendication (`claim`) supplémentaire
+  sur un jeton par ailleurs identique à celui d'un `User` tenant-scoped.
+- Surface d'accès : application front séparée si le coût reste raisonnable pour un développeur
+  solo, sinon route strictement isolée (`06-technical-architecture.md`, ADR-009) - décision à
+  documenter concrètement au moment de l'implémentation, jamais présumée d'office.
+
+**Autorisation** :
+
+- **Liste explicite des actions permises** (`08-api-specification.md`, section 38.2), jamais un
+  accès complet implicite du seul fait d'être `PlatformAdministrator` - cohérent avec le
+  principe de moindre privilège (section 3).
+- Aucune notion de rôle supplémentaire au sein de `PlatformAdministrator` au MVP de cette phase
+  (pas de RBAC interne à ce rôle) - à réévaluer seulement si plusieurs administrateurs
+  plateforme aux périmètres distincts devenaient un jour nécessaires.
+
+**Audit** :
+
+- **Chaque lecture ou écriture cross-tenant est journalisée, sans exception** - identité de
+  l'acteur (`PlatformAdministrator.id`), action, ressource(s) concernée(s), horodatage. Une
+  action cross-tenant non auditée est traitée comme un défaut bloquant, jamais comme un détail
+  d'implémentation à corriger plus tard.
+- Le journal d'audit cross-tenant reste consultable via `GET /platform-admin/audit-events`
+  (`08-api-specification.md` section 38.2) - jamais mélangé avec le journal d'audit
+  tenant-scoped exposé par `GET /audit-events` (section 39 de `08-api-specification.md`).
+
+**Test d'intrusion ciblé avant activation** (résout DL-011, `12-roadmap.md` section 50, dont le
+raisonnement pour la Private Beta ne s'étend pas à cette phase - voir section 61 ci-dessous) :
+couvre a minima authentification plateforme, MFA, autorisation, isolation tenant, IDOR/BOLA,
+accès cross-tenant, suspension de comptes, audit trail, notifications globales/segmentées,
+endpoints de santé, segmentation, élévation de privilèges - pas nécessairement un pentest
+complet de toute l'application si le budget ne le justifie pas.
 
 ## 18. API Security
 
@@ -706,6 +786,17 @@ S'appuie sur `09-test-strategy.md` (sections 32-33), avec les précisions suivan
 
 Un test d'intrusion devient pertinent : **avant la première mise en production commerciale** impliquant des utilisateurs réels et des données réelles ; après tout **changement architectural important** (par exemple, l'introduction d'une gestion de rôles multiples ou d'une intégration avec une plateforme agréée) ; après l'ajout d'une **fonctionnalité critique** touchant à l'authentification, à l'autorisation ou au stockage de documents ; puis **périodiquement** selon les besoins et l'évolution du produit, sans fréquence fixée arbitrairement ici.
 
+**Précision (Phase 15, DEC-010)** : le rôle `PlatformAdministrator` (ADR-009) est exactement le
+« changement architectural important » anticipé par la clause ci-dessus, contrairement à la
+Phase 11 dont DL-011 (`12-roadmap.md` section 50) avait constaté l'absence pour justifier de ne
+pas exiger de pentest avant la Private Beta. **DL-011 ne s'applique donc pas telle quelle à
+cette phase** : un test d'intrusion **ciblé sur la surface Platform Administration** (périmètre
+détaillé en section 17 bis) est requis **avant l'activation de cette surface**, indépendamment
+du pentest complet déjà prévu avant la Phase 17 (mise en production commerciale). Un pentest
+ciblé n'a pas vocation à remplacer le pentest complet pré-Phase 17 - il couvre la surface
+nouvellement exposée avant sa mise en service, le pentest complet reste requis ensuite sur
+l'ensemble du produit.
+
 **Un pentest ne rend jamais l'application « sécurisée » de façon définitive** - il valide un état à un instant donné, sur un périmètre donné, et doit être renouvelé à mesure que le produit évolue.
 
 ## 62. Security Release Gates
@@ -803,7 +894,7 @@ Cette matrice, complète pour les exigences critiques (P0), illustre la structur
 Revue en Phase 10 (docs/12-roadmap.md) : chaque case cochée porte une preuve (fichier/test),
 jamais cochée par anticipation. Les points qui dépendent d'un hébergement réel - non choisi
 à ce stade, l'environnement actuel restant Docker Compose local + CI - sont marqués
-`DIFFÉRÉ - Phase 13 - nécessite une infrastructure hébergée` plutôt que cochés ou
+`DIFFÉRÉ - Phase 17 - nécessite une infrastructure hébergée` plutôt que cochés ou
 silencieusement retirés (une checklist entièrement cochée ici serait un signal d'alarme, pas
 une garantie).
 
@@ -816,7 +907,7 @@ une garantie).
 
 **API**
 
-- [ ] HTTPS forcé sur l'ensemble des endpoints (section 25) - `DIFFÉRÉ - Phase 13 - nécessite une infrastructure hébergée` (préparation faite : `App\Shared\Http\HstsHeaderListener`, désactivé par défaut - `HSTS_ENABLED=false`, `backend/.env`)
+- [ ] HTTPS forcé sur l'ensemble des endpoints (section 25) - `DIFFÉRÉ - Phase 17 - nécessite une infrastructure hébergée` (préparation faite : `App\Shared\Http\HstsHeaderListener`, désactivé par défaut - `HSTS_ENABLED=false`, `backend/.env`)
 - [x] Politique CORS restrictive appliquée (section 21) - `backend/config/packages/nelmio_cors.yaml` (`CORS_ALLOW_ORIGIN` par environnement, jamais de wildcard), en-têtes métier complétés Phase 10 (`Idempotency-Key`, `If-Match`, `X-Request-ID`)
 - [x] Rate limiting actif sur l'authentification et les opérations coûteuses (section 18) - `login_throttling`, `password_reset_request`, `ai_assistant` (Phases 2/8) + `compliance_analysis_trigger`, `document_upload` (Phase 10) - `backend/config/packages/rate_limiter.yaml`, tests `testRateLimitReturns429AfterExhaustingLimiter` par endpoint
 - [x] Contrat d'erreur ne révélant aucun détail technique interne (section 18) - `App\Shared\Http\ApiExceptionListener`, revu Phase 10, aucune régression trouvée
@@ -827,12 +918,12 @@ une garantie).
 - [x] Validation par contenu réel (magic bytes), pas seulement extension/MIME (section 22) - `App\Document\Service\UploadedDocumentValidator` ; Phase 7
 - [x] Parseurs XML configurés contre XXE (section 23) - Validator Container Mustang isolé (ADR-008) ; Phase 7
 - [x] URLs de téléchargement temporaires et non prévisibles (section 24) - `GET /documents/{id}/content` authentifié à chaque appel, jamais d'URL publique (stockage local du MVP) ; Phase 7
-- [ ] Antivirus/sandboxing activé sur les fichiers uploadés - `DIFFÉRÉ - Phase 13 - nécessite une infrastructure hébergée` (non indispensable au MVP local/dev par décision produit déjà actée, section 22/69 ; requis avant une mise en production réelle)
+- [ ] Antivirus/sandboxing activé sur les fichiers uploadés - `DIFFÉRÉ - Phase 17 - nécessite une infrastructure hébergée` (non indispensable au MVP local/dev par décision produit déjà actée, section 22/69 ; requis avant une mise en production réelle)
 
 **Données**
 
-- [ ] Chiffrement en transit systématique (section 25) - `DIFFÉRÉ - Phase 13 - nécessite une infrastructure hébergée` (TLS dépend de l'hébergeur retenu)
-- [ ] Chiffrement au repos activé (base de données, stockage) (section 25) - `DIFFÉRÉ - Phase 13 - nécessite une infrastructure hébergée`
+- [ ] Chiffrement en transit systématique (section 25) - `DIFFÉRÉ - Phase 17 - nécessite une infrastructure hébergée` (TLS dépend de l'hébergeur retenu)
+- [ ] Chiffrement au repos activé (base de données, stockage) (section 25) - `DIFFÉRÉ - Phase 17 - nécessite une infrastructure hébergée`
 - [x] Politique de rétention documentée, même si certaines durées restent « à confirmer juridiquement » (section 38) - déjà documentée section 38, incertitudes juridiques explicitement signalées, pas un point bloquant pour cette case
 - [x] Sauvegardes chiffrées et testées (sections 37, 54) - `docker/backup/backup.sh`/`restore.sh` (gpg AES256, clé jamais stockée avec l'archive) - Phase 10, restauration testée manuellement avec vérification de cohérence croisée `Document` ↔ fichier ↔ `DocumentProcessingRecord` (voir `docker/backup/README.md`)
 
@@ -847,8 +938,8 @@ une garantie).
 
 - [x] Aucun secret dans le code source ou les images de conteneur (sections 26-27) - `backend/.env` committé sans valeur réelle, secrets via `.env.local`/variables CI ; scan automatisé ajouté Phase 10 (`gitleaks/gitleaks-action`, `.github/workflows/lint.yml`)
 - [x] Réseau interne non exposé directement à Internet (section 52) - `docker-compose.yml` : PostgreSQL/Redis liés à `127.0.0.1`, Mustang sans port publié, Nginx seul point d'entrée ; déjà vrai depuis la Phase 0-1
-- [ ] Environnements strictement isolés (section 53) - `DIFFÉRÉ - Phase 13 - nécessite une infrastructure hébergée` (local/CI seulement à ce stade, aucun staging/production distinct)
-- [ ] Monitoring et alerting actifs sur les événements critiques (sections 36-37) - `DIFFÉRÉ - Phase 13 - nécessite une infrastructure hébergée`
+- [ ] Environnements strictement isolés (section 53) - `DIFFÉRÉ - Phase 17 - nécessite une infrastructure hébergée` (local/CI seulement à ce stade, aucun staging/production distinct)
+- [ ] Monitoring et alerting actifs sur les événements critiques (sections 36-37) - `DIFFÉRÉ - Phase 17 - nécessite une infrastructure hébergée`
 
 **RGPD**
 

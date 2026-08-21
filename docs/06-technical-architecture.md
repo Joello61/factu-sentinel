@@ -112,7 +112,7 @@ Ce schéma reflète directement les Epics de `05-user-stories.md` (section 4) : 
 
 | Module                | Responsabilité                                                              | Données manipulées                                  | Dépendances                                                                      | Principales opérations                                                    |
 | --------------------- | --------------------------------------------------------------------------- | --------------------------------------------------- | -------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| **Identity & Access** | Authentification, gestion du compte utilisateur                             | Compte, identifiants                                | Aucune dépendance vers les autres modules métier                                 | Créer compte, connexion, récupération d'accès (US-AUTH-001 à 003)         |
+| **Identity & Access** | Authentification, gestion du compte utilisateur, **et (Phase 14) gestion des membres/rôles d'une organisation** (`Membership`/`Role` : OWNER/ADMIN/COLLABORATOR) | Compte, identifiants, appartenance à une organisation avec rôle | Aucune dépendance vers les autres modules métier | Créer compte, connexion, récupération d'accès (US-AUTH-001 à 003), inviter/gérer un membre (US-TEAM-001 à 003) |
 | **Company**           | Gestion des informations d'entreprise (statut TVA, taille)                  | Entreprise, historique de modification              | Identity & Access (propriétaire)                                                 | Configurer/modifier entreprise (US-COMPANY-001 à 003)                     |
 | **Customers**         | Gestion minimale des clients associés à une facture analysée                | Client (statut, SIREN le cas échéant)               | Company                                                                          | Renseigner client d'une facture (US-CUSTOMER-001, 002)                    |
 | **Invoices**          | Gestion des factures **à des fins d'analyse uniquement**, jamais d'émission | Facture (mentions, montants, contexte)              | Company, Customers, Documents                                                    | Importer/saisir une facture (US-INVOICE-001, 002)                         |
@@ -121,9 +121,10 @@ Ce schéma reflète directement les Epics de `05-user-stories.md` (section 4) : 
 | **Regulatory Rules**  | Stockage et sélection des règles réglementaires versionnées                 | Règle, version, période de validité                 | Aucune dépendance sortante (module de référence)                                 | Définir/interroger une règle applicable à une date donnée (section 9-10)  |
 | **Audit Trail**       | Conservation immuable des événements et résultats importants                | Journal d'événements, historique de résultats       | Reçoit des événements de tous les modules, n'en dépend d'aucun fonctionnellement | Enregistrer un événement, interroger un historique (US-HISTORY-001)       |
 | **AI Gateway**        | Abstraction de la couche IA d'explication                                   | Requêtes/réponses IA, logs associés                 | Consomme un résultat déjà produit par Compliance Engine, ne le modifie jamais    | Reformuler un résultat, répondre à une question générale (US-AI-001, 002) |
-| **Notifications**     | Envoi de rappels liés à une échéance déterminée par le diagnostic           | Notification, échéance associée                     | Compliance Engine (lecture du diagnostic)                                        | Notifier une échéance (US-NOTIFICATION-001, P2)                           |
+| **Notifications**     | Envoi de rappels liés à une échéance déterminée par le diagnostic (système), **et (Phase 14) envoi par un humain** : un `OWNER`/`ADMIN` vers les membres de son organisation | Notification, échéance associée, expéditeur (`SYSTEM`/`ORGANIZATION_OWNER`/`PLATFORM_ADMIN`), cible | Compliance Engine (lecture du diagnostic), Identity & Access (résolution des membres d'une organisation) | Notifier une échéance (US-NOTIFICATION-001, P2), notifier son équipe (US-NOTIFICATION-003, P1) |
+| **Platform Admin** (Phase 15, nouveau module) | Administration cross-tenant : consultation/suspension des organisations et comptes, audit trail cross-tenant, notifications ciblées/segmentées/diffusées, santé applicative, analytics plateforme (Phase 16) | `PlatformAdministrator` (entité structurellement séparée des entités tenant-scoped), vues agrégées en lecture sur les autres modules | Lecture agrégée sur Identity & Access, Company, Compliance Engine, AI Gateway, Notifications - **jamais via le mécanisme `TenantFilter`** (voir ADR-009, section 34) ; n'écrit jamais directement dans les entités tenant-scoped d'un autre module (suspension via un champ dédié sur `Organization`/`User`, jamais une modification métier) | Lister organisations/comptes, suspendre/réactiver, consulter l'audit cross-tenant, envoyer une notification ciblée/segmentée/diffusée, consulter la santé applicative et les analytics (US-PLATFORMADMIN-001 à 005, US-ANALYTICS-001/002) |
 
-**Modules explicitement non créés**, cohérent avec le hors-périmètre du PRD (`04-product-requirements.md`, section 30) : pas de module Billing/Subscription (aucun modèle économique tranché, `04-product-requirements.md` section 32), pas de module Administration orienté utilisateur (aucun rôle multiple au MVP, PRD section 21) - un besoin interne minimal de gestion des règles existe néanmoins et est couvert par le module Regulatory Rules lui-même plutôt que par une Epic Administration séparée (cohérent avec `05-user-stories.md`, section 6, Epic Administration : « fonction interne, non utilisateur »).
+**Modules explicitement non créés**, cohérent avec le hors-périmètre du PRD (`04-product-requirements.md`, section 30) : pas de module Billing/Subscription (aucun modèle économique tranché, `04-product-requirements.md` section 32). **Précision (Phase 14-15, décision produit du 21/08/2026)** : le module Administration orienté utilisateur, écarté au MVP (PRD section 21 historique), est désormais engagé sous deux formes distinctes - la gestion des rôles/membres d'une organisation reste dans **Identity & Access** (extension ci-dessus, jamais un module séparé pour un besoin qui reste dans les frontières tenant existantes) ; l'administration cross-tenant constitue en revanche le nouveau module **Platform Admin** ci-dessus, qui ne réutilise ni les frontières ni le mécanisme d'isolation des modules tenant-scoped (ADR-009).
 
 **Traduction en structure de code Symfony** (namespace `src/`), sans modifier les frontières logiques ci-dessus :
 
@@ -137,7 +138,8 @@ backend/
 │   ├── Compliance/      ← Compliance Engine + Regulatory Rules (sous-namespaces distincts : Compliance/Engine, Compliance/Rules)
 │   ├── Document/        ← Documents
 │   ├── AI/              ← AI Gateway
-│   ├── Notification/    ← Notifications
+│   ├── Notification/    ← Notifications (système + humaines, Phase 14)
+│   ├── PlatformAdmin/   ← Platform Admin (Phase 15) - jamais soumis au TenantFilter (ADR-009)
 │   └── Shared/          ← Audit Trail + éléments transverses (identifiants, exceptions communes, StorageInterface, etc.)
 ```
 
@@ -411,8 +413,25 @@ Principes architecturaux (sans détail d'endpoints, qui relève de `08-api-speci
 Principes architecturaux (le détail des exigences de sécurité relève de `10-security-privacy.md`) :
 
 - Authentification par identifiants (email/mot de passe a minima). **Mécanisme retenu : JWT access token de courte durée + refresh token en cookie `HttpOnly`, `Secure`, `SameSite`** (décision produit, ADR-007). L'access token est conservé **en mémoire côté frontend, jamais en `localStorage`**, ce qui limite l'exposition en cas de faille XSS ; le refresh token, porté par un cookie inaccessible en JavaScript, est présenté au backend Symfony - qui reste l'autorité d'authentification - pour obtenir un nouvel access token. Conséquence directe : une protection CSRF ciblée reste nécessaire sur l'endpoint utilisant ce cookie (`/auth/refresh`), même si l'access token porté en en-tête `Authorization` réduit l'exposition CSRF générale du reste de l'API. Ce mécanisme reste cohérent avec la séparation physique du frontend (Next.js) et du backend (Symfony) - un jeton porteur est plus naturel qu'une session serveur classique dans cette configuration à deux applications distinctes. Les aspects opérationnels fins (durée de vie précise de chaque jeton, mécanisme de rotation, révocation, comportement du logout) restent à préciser dans `10-security-privacy.md` (sections 12-14 et 20), sans remettre en cause le mécanisme lui-même désormais acté.
-- Un seul rôle au MVP - **propriétaire du compte** - cohérent avec `04-product-requirements.md` (section 21) et `05-user-stories.md` (EPIC-ADMINISTRATION comme fonction interne uniquement, pas de rôles multiples utilisateur).
-- L'architecture d'autorisation doit néanmoins être conçue de façon à pouvoir accueillir des rôles supplémentaires (collaborateur, comptable - persona secondaire C) sans refonte complète, si ce besoin est validé ultérieurement (`04-product-requirements.md`, section 32).
+- **Rôle unique au MVP (Phases 0-12), révisé en Phase 14** - propriétaire du compte
+  uniquement, cohérent avec `04-product-requirements.md` (section 21 historique). **Depuis la
+  décision produit du 21/08/2026 (DEC-009)** : trois rôles d'organisation, portés par
+  `Membership` (jamais par `User` directement) - **OWNER** (contrôle complet), **ADMIN**
+  (administration opérationnelle, sans les actions les plus sensibles réservées à `OWNER`),
+  **COLLABORATOR** (usage métier courant). Un `User` peut avoir plusieurs `Membership`, un par
+  `Organization`, chacun avec son propre rôle (`04-product-requirements.md`, section 21.1). La
+  vérification d'autorisation reste **centralisée dans une couche unique**, jamais dupliquée par
+  endpoint - c'est précisément la préparation anticipée ci-dessous qui rend cette extension
+  possible sans refonte.
+- Un **quatrième rôle, `PlatformAdministrator`** (Phase 15), est structurellement **distinct**
+  des rôles d'organisation ci-dessus : il n'appartient à aucune `Organization`, n'est jamais
+  porté par un `Membership`, et son authentification/autorisation ne partage aucun mécanisme
+  avec le chemin tenant-scoped (voir ADR-009, section 34). **MFA obligatoire** pour ce rôle -
+  exigence de sécurité actée, détaillée dans `10-security-privacy.md`.
+- (Historique, réalisé ci-dessus) L'architecture d'autorisation avait été conçue pour pouvoir
+  accueillir des rôles supplémentaires sans refonte complète (`04-product-requirements.md`,
+  section 32 historique) - cette anticipation est ce qui a permis la révision ci-dessus sans
+  reconstruction du mécanisme d'authentification JWT (ADR-007).
 - **Vérification d'email : résolue.** Décision produit (cohérente avec `05-user-stories.md`, section 18, résolu) : obligatoire avant l'accès aux fonctionnalités sensibles (upload de document, analyses persistantes, usage de l'assistant IA), mais pas nécessairement bloquante avant toute utilisation basique du compte. L'architecture doit donc prévoir un état de compte intermédiaire (email non vérifié) qui restreint l'accès aux modules Documents, Compliance Engine et AI Gateway sans empêcher la simple connexion ; le détail de ce contrôle relève de `10-security-privacy.md`. **Récupération de compte** : l'emplacement architectural (module Identity & Access, section 6) est acté, les détails du mécanisme restent à préciser dans `10-security-privacy.md`.
 - **Isolation des entreprises** : traitée au niveau de la stratégie multi-tenant (section 20), pas uniquement au niveau applicatif - la vérification d'appartenance à un tenant doit être systématique à chaque accès aux données, pas optionnelle ou reposant uniquement sur la discipline du code applicatif.
 
@@ -677,6 +696,14 @@ Choix : Mustangproject en conteneur séparé, appelé depuis Symfony par HTTP ou
 Justification : évite de dupliquer un travail déjà mature côté écosystème Factur-X/UN-CEFACT, tout en conservant l'isolation nécessaire vis-à-vis d'un composant traitant des fichiers non fiables (section 22 de `10-security-privacy.md`).
 Conséquences : ajoute un composant d'infrastructure supplémentaire (section 30) ; toute indisponibilité de ce conteneur doit être traitée comme une erreur technique (section 25), jamais comme un résultat de conformité ; la dépendance à ce composant externe doit rester encapsulée et ne jamais influencer directement le Compliance Engine (ADR-002 reste inchangé - Mustang valide la structure technique du fichier, il n'évalue jamais lui-même une règle de conformité métier).
 
+**ADR-009**
+Décision : introduction d'un rôle **`PlatformAdministrator`**, cross-tenant, structurellement séparé des entités et du mécanisme d'authentification/autorisation tenant-scoped ; surface d'administration en **application front séparée si le coût reste raisonnable pour un développeur solo, sinon une route strictement isolée** dans l'app existante (décision opérationnelle à confirmer concrètement en début de Phase 15) ; **MFA obligatoire** pour ce rôle ; audit systématique de tout accès cross-tenant ; **test d'intrusion ciblé de cette surface avant son activation**.
+Contexte : décision produit du 21/08/2026 (DEC-010, `04-product-requirements.md` section 21.2) - besoin opérationnel d'administration de la plateforme (support, modération, communication, santé applicative, analytics) au-delà de ce que couvre le rôle `OWNER` d'une organisation. Aucun mécanisme cross-tenant n'existe dans cette architecture avant cette décision : toute la sécurité repose depuis la Phase 2 sur l'isolation stricte par `tenant_id` (ADR-004), garantie au niveau de la couche d'accès aux données, sans aucune exception prévue.
+Alternatives : (1) un simple indicateur `User.isPlatformAdmin` sur l'entité `User` tenant-scoped existante - **rejetée explicitement** : transformerait la garantie d'isolation tenant, jusqu'ici centralisée et systématique (ADR-004, section 20), en une exception dispersée dépendant de la discipline de chaque requête, exactement ce que cette architecture s'est engagée à ne jamais faire ; (2) une identité `PlatformAdministrator` structurellement distincte, sans lien avec `User`/`Membership` - **retenue** ; (3) surface d'administration comme simple route protégée par rôle dans l'application existante - possible mais augmente le risque de mélange accidentel des deux modèles d'autorisation (tenant-scoped et cross-tenant) dans une même base de code ; (4) application front dédiée, avec son propre déploiement - isolation la plus forte, coût opérationnel plus élevé pour un développeur solo, à évaluer concrètement plutôt que présumé.
+Choix : entité `PlatformAdministrator` séparée (`07-data-model.md`, nouvelle entité) ; nouveau module `PlatformAdmin` (section 6), explicitement hors du mécanisme `TenantFilter` ; authentification avec MFA obligatoire (`10-security-privacy.md`, nouvelle section Sécurité de l'administration plateforme) ; option (3) ou (4) ci-dessus tranchée au moment de l'implémentation selon le coût réel constaté, jamais présumée d'office dans un sens ou l'autre ; chaque accès en lecture ou écriture cross-tenant journalisé dans l'audit trail avec l'identité de l'acteur (`06-technical-architecture.md` section 22, étendu).
+Justification : l'isolation tenant est la garantie de sécurité la plus critique de ce produit (section 20, `10-security-privacy.md` menaces internes) - toute exception à cette garantie doit être volontaire, structurellement isolée et auditée, jamais une simple condition supplémentaire dans du code déjà tenant-scoped.
+Conséquences : premier franchissement contrôlé de l'isolation tenant absolue posée depuis la Phase 2 - élève le niveau de risque du threat model (`10-security-privacy.md`, section 6, menaces internes) et justifie un test d'intrusion ciblé avant activation (distinct du pentest complet déjà prévu avant la Phase 17, `12-roadmap.md` DL-011) ; introduit un besoin de journalisation de volume/coût des appels IA jusqu'ici non persisté (`07-data-model.md`, nouvelle entité de log), nécessaire aux indicateurs de santé applicative (US-PLATFORMADMIN-005) ; les analytics plateforme (Phase 16, US-ANALYTICS-001/002) réutilisent cette même frontière d'autorisation, jamais un accès distinct moins strict.
+
 ## 35. Alternatives rejetées
 
 **Microservices** - rejetés pour la charge opérationnelle qu'ils imposeraient (déploiements multiples, observabilité distribuée, gestion de la communication inter-services) à un développeur solo, sans bénéfice justifié par le volume attendu du MVP (`03-market-analysis.md`, section 17). Cette décision pourrait être révisée si le produit atteignait une échelle où l'extraction de composants spécifiques (section 33) devient nécessaire - mais jamais comme point de départ.
@@ -731,9 +758,14 @@ Aucun diagramme supplémentaire n'a été ajouté au-delà de ceux directement u
 
 Voir section 33 pour le chemin de scalabilité détaillé. Au-delà de la scalabilité technique, les évolutions suivantes, déjà anticipées structurellement par cette architecture sans être engagées au MVP, pourraient être envisagées :
 
-- Ajout de rôles multiples (collaborateur, comptable - persona secondaire C) sans refonte de l'authentification, l'architecture d'autorisation ayant été pensée pour cette extension (section 19).
+- ~~Ajout de rôles multiples (collaborateur, comptable - persona secondaire C) sans refonte de
+  l'authentification~~ - **Réalisé (Phase 14, DEC-009)**, précisément grâce à cette anticipation
+  (section 19). Ne figure plus ici comme évolution future.
 - Intégration technique avec des outils de validation Factur-X ou des plateformes agréées, via le mécanisme d'intégration provider-agnostic déjà en place (section 16-17), sans modification du Compliance Engine lui-même.
 - Extraction du worker ou du Compliance Engine en composant séparé si le volume le justifie (section 33), les frontières de domaine (section 7) rendant cette extraction possible sans réécriture.
+- Rôles supplémentaires au sein d'une organisation (au-delà d'OWNER/ADMIN/COLLABORATOR), si un
+  besoin plus fin émergeait - la matrice de permissions centralisée (section 19) rend cette
+  extension possible sans reconstruire le mécanisme d'autorisation.
 
 ## 40. Limites de cette architecture
 
@@ -751,6 +783,7 @@ Voir section 33 pour le chemin de scalabilité détaillé. Au-delà de la scalab
 - **`10-security-privacy.md`** doit détailler l'authentification (section 19), le chiffrement et la gestion des secrets (section 26-27), et trancher les questions de conservation/suppression laissées ouvertes (section 27).
 - **`11-frontend-design-system.md`** doit s'appuyer sur les six états de conformité (section 28) et la distinction erreur technique/résultat métier (section 25) comme fondations de son système visuel.
 - **`12-roadmap.md`** doit tenir compte du chemin de scalabilité progressif (section 33) et des risques architecturaux (section 38) dans le séquencement des itérations.
+- **ADR-009 (section 34)** impacte transversalement `07-data-model.md` (entité `PlatformAdministrator`, extension de `Notification`), `08-api-specification.md` (nouvelle API Platform Administration), `09-test-strategy.md` (isolation cross-tenant testée explicitement), `10-security-privacy.md` (nouvelle section sécurité dédiée, MFA, pentest ciblé), `11-frontend-design-system.md` (nouvelle zone d'administration) et `12-roadmap.md` (Phases 14-16).
 
 ## Informations nécessaires au modèle de données
 

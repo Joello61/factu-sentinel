@@ -84,8 +84,11 @@ Ce parcours n'inclut délibérément **aucune émission ou transmission réelle 
 | Assistant IA (reformulation)                            | Oui (version restreinte) | P1       | US-AI-001/002, le Compliance Engine doit fonctionner sans elle                   |
 | Gestion de clientèle mixte B2B/B2C                      |                      Oui | P2       | US-COMPLIANCE-007, cas fréquent mais différable                                  |
 | Notifications d'échéance                                |               Non au MVP | P2       | US-NOTIFICATION-001                                                              |
-| Paramètres de compte avancés                            |               Non au MVP | P1       | US-SETTINGS-001/002, propositions dérivées non actées                            |
-| Rôles multiples / cabinet comptable                     |                      Non | Future   | `04-product-requirements.md` section 21                                          |
+| Notifications internes d'équipe                         | Non au MVP, engagée Phase 14 | P1   | US-NOTIFICATION-003, décision produit du 21/08/2026 (DEC-009)                    |
+| Paramètres de compte avancés                            | Non au MVP, engagée Phase 13 | P1   | US-SETTINGS-001/002                                                              |
+| Rôles multiples / cabinet comptable                     | Non au MVP, engagée Phase 14 | P1   | `04-product-requirements.md` section 21.1, décision produit du 21/08/2026 (DEC-009) - persona secondaire C réouvert plus tôt que prévu |
+| Administration plateforme (support, notifications ciblées, santé applicative) | Non au MVP, engagée Phase 15 | P1 | `04-product-requirements.md` section 21.2, DEC-010, ADR-009 |
+| Statistiques et graphiques d'usage (surface admin uniquement) | Non au MVP, engagée Phase 16 | P2 | FR-ANALYTICS-001/002, DEC-011 - ne rouvre pas DL-008 (dashboard client) |
 | Intégration plateforme agréée / outil Factur-X tiers    |                      Non | Future   | `06-technical-architecture.md` section 16                                        |
 
 ## 8. MVP Exclusions
@@ -108,8 +111,14 @@ Phase 9  - Dashboard & Historique
 Phase 10 - Security & Privacy Hardening
 Phase 11 - MVP Validation
 Phase 12 - Private Beta
-Phase 13 - Production Readiness & Public Launch
+Phase 13 - Paramètres & Profil utilisateur
+Phase 14 - Rôles d'organisation & Notifications internes
+Phase 15 - Administration plateforme & Notifications avancées
+Phase 16 - Stats & Analytics métier
+Phase 17 - Production Readiness & Public Launch
 ```
+
+**Phases 13 à 16 ajoutées par décision produit du 21/08/2026** (après la Phase 12, avant l'ex-Phase 13 renumérotée en Phase 17) - l'utilisateur souhaite une application couvrant la gestion d'équipe, l'administration plateforme et les statistiques d'usage avant la mise en production, ce qui revient explicitement sur plusieurs décisions de simplicité du MVP (rôle unique, pas de graphiques, notifications minimales - voir DEC-009/010/011 de `04-product-requirements.md`).
 
 **Écart assumé par rapport au gabarit de la mission** : la phase « Invoicing » est fusionnée avec « Customers » (Phase 4) et scindée entre saisie manuelle (Phase 4) et import documentaire (Phase 7, après le Compliance Engine), car la saisie manuelle est nécessaire pour valider le moteur de conformité (Phase 5) sans dépendre du traitement documentaire, plus complexe et à risque (`06-technical-architecture.md` section 11).
 
@@ -255,7 +264,7 @@ Definition of Done : checklist de la section 68 de `10-security-privacy.md` coch
 Risks : sous-traiter cette phase trop tard découvrirait des failles structurelles difficiles à corriger - mitigé par le fait que l'isolation tenant et l'authentification ont déjà été construites dès les Phases 1-2, cette phase consolide plutôt qu'elle ne découvre.
 Exit Criteria : aucune vulnérabilité critique ouverte (`10-security-privacy.md`, section 62) ; tests de sécurité bloquants passants.
 
-**Bilan à l'implémentation** : livré - deux décisions de périmètre actées avant l'implémentation, cohérentes avec le principe « hardener ce qui existe, jamais inventer une fonctionnalité pour fermer un trou de sécurité ou de test » : (1) **Application/CI uniquement** - tout ce qui dépend d'un hébergeur réel (HTTPS forcé, chiffrement au repos, isolation staging/production, monitoring/alerting d'infrastructure) reste marqué `DIFFÉRÉ - Phase 13 - nécessite une infrastructure hébergée` dans `10-security-privacy.md` (section 68), jamais coché par anticipation ni silencieusement retiré ; (2) **`/admin/rule-versions` hors périmètre** - jamais construit pour fermer l'écart de `09-test-strategy.md` section 23, documenté comme dette connue à la place (voir cette section).
+**Bilan à l'implémentation** : livré - deux décisions de périmètre actées avant l'implémentation, cohérentes avec le principe « hardener ce qui existe, jamais inventer une fonctionnalité pour fermer un trou de sécurité ou de test » : (1) **Application/CI uniquement** - tout ce qui dépend d'un hébergeur réel (HTTPS forcé, chiffrement au repos, isolation staging/production, monitoring/alerting d'infrastructure) reste marqué `DIFFÉRÉ - Phase 17 - nécessite une infrastructure hébergée` dans `10-security-privacy.md` (section 68), jamais coché par anticipation ni silencieusement retiré ; (2) **`/admin/rule-versions` hors périmètre** - jamais construit pour fermer l'écart de `09-test-strategy.md` section 23, documenté comme dette connue à la place (voir cette section).
 
 Backend : `App\Shared\Http\SecurityHeadersListener` (`X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy`, `X-Frame-Options`, `Content-Security-Policy`) et `App\Shared\Http\HstsHeaderListener` (`Strict-Transport-Security`, désactivé par défaut via `HSTS_ENABLED=false` - préparé, jamais présenté comme actif tant qu'aucun domaine HTTPS réel n'existe) ; CORS complété (`Idempotency-Key`, `If-Match`, `X-Request-ID` en `allow_headers`/`expose_headers`, écart avec `10-security-privacy.md` section 21 fermé) ; deux nouveaux rate limiters organisation-scoped (`compliance_analysis_trigger` 60/heure, `document_upload` 30/heure, `backend/config/packages/rate_limiter.yaml`, justifiés en commentaire - jamais un chiffre choisi sans raison écrite) ; `App\Shared\Security\EmailVerificationGuard` (extraction du `requireVerifiedEmail()` jusqu'ici dupliqué dans les deux services IA, Phase 8) désormais branché aussi sur `App\Document\Service\UploadDocumentService` et `App\Compliance\Engine\Service\RunComplianceAnalysisService` - ferme la dette explicite notée au bilan de la Phase 8 ; `GET /audit-events` implémenté (`App\Shared\Audit\Controller\ListAuditEventsController`, `docs/08-api-specification.md` section 39, jamais construit avant cette phase bien que `AuditLogEntry`/`AuditLogger` existent depuis la Phase 3) - exclut structurellement les événements globaux (`organization_id NULL`), vérifié par insertion directe en base (aucun chemin applicatif n'en produit encore) ; `App\Tests\Integration\MultiTenant\TenantIsolationTest` étendu (TC-TENANT-008, `GET /audit-events`) ; nouveaux tests `testEmailNotVerifiedReturns403`/`testRateLimitReturns429AfterExhaustingLimiter` sur Document/Compliance, symétriques aux tests IA déjà existants. Extension de `EmailVerificationGuard` à ces deux services : dette Phase 8 fermée, mais a nécessité d'ajouter `markEmailVerified()` (voire, pour un cas isolé, un nouveau `markEmailUnverified()` test-only dans `App\Tests\Support\ApiTestCase`, mutation SQL directe - même patron que `RuleVersionNonRetroactivityTest` pour `RuleVersion`) dans l'ensemble des tests fonctionnels touchant déjà ces deux endpoints (Document, Compliance, Invoicing, MultiTenant) - suite complète revérifiée verte (201 tests) après ce changement.
 
@@ -265,7 +274,7 @@ CI (`​.github/workflows/lint.yml`) : `composer audit` et `npm audit --audit-le
 
 Frontend : `frontend/next.config.ts` - headers de sécurité statiques (approche "sans nonce" retenue après vérification de la documentation Next.js 16.3.1 officielle : l'approche à base de nonce, via `proxy.ts`, exigerait de forcer le rendu dynamique sur l'ensemble des pages, un changement d'architecture bien plus large qu'un ajout de headers - toutes les pages de FactuSentinel étant déjà authentifiées et propres à un utilisateur, la génération statique n'y apporte de toute façon aucun bénéfice réel). Vérifié en conditions réelles (navigateur, `curl` via Nginx) : headers présents, aucune violation CSP, aucune régression fonctionnelle.
 
-Sauvegardes (`docker/backup/backup.sh`, `restore.sh`, `README.md`) : `pg_dump` + archive du stockage documentaire local, assemblés puis chiffrés (`gpg --symmetric`, AES256 - préféré à `age` car déjà présent par défaut sur la quasi-totalité des systèmes Linux, aucune nouvelle dépendance à installer, critère décisif pour un développeur solo). Gestion de la clé documentée comme point de sécurité à part entière (jamais stockée avec l'archive). **Clôture l'item de risque « Stratégie de sauvegarde du stockage documentaire local (ADR-007) avant tout volume significatif »** (section 51, Open Questions) : procédure testée manuellement de bout en bout (sauvegarde réelle → déchiffrement → restauration dans une base et un répertoire jetables, jamais l'environnement de développement partagé → vérification de cohérence croisée `Document.storage_reference` ↔ fichier réellement présent ↔ `Invoice`/`DocumentProcessingRecord` sans référence orpheline) - pas seulement une présence de données. Aucune automatisation périodique (cron/systemd) : dépend d'un hébergeur non choisi, reste Phase 13.
+Sauvegardes (`docker/backup/backup.sh`, `restore.sh`, `README.md`) : `pg_dump` + archive du stockage documentaire local, assemblés puis chiffrés (`gpg --symmetric`, AES256 - préféré à `age` car déjà présent par défaut sur la quasi-totalité des systèmes Linux, aucune nouvelle dépendance à installer, critère décisif pour un développeur solo). Gestion de la clé documentée comme point de sécurité à part entière (jamais stockée avec l'archive). **Clôture l'item de risque « Stratégie de sauvegarde du stockage documentaire local (ADR-007) avant tout volume significatif »** (section 51, Open Questions) : procédure testée manuellement de bout en bout (sauvegarde réelle → déchiffrement → restauration dans une base et un répertoire jetables, jamais l'environnement de développement partagé → vérification de cohérence croisée `Document.storage_reference` ↔ fichier réellement présent ↔ `Invoice`/`DocumentProcessingRecord` sans référence orpheline) - pas seulement une présence de données. Aucune automatisation périodique (cron/systemd) : dépend d'un hébergeur non choisi, reste Phase 17.
 
 **Différé explicitement** (au-delà des deux décisions de périmètre déjà actées ci-dessus) : automatisation périodique des sauvegardes ; gestion/rotation de clé de production ; l'ensemble des points RGPD de la checklist section 68 (juridiques, non techniques, hors périmètre de cette phase).
 
@@ -323,7 +332,7 @@ la largeur de rendu dans cette session) - voir le rapport, section 10, pour ce p
 confirmer visuellement.
 
 **DL-011** (section 50) tranche la décision laissée ouverte par la Security Roadmap (section
-23) : test d'intrusion non requis avant la Private Beta, requis avant la Phase 13.
+23) : test d'intrusion non requis avant la Private Beta, requis avant la Phase 17.
 
 **Verdict** : MVP validé pour l'entrée en Private Beta (Phase 12) - voir
 `docs/13-mvp-validation-report.md` section 11 pour le détail des Release Gates et les limites
@@ -367,11 +376,59 @@ indiscernable d'un échec d'identifiants ordinaire. Corrigé (réponse `429` ave
 sans révéler d'information sur le compte), test de régression ajouté
 (`LoginControllerTest::testRepeatedFailedLoginsAreThrottledWith429`).
 
-**Phase 13 - Production Readiness & Public Launch**
+**Phase 13 - Paramètres & Profil utilisateur**
+Objective : permettre à l'utilisateur de gérer les informations de son propre compte.
+Business Value : complète l'expérience produit avant la mise en production - couverture jugée nécessaire par décision produit du 21/08/2026, indépendamment de la validation de la proposition de valeur centrale déjà acquise en Phase 11.
+Scope : `US-SETTINGS-001/002` (`05-user-stories.md`) - consulter/modifier les informations de compte, demander la suppression du compte.
+Dependencies : Phase 12.
+Deliverables : `PATCH /users/me`, `DELETE /users/me` (`08-api-specification.md`), page Paramètres (`11-frontend-design-system.md`).
+Tests : tests fonctionnels standards (modification, suppression, erreurs de validation) - aucune extension de `09-test-strategy.md` nécessaire au-delà des catégories déjà couvertes (Authentication/API Testing).
+Security : la suppression de compte respecte les mêmes contraintes de conservation légale que le reste du produit (`10-security-privacy.md`, sections 38-39) - aucune promesse de suppression immédiate et totale.
+Definition of Done : un utilisateur peut consulter/modifier ses informations de compte et demander sa suppression.
+Risks : faible - fonctionnalité déjà entièrement spécifiée, aucune décision architecturale nouvelle.
+Exit Criteria : `US-SETTINGS-001/002` couvertes par des tests fonctionnels passants.
+
+**Phase 14 - Rôles d'organisation & Notifications internes**
+Objective : permettre à une organisation de fonctionner à plusieurs, avec des rôles différenciés, et de communiquer en interne.
+Business Value : réouvre le persona secondaire C (cabinet comptable, `03-market-analysis.md` section 4) plus tôt que prévu par décision produit assumée (DEC-009, `04-product-requirements.md` section 21) ; prérequis architectural à la Phase 15.
+Scope : rôles `OWNER`/`ADMIN`/`COLLABORATOR` portés par `Membership` (`07-data-model.md` section 5) ; invitation/gestion/retrait de membres (`EPIC-TEAM`, `05-user-stories.md`) ; notification d'un `OWNER`/`ADMIN` vers les membres de son organisation (US-NOTIFICATION-003) ; sélection d'organisation active (`POST /auth/select-organization`, `08-api-specification.md` section 9) pour les utilisateurs appartenant à plusieurs organisations.
+Dependencies : Phase 2 (Identity & Multi-Tenancy), Phase 13.
+Deliverables : `08-api-specification.md` section 25 (Team/Membership API) et extension de la section 34 (Notifications API) ; matrice de permissions publiée dans `04-product-requirements.md` section 21.1 ; pages Gestion d'équipe et composeur de notification (`11-frontend-design-system.md`).
+Tests : matrice d'autorisation par rôle exhaustive (`09-test-strategy.md` section 23, extension Phase 14) - un scénario positif et un scénario négatif par action de la matrice, pas un test générique.
+Security : révision du threat model (`10-security-privacy.md` section 15, 17) - élévation de privilège intra-organisation testée explicitement ; aucune régression sur l'isolation multi-tenant existante (Phase 2, ADR-004), qui reste inchangée par cette phase.
+Definition of Done : un `OWNER` peut inviter un collaborateur, lui attribuer un rôle, et lui envoyer une notification ; la matrice de permissions est appliquée sans exception.
+Risks : introduire un bug d'autorisation intra-organisation en étendant un mécanisme jusqu'ici mono-rôle - mitigé par la centralisation déjà en place (`06-technical-architecture.md` section 19) et par la densité de tests exigée ci-dessus.
+Exit Criteria : matrice de permissions testée exhaustivement (positif/négatif par action) ; aucune régression sur les tests d'isolation multi-tenant existants (TC-TENANT-*).
+
+**Phase 15 - Administration plateforme & Notifications avancées**
+Objective : donner à l'opérateur de la plateforme les moyens de support, modération, communication et surveillance applicative à travers toutes les organisations.
+Business Value : capacité opérationnelle jugée nécessaire par décision produit (DEC-010) pour exploiter le produit au-delà d'un cercle de bêta-testeurs restreint.
+Scope : rôle `PlatformAdministrator`, structurellement séparé (`06-technical-architecture.md`, ADR-009) ; consultation/suspension des organisations et comptes ; audit trail cross-tenant ; notifications ciblées/segmentées/diffusées (`sender_type=PLATFORM_ADMIN`) ; health monitoring **applicatif uniquement** (taux d'échec Compliance Engine, jobs asynchrones en échec, volume/coût IA, `/api/health`) - explicitement pas de monitoring d'infrastructure réelle, qui reste Phase 17.
+Dependencies : Phase 14 (le modèle de rôles d'organisation doit exister avant d'introduire un rôle qui les traverse tous).
+Deliverables : module backend `PlatformAdmin` (`06-technical-architecture.md` section 6) ; `08-api-specification.md` section 38.2 (Platform Administration API) ; entités `PlatformAdministrator`/`AiCallLogEntry` (`07-data-model.md`) ; nouvelle section « Sécurité de l'administration plateforme » dans `10-security-privacy.md` (section 17 bis) ; surface front dédiée (application séparée ou route strictement isolée, décision de coût actée en début de phase).
+Tests : isolation cross-tenant entre jetons `PlatformAdministrator` et jetons tenant-scoped (`09-test-strategy.md` section 22, extension critique) ; complétude de l'audit trail sur chaque action cross-tenant ; tests de la logique de segmentation.
+Security : **MFA obligatoire** pour `PlatformAdministrator`, sans exception ; audit systématique de tout accès cross-tenant ; **test d'intrusion ciblé de cette surface avant son activation** (`10-security-privacy.md` section 61, précision Phase 15) - DL-011 ne s'applique pas telle quelle à cette phase, qui constitue précisément le « changement architectural important » que sa clause anticipait.
+Definition of Done : un `PlatformAdministrator` peut consulter/suspendre une organisation, envoyer une notification ciblée à un segment, et consulter la santé applicative - chaque action journalisée.
+Risks : **le risque de sécurité le plus élevé de toute la roadmap post-MVP** - une isolation mal construite entre ce rôle et les rôles tenant-scoped exposerait toutes les organisations simultanément ; mitigé par une identité structurellement séparée (ADR-009) et le pentest ciblé exigé avant activation.
+Exit Criteria : pentest ciblé réalisé sans vulnérabilité critique ouverte ; isolation cross-tenant/tenant-scoped testée et vérifiée dans les deux sens ; audit trail complet vérifié sur un scénario de bout en bout.
+
+**Phase 16 - Stats & Analytics métier**
+Objective : donner à l'opérateur de la plateforme une vue agrégée de l'usage réel du produit.
+Business Value : éclaire les décisions produit post-MVP (adoption, taux de conformité, volume) sans attendre un besoin business formalisé.
+Scope : statistiques agrégées (organisations, utilisateurs, analyses, taux de conformité) et leur évolution temporelle (`US-ANALYTICS-001/002`) - restreint à la surface d'administration plateforme, le dashboard utilisateur final restant inchangé (DL-008 non rouvert).
+Dependencies : Phase 15 (réutilise la même autorisation `PlatformAdministrator`, jamais un accès distinct).
+Deliverables : `08-api-specification.md` section 38.3 (Platform Analytics API) ; agrégation construite sur le patron `DashboardAggregator` déjà existant (Phase 9) ; premiers graphiques du produit dans la zone d'administration (`11-frontend-design-system.md`).
+Tests : exactitude des agrégations sur un jeu de données connu (pas de nouveau mécanisme d'agrégation à valider, réutilisation du patron Phase 9).
+Security : même autorisation stricte que la Phase 15 (`platform:analytics:read`) - risque modéré, lecture seule, mais données agrégées sensibles à l'échelle de la plateforme entière (nombre d'organisations, volumes, coûts IA).
+Definition of Done : un `PlatformAdministrator` visualise les statistiques d'usage et leur évolution dans le temps.
+Risks : faible techniquement (lecture seule) ; risque produit résiduel si les statistiques exposées s'avéraient trop grossières pour être réellement actionnables - non bloquant, itérable après coup.
+Exit Criteria : `US-ANALYTICS-001/002` couvertes par des tests fonctionnels passants.
+
+**Phase 17 - Production Readiness & Public Launch**
 Objective : ouvrir le produit plus largement.
 Business Value : mise sur le marché réelle.
 Scope : checklist complète de la section 43, validation juridique des points signalés « à confirmer juridiquement » dans `10-security-privacy.md`.
-Dependencies : Phase 12.
+Dependencies : Phase 16.
 Deliverables : produit en production, documentation opérationnelle à jour.
 Tests : ensemble de la stratégie de tests en continu (`09-test-strategy.md`, section 46, pipeline CI/CD).
 Security : revue finale, éventuel test d'intrusion (`10-security-privacy.md`, section 61).
@@ -402,7 +459,12 @@ flowchart TD
     P9 --> P10
     P10 --> P11[Phase 11 - MVP Validation]
     P11 --> P12[Phase 12 - Private Beta]
-    P12 --> P13[Phase 13 - Production and Launch]
+    P12 --> P13[Phase 13 - Parametres et Profil]
+    P2 --> P14[Phase 14 - Roles organisation et Notifications internes]
+    P13 --> P14
+    P14 --> P15[Phase 15 - Administration plateforme]
+    P15 --> P16[Phase 16 - Stats et Analytics]
+    P16 --> P17[Phase 17 - Production and Launch]
 ```
 
 ## 12. Critical Path
@@ -584,7 +646,7 @@ Context Preparation (minimisation stricte à partir d'un ComplianceFinding, jama
    ↓
 Prompt Security (séparation instruction/donnée, 10-security-privacy.md section 31)
    ↓
-Provider Integration (Mistral, via l'abstraction `AIService`/`MistralProvider` - fournisseur et abstraction désormais confirmés, `06-technical-architecture.md` ADR-007 ; conformité contractuelle - DPA, localisation des données - à finaliser avant Phase 13, section 51)
+Provider Integration (Mistral, via l'abstraction `AIService`/`MistralProvider` - fournisseur et abstraction désormais confirmés, `06-technical-architecture.md` ADR-007 ; conformité contractuelle - DPA, localisation des données - à finaliser avant Phase 17, section 51)
    ↓
 Output Validation (jamais un canal d'écriture vers une donnée métier)
    ↓
@@ -601,7 +663,7 @@ Evaluation (jeu de référence, 09-test-strategy.md section 30)
 
 **Security Hardening** (Phase 10) : headers de sécurité, CORS strict, rate limiting calibré, scanning de dépendances, chiffrement au repos, sécurité documentaire et XML complète, audit trail complet.
 
-**Pre-Production Security Review** (fin de Phase 10 / début Phase 11) : checklist complète (`10-security-privacy.md`, section 68). **Résolu (DL-011, Phase 11)** : test d'intrusion non requis avant la Private Beta - le déclencheur textuel de la section 61 est la première mise en production **commerciale** (Phase 13), jamais la Private Beta elle-même (validation d'hypothèses produit, pas une mise sur le marché, section 29).
+**Pre-Production Security Review** (fin de Phase 10 / début Phase 11) : checklist complète (`10-security-privacy.md`, section 68). **Résolu (DL-011, Phase 11)** : test d'intrusion non requis avant la Private Beta - le déclencheur textuel de la section 61 est la première mise en production **commerciale** (Phase 17), jamais la Private Beta elle-même (validation d'hypothèses produit, pas une mise sur le marché, section 29).
 
 ## 24. Privacy Roadmap
 
@@ -610,7 +672,7 @@ Data mapping (10-security-privacy.md, section 9) - dès la Phase 3-4, au fur et 
    ↓
 Minimisation appliquée dès la conception (transverse, chaque phase)
    ↓
-Rétention & suppression - conservation de la facture originale **actée à 10 ans** (`02-regulatory-study.md` section 23) ; mécanismes techniques posés en Phase 4-7 (soft/hard delete, 07-data-model.md section 30) ; durées de conservation des données techniques dérivées (distinctes de la conservation légale de la facture) et bases légales précises restant à confirmer juridiquement avant Phase 13
+Rétention & suppression - conservation de la facture originale **actée à 10 ans** (`02-regulatory-study.md` section 23) ; mécanismes techniques posés en Phase 4-7 (soft/hard delete, 07-data-model.md section 30) ; durées de conservation des données techniques dérivées (distinctes de la conservation légale de la facture) et bases légales précises restant à confirmer juridiquement avant Phase 17
    ↓
 Droits RGPD - processus opérationnel construit en Phase 10-11
    ↓
@@ -618,10 +680,10 @@ Fournisseurs & DPA - évalués au moment du choix effectif de chaque fournisseur
    ↓
 Transferts internationaux - évalués si un fournisseur hors UE est retenu (Phase 8 principalement)
    ↓
-AIPD - **screening de nécessité obligatoire avant mise en production** (décision actée) ; AIPD complète réalisée uniquement si ce screening la juge requise, à finaliser avant Phase 13 (`10-security-privacy.md`, section 46)
+AIPD - **screening de nécessité obligatoire avant mise en production** (décision actée) ; AIPD complète réalisée uniquement si ce screening la juge requise, à finaliser avant Phase 17 (`10-security-privacy.md`, section 46)
 ```
 
-**À confirmer juridiquement** avant la Phase 13 (Production) : bases légales précises (section 41 de `10-security-privacy.md`), durées de conservation des données dérivées - distinctes des 10 ans désormais actés pour la facture elle-même (section 38), qualification responsable/sous-traitant (section 43), et nécessité finale d'une AIPD complète (dépend du résultat du screening).
+**À confirmer juridiquement** avant la Phase 17 (Production) : bases légales précises (section 41 de `10-security-privacy.md`), durées de conservation des données dérivées - distinctes des 10 ans désormais actés pour la facture elle-même (section 38), qualification responsable/sous-traitant (section 43), et nécessité finale d'une AIPD complète (dépend du résultat du screening).
 
 ## 25. Testing Roadmap
 
@@ -665,7 +727,7 @@ Cohérent avec le pipeline cible de `09-test-strategy.md` (section 46) - introdu
 | CI            | Phase 1                                            | Validation automatique                                       |
 | Test          | Phase 2 (dès que des tests d'intégration existent) | Exécution étendue avant fusion                               |
 | Staging       | Phase 10-11                                        | Validation proche des conditions réelles, avant Private Beta |
-| Production    | Phase 13                                           | Usage réel                                                   |
+| Production    | Phase 17                                           | Usage réel                                                   |
 
 Cohérent avec `06-technical-architecture.md` (section 31) et `10-security-privacy.md` (section 53) - chaque environnement introduit avec ses propres secrets et données, jamais partagés entre eux.
 
@@ -679,7 +741,8 @@ M3 - Compliance Engine Alpha : premières règles évaluées correctement en int
 M4 - Compliance MVP : moteur validé, UX de résultat fonctionnelle (fin Phase 6)
 M5 - MVP complet : parcours entier avec documents et sécurité durcie (fin Phase 10-11)
 M6 - Private Beta lancée (Phase 12)
-M7 - Production Ready / Lancement (Phase 13)
+M6 bis - Application complète (équipes, administration plateforme, analytics) prête (fin Phase 16)
+M7 - Production Ready / Lancement (Phase 17)
 ```
 
 ## 29. Release Strategy
@@ -690,7 +753,7 @@ M7 - Production Ready / Lancement (Phase 13)
 
 **Public Beta** - ouverture plus large, après un cycle de retours de la Private Beta jugé suffisamment positif (jugement produit, pas un seuil chiffré arbitraire ici). Niveau de qualité : proche de la production, avec un discours explicite de « beta » auprès des utilisateurs pour gérer les attentes.
 
-**Production** - produit commercialisable (Phase 13), après validation juridique des points en suspens (section 24).
+**Production** - produit commercialisable (Phase 17), après validation juridique des points en suspens (section 24).
 
 ## 30. Backlog Structure
 
@@ -812,7 +875,7 @@ Phase 10 : alerting sur les événements de sécurité (10-security-privacy.md, 
 
 ## 42. Operational Readiness
 
-Avant la Phase 13 (Production) : sauvegardes testées (`10-security-privacy.md`, section 54), procédure de restauration documentée et testée (section 37 de `09-test-strategy.md`), monitoring et alerting actifs (section 41 de ce document), processus de réponse aux incidents documenté même de façon simple (`10-security-privacy.md`, section 55), documentation opérationnelle à jour (section 40), stratégie de déploiement et de rollback définie (`06-technical-architecture.md`, section 32).
+Avant la Phase 17 (Production) : sauvegardes testées (`10-security-privacy.md`, section 54), procédure de restauration documentée et testée (section 37 de `09-test-strategy.md`), monitoring et alerting actifs (section 41 de ce document), processus de réponse aux incidents documenté même de façon simple (`10-security-privacy.md`, section 55), documentation opérationnelle à jour (section 40), stratégie de déploiement et de rollback définie (`06-technical-architecture.md`, section 32).
 
 ## 43. Production Readiness Checklist
 
@@ -867,7 +930,15 @@ gantt
     Security Hardening        :p10, after p9, 1
     MVP Validation             :p11, after p10, 1
     Private Beta                :p12, after p11, 1
-    Production and Launch        :p13, after p12, 1
+
+    section Application complete
+    Settings and Profile          :p13, after p12, 1
+    Team Roles and Notifications  :p14, after p13, 1
+    Platform Administration       :p15, after p14, 1
+    Analytics                     :p16, after p15, 1
+
+    section Lancement
+    Production and Launch        :p17, after p16, 1
 ```
 
 **Les unités de ce diagramme sont des numéros de phase, pas des semaines ou des dates réelles** - aucune durée n'est connue à ce stade, cohérent avec la consigne de ne jamais fabriquer une timeline artificielle.
@@ -878,7 +949,7 @@ Décisions susceptibles de bloquer plusieurs phases si elles ne sont pas prises 
 
 - ~~**Mécanisme de session**~~ - **Résolu** : JWT (access token + refresh token), décision produit reprise dans `06-technical-architecture.md` (ADR-007) et détaillée dans `10-security-privacy.md` (section 12). Reste à calibrer en implémentation : durées exactes de vie des jetons.
 - ~~**Donnée précise pour `company_size_category`**~~ (`07-data-model.md` section 43) - **Résolu** : dérivée des critères INSEE (`employees_count`, `annual_turnover`, `annual_balance_sheet_total`) ; le statut fiscal « micro-entreprise » n'est pas synonyme automatique de la catégorie statistique INSEE « microentreprise », distinction à documenter explicitement dans le modèle. Ne bloque plus la Phase 3.
-- ~~**Fournisseur IA retenu**~~ - **Résolu** : Mistral, via l'abstraction `AIService`/`MistralProvider`, décision produit reprise dans `06-technical-architecture.md` (ADR-007). Ne bloque donc plus la Phase 8 ; reste à vérifier contractuellement avant la Phase 13 (localisation des données, DPA - `10-security-privacy.md` section 30).
+- ~~**Fournisseur IA retenu**~~ - **Résolu** : Mistral, via l'abstraction `AIService`/`MistralProvider`, décision produit reprise dans `06-technical-architecture.md` (ADR-007). Ne bloque donc plus la Phase 8 ; reste à vérifier contractuellement avant la Phase 17 (localisation des données, DPA - `10-security-privacy.md` section 30).
 - ~~**Comportement de `PATCH /invoices/{id}` sur une facture `ANALYZED`**~~ (`08-api-specification.md` section 59) - **Résolu** : la facture modifiée ne crée jamais de nouvelle entité ; son statut passe de `ANALYZED` à `ANALYSIS_STALE` dès qu'une donnée pertinente pour la conformité change, l'ancien résultat restant consultable dans l'historique ; l'utilisateur doit relancer une analyse pour repasser à `ANALYZED`. Ne bloque plus la Phase 4 ni la Phase 6.
 - **Format(s) documentaire(s) précisément supportés** (`06-technical-architecture.md` section 11) - bloque le périmètre exact de la Phase 7, toujours ouverte.
 - **Stockage documentaire local pour le MVP** (`06-technical-architecture.md`, ADR-007) - décision actée, mais implique une vigilance particulière sur les sauvegardes dès la Phase 10 (dette technique intentionnelle, migration vers un stockage objet distant prévue si le volume ou la résilience l'exigent).
@@ -919,8 +990,8 @@ No critical tenant isolation issue
 No critical compliance regression
 Critical tests passing (unit, integration, API, E2E critiques)
 P0 acceptance criteria validated
-Production infrastructure ready (Phase 13 uniquement)
-Backup & recovery validated (Phase 13 uniquement)
+Production infrastructure ready (Phase 17 uniquement)
+Backup & recovery validated (Phase 17 uniquement)
 ```
 
 ## 50. Decision Log
@@ -937,8 +1008,12 @@ Backup & recovery validated (Phase 13 uniquement)
 | DL-008 | Design system MVP : `Primary #00695C` (à valider en contraste WCAG), police **Inter** (fallback `system-ui, sans-serif`), Dark mode **non MVP** (architecture tokens compatible), stack UI **Tailwind CSS v4 + Radix UI + Lucide React**, **pas de graphiques au MVP**, langue **française uniquement** (`locale = fr-FR`), devise **EUR** | Clôture des questions de design laissées ouvertes dans `11-frontend-design-system.md` (section 70)                                                              | Résout la question ouverte « palette, police, mode sombre, bibliothèque de composants » (section 51) ; ne bloque plus la Phase 2 (frontend foundation)                                                                                                                                          |
 | DL-009 | Modèle économique : **Freemium + abonnement Pro**, décision provisoire - prix et taux de conversion à déterminer après validation marché                                                                                                                                                                                                   | Cohérent avec `03-market-analysis.md` (hypothèses de marché à tester, pas à trancher techniquement)                                                             | Ne clôture que le type de modèle, pas les prix ; la validation marché (5 à 10 utilisateurs réels) reste une condition préalable avant tout investissement Post-MVP significatif dans le module `Subscription` (section 51)                                                                      |
 | DL-010 | AIPD : **screening de nécessité obligatoire avant mise en production** ; AIPD complète réalisée seulement si ce screening conclut qu'elle est requise                                                                                                                                                                                      | Cohérent avec `10-security-privacy.md` (section 46)                                                                                                             | Ne préjuge pas du résultat du screening (probable ici : données personnelles + données financières + traitement automatisé + IA) ; la nécessité finale d'une AIPD complète reste un point à valider (section 51)                                                                                |
-| DL-011 | Test d'intrusion **non requis avant la Private Beta** (Phase 12) ; requis avant la Phase 13 (première mise en production commerciale) | Lecture littérale de `10-security-privacy.md` section 61 : déclencheur explicite « avant la première mise en production **commerciale** impliquant des utilisateurs réels et des données réelles », jamais « avant toute exposition à des utilisateurs externes » - la Private Beta (section 29) reste une validation d'hypothèses produit, distincte de la Phase 13 (« Production Readiness & Public Launch », « mise sur le marché réelle »). Phase 11 n'ajoute aucune fonctionnalité critique d'authentification/autorisation/stockage susceptible de déclencher la clause « changement architectural important » de la même section | Clôt la décision laissée ouverte par la Security Roadmap (section 23) ; ne dispense pas d'un test d'intrusion avant la Phase 13 |
-| DL-012 | Private Beta (Phase 12) sans hébergement public ni staging anticipé : accès par tunnel éphémère (Cloudflare Quick Tunnel) sur la stack de développement existante, sessions supervisées uniquement ; feedback collecté par un outil externe et des entretiens directs, `FR-TRUST-001` (signalement in-app) inchangé, toujours **Future** | `docs/13-mvp-validation-report.md` documente qu'aucun hébergeur n'est retenu et que `next build` reste cassé (bug amont Next.js toujours ouvert au 21/08/2026) - anticiper le staging de la Phase 13 pour cette phase aurait mélangé une validation d'hypothèses produit avec un chantier d'infrastructure non mûr ; `FR-TRUST-001` est explicitement priorité Future dans `04-product-requirements.md` section 18, un développement produit pour fermer ce besoin de feedback irait à l'encontre du principe déjà appliqué en Phase 10 (ne jamais inventer de fonctionnalité pour fermer un écart) | Détail complet en `docs/14-private-beta-plan.md` ; ferme la tension entre la Phase 12 (« utilisateurs réels ») et l'absence d'infrastructure hébergée sans avancer le travail de la Phase 13 ; nécessite un correctif permanent de visibilité IP à travers nginx (`trusted_proxies`, `docs/10-security-privacy.md` section 21), sans quoi le rate limiting et les logs de sécurité n'auraient vu que l'adresse de nginx |
+| DL-011 | Test d'intrusion **non requis avant la Private Beta** (Phase 12) ; requis avant la Phase 17 (première mise en production commerciale) | Lecture littérale de `10-security-privacy.md` section 61 : déclencheur explicite « avant la première mise en production **commerciale** impliquant des utilisateurs réels et des données réelles », jamais « avant toute exposition à des utilisateurs externes » - la Private Beta (section 29) reste une validation d'hypothèses produit, distincte de la Phase 17 (« Production Readiness & Public Launch », « mise sur le marché réelle »). Phase 11 n'ajoute aucune fonctionnalité critique d'authentification/autorisation/stockage susceptible de déclencher la clause « changement architectural important » de la même section | Clôt la décision laissée ouverte par la Security Roadmap (section 23) ; ne dispense pas d'un test d'intrusion avant la Phase 17 |
+| DL-012 | Private Beta (Phase 12) sans hébergement public ni staging anticipé : accès par tunnel éphémère (Cloudflare Quick Tunnel) sur la stack de développement existante, sessions supervisées uniquement ; feedback collecté par un outil externe et des entretiens directs, `FR-TRUST-001` (signalement in-app) inchangé, toujours **Future** | `docs/13-mvp-validation-report.md` documente qu'aucun hébergeur n'est retenu et que `next build` reste cassé (bug amont Next.js toujours ouvert au 21/08/2026) - anticiper le staging de la Phase 17 pour cette phase aurait mélangé une validation d'hypothèses produit avec un chantier d'infrastructure non mûr ; `FR-TRUST-001` est explicitement priorité Future dans `04-product-requirements.md` section 18, un développement produit pour fermer ce besoin de feedback irait à l'encontre du principe déjà appliqué en Phase 10 (ne jamais inventer de fonctionnalité pour fermer un écart) | Détail complet en `docs/14-private-beta-plan.md` ; ferme la tension entre la Phase 12 (« utilisateurs réels ») et l'absence d'infrastructure hébergée sans avancer le travail de la Phase 17 ; nécessite un correctif permanent de visibilité IP à travers nginx (`trusted_proxies`, `docs/10-security-privacy.md` section 21), sans quoi le rate limiting et les logs de sécurité n'auraient vu que l'adresse de nginx |
+
+| DL-013 | Rôles d'organisation `OWNER`/`ADMIN`/`COLLABORATOR` (Phase 14), portés par `Membership` ; un `User` peut appartenir à plusieurs `Organization` avec un rôle différent dans chacune | Décision produit du 21/08/2026 - l'utilisateur souhaite une application complète avant la mise en production, réouvre le persona secondaire C (cabinet comptable) plus tôt que prévu ; architecture déjà anticipée depuis la conception initiale (`06-technical-architecture.md` section 19/39) | Révise DEC-003/section 21 de `04-product-requirements.md` (DEC-009) ; ajoute `08-api-specification.md` section 25 et `POST /auth/select-organization` (section 9) ; aucune régression sur l'isolation multi-tenant existante |
+| DL-014 | Rôle plateforme `PlatformAdministrator` (Phase 15), structurellement séparé des rôles d'organisation, jamais un indicateur sur `User` ; MFA obligatoire ; surface d'administration en application séparée si le coût reste raisonnable, sinon route strictement isolée ; test d'intrusion ciblé avant activation | DEC-010 - franchit délibérément et de façon contrôlée l'isolation tenant posée depuis la Phase 2 (ADR-004) pour un besoin opérationnel de support/communication à l'échelle de la plateforme | Nouvel ADR-009 (`06-technical-architecture.md` section 34) ; nouvelle section 17 bis dans `10-security-privacy.md` ; DL-011 ne s'applique pas telle quelle à cette phase (précision apportée section 61 de `10-security-privacy.md`) |
+| DL-015 | Statistiques et graphiques agrégés (Phase 16) réservés à la surface d'administration plateforme, jamais au dashboard utilisateur final | DEC-011 - ne contredit pas DL-008 (« pas de graphiques au MVP »), qui portait exclusivement sur le dashboard client ; distinction de périmètre assumée | Réutilise l'autorisation `PlatformAdministrator` de la Phase 15, jamais un accès distinct moins strict ; réutilise le patron `DashboardAggregator` de la Phase 9 |
 
 Ce journal doit être complété au fil du développement, à mesure que de nouvelles décisions structurantes sont prises.
 
@@ -948,14 +1023,14 @@ Ce journal doit être complété au fil du développement, à mesure que de nouv
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
 | Paramètres précis du JWT (durées access/refresh token, bibliothèque Symfony retenue) - mécanisme désormais confirmé (`06-technical-architecture.md`, ADR-007)                                                                                                                                                                                                                                                 | Technique / Sécurité      | Calibrage fin de l'authentification ; la protection CSRF ne reste pertinente que sur `/auth/refresh` (`10-security-privacy.md` section 20)            | Élevée                                                        | Avant Phase 2                                                                        |
 | ~~Donnée précise déterminant `company_size_category`~~ - **Résolu (DL-006)** : critères INSEE (`employees_count`, `annual_turnover`, `annual_balance_sheet_total`)                                                                                                                                                                                                                                            | Réglementaire / Technique | Ne bloque plus le diagnostic d'éligibilité                                                                                                            | -                                                             | Résolu avant Phase 3                                                                 |
-| Conformité contractuelle précise de Mistral (localisation effective des traitements, DPA, sous-traitants) - fournisseur et abstraction `AIService`/`MistralProvider` désormais confirmés (`06-technical-architecture.md`, ADR-007)                                                                                                                                                                            | Privacy / Légal           | Ne bloque plus la Phase 8, mais conditionne l'évaluation de transfert international avant la Phase 13                                                 | Moyenne                                                       | Avant Phase 13                                                                       |
+| Conformité contractuelle précise de Mistral (localisation effective des traitements, DPA, sous-traitants) - fournisseur et abstraction `AIService`/`MistralProvider` désormais confirmés (`06-technical-architecture.md`, ADR-007)                                                                                                                                                                            | Privacy / Légal           | Ne bloque plus la Phase 8, mais conditionne l'évaluation de transfert international avant la Phase 17                                                 | Moyenne                                                       | Avant Phase 17                                                                       |
 | ~~Comportement précis de modification d'une facture déjà analysée~~ - **Résolu (DL-007)** : statut `ANALYSIS_STALE` (section 45)                                                                                                                                                                                                                                                                              | Produit / Technique       | Ne bloque plus l'Invoice Editor ni la Compliance UX                                                                                                   | -                                                             | Résolu avant Phase 4 (fin) / Phase 6                                                 |
-| Bases légales RGPD précises et qualification responsable/sous-traitant, et durées de conservation des données dérivées (distinctes des 10 ans désormais actés pour la facture originale, `02-regulatory-study.md` section 23)                                                                                                                                                                                 | Privacy / Légal           | Conditionne la politique de confidentialité et la conformité légale du lancement                                                                      | Élevée pour la Production, non bloquante pour la Beta interne | Avant Phase 13                                                                       |
+| Bases légales RGPD précises et qualification responsable/sous-traitant, et durées de conservation des données dérivées (distinctes des 10 ans désormais actés pour la facture originale, `02-regulatory-study.md` section 23)                                                                                                                                                                                 | Privacy / Légal           | Conditionne la politique de confidentialité et la conformité légale du lancement                                                                      | Élevée pour la Production, non bloquante pour la Beta interne | Avant Phase 17                                                                       |
 | Fournisseur email et service de vérification d'entreprise (SIREN) - non couverts par la décision de stack (ADR-007)                                                                                                                                                                                                                                                                                           | Technique                 | Bloque les endpoints de notification (Phase 2, authentification) et la fiabilisation du diagnostic (V1)                                               | Élevée pour l'email (P0), moyenne pour la vérification (V1)   | Avant Phase 2 pour l'email                                                           |
 | Modèle économique - **type retenu (DL-009) : Freemium + abonnement Pro** (décision provisoire) ; prix et taux de conversion restent à valider par test marché (5 à 10 utilisateurs réels, `03-market-analysis.md`)                                                                                                                                                                                            | Business                  | Conditionne la stratégie Post-MVP et l'éventuel module `Subscription`                                                                                 | Moyenne                                                       | Validation marché avant tout investissement Post-MVP significatif ; prix fixés après |
-| Nécessité d'une AIPD complète - **procédure actée (DL-010)** : screening de nécessité obligatoire avant mise en production ; AIPD complète réalisée seulement si le screening la juge requise                                                                                                                                                                                                                 | Légal                     | Obligation procédurale potentielle                                                                                                                    | Moyenne                                                       | Screening avant Phase 13 ; AIPD complète si requise, avant Phase 13                  |
+| Nécessité d'une AIPD complète - **procédure actée (DL-010)** : screening de nécessité obligatoire avant mise en production ; AIPD complète réalisée seulement si le screening la juge requise                                                                                                                                                                                                                 | Légal                     | Obligation procédurale potentielle                                                                                                                    | Moyenne                                                       | Screening avant Phase 17 ; AIPD complète si requise, avant Phase 17                  |
 | ~~Palette, police, mode sombre, bibliothèque de composants complémentaire à Tailwind CSS v4~~ - **Résolu (DL-008)** : `Primary #00695C`, Inter (fallback `system-ui, sans-serif`), Dark mode non MVP (architecture compatible), Radix UI + Lucide React, pas de graphiques au MVP, langue française uniquement (`locale = fr-FR`), devise EUR (`11-frontend-design-system.md`, sections 5, 7, 12, 48, 52, 70) | UX / Technique            | N'affecte plus la logique produit                                                                                                                     | -                                                             | Résolu avant Phase 2 (frontend foundation)                                           |
-| ~~Stratégie de sauvegarde du stockage documentaire local (ADR-007) avant tout volume significatif~~ - **Résolu (Phase 10)** : `docker/backup/backup.sh`/`restore.sh` (pg_dump + stockage documentaire, chiffrement gpg AES256), restauration testée manuellement avec vérification de cohérence croisée `Document`/fichier/`DocumentProcessingRecord` - voir bilan Phase 10 ; automatisation périodique reste Phase 13 (dépend d'un hébergeur non choisi)                                                                                                                                                                                                                                                                                                               | Technique / Sécurité      | Le stockage local est une dette technique intentionnelle nécessitant une vigilance de sauvegarde spécifique (`10-security-privacy.md` section 24, 54) | -                                                       | Résolu avant Phase 10                                                                       |
+| ~~Stratégie de sauvegarde du stockage documentaire local (ADR-007) avant tout volume significatif~~ - **Résolu (Phase 10)** : `docker/backup/backup.sh`/`restore.sh` (pg_dump + stockage documentaire, chiffrement gpg AES256), restauration testée manuellement avec vérification de cohérence croisée `Document`/fichier/`DocumentProcessingRecord` - voir bilan Phase 10 ; automatisation périodique reste Phase 17 (dépend d'un hébergeur non choisi)                                                                                                                                                                                                                                                                                                               | Technique / Sécurité      | Le stockage local est une dette technique intentionnelle nécessitant une vigilance de sauvegarde spécifique (`10-security-privacy.md` section 24, 54) | -                                                       | Résolu avant Phase 10                                                                       |
 
 ## Initial Development Backlog
 
@@ -978,7 +1053,11 @@ Ce journal doit être complété au fil du développement, à mesure que de nouv
 | BL-015 | Security    | Security Hardening            | Checklist complète, tests bloquants                  | P0       | Toutes phases 2-9 | 10    |
 | BL-016 | Validation  | MVP Validation                | E2E complet, Release Gates                           | P0       | BL-015            | 11    |
 | BL-017 | Beta        | Private Beta                  | Utilisateurs ciblés, retours structurés              | P0       | BL-016            | 12    |
-| BL-018 | Production  | Production Readiness          | Checklist finale, validation juridique               | P0       | BL-017            | 13    |
+| BL-019 | Settings    | Paramètres & Profil           | Gestion du compte, suppression                       | P1       | BL-017            | 13    |
+| BL-020 | Team        | Rôles d'organisation           | OWNER/ADMIN/COLLABORATOR, invitation, notifications d'équipe | P1 | BL-019            | 14    |
+| BL-021 | Platform    | Administration plateforme     | PlatformAdministrator, suspension, audit cross-tenant, notifications ciblées, santé applicative | P1 | BL-020 | 15    |
+| BL-022 | Analytics   | Stats & Analytics métier       | Statistiques agrégées et évolution temporelle        | P2       | BL-021            | 16    |
+| BL-018 | Production  | Production Readiness          | Checklist finale, validation juridique               | P0       | BL-022            | 17    |
 
 ## First Development Sprint
 
