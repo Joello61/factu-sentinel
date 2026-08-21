@@ -281,6 +281,55 @@ Definition of Done : les six parcours E2E passent sans intervention manuelle, to
 Risks : découverte tardive d'un problème d'intégration entre phases développées séparément.
 Exit Criteria : voir section 49 (Release Gates).
 
+**Bilan à l'implémentation** : livré - le rapport complet est `docs/13-mvp-validation-report.md`
+(nouveau document, jamais fondu dans ce fichier - la roadmap documente ce qui a été construit,
+le rapport documente si le MVP fonctionne réellement et quelles preuves l'attestent). Résumé :
+les cinq parcours E2E restants (E2E-001 à E2E-005, `09-test-strategy.md` section 38 - E2E-006
+déjà clos en Phase 9) sont désormais automatisés avec **Playwright** (Chromium), pilotant
+l'UI réelle de bout en bout contre la pile complète (`docker-compose.yml` +
+`docker-compose.e2e.yml`, nouvel overlay ajoutant **Mailpit** - test-only, jamais en
+production - pour récupérer par API le lien de vérification d'email, condition requise par
+`EmailVerificationGuard` avant upload/analyse depuis la Phase 10). Nouveau job CI `e2e`
+(`.github/workflows/lint.yml`). Scans `@axe-core/playwright` intégrés aux specs (accessibilité
+automatisée, complétée par une revue manuelle documentée pour ce qu'axe ne peut pas juger -
+voir le rapport, section 4).
+
+Deux anomalies P0 découvertes et corrigées en cours de route (première fois que frontend et
+backend sont exercés ensemble par un navigateur réel) : `frontend/proxy.ts` ne laissait jamais
+un utilisateur sans session atteindre `/verify-email` (redirection silencieuse vers `/login`,
+compte jamais vérifié) - la page `/verify-email/{id}` elle-même n'existait d'ailleurs pas
+encore, alors que son contrat est documenté depuis la Phase 2 (`08-api-specification.md`
+section 7) ; et 4 des 6 couleurs sémantiques (`success`/`warning`/`error`/`info`) échouaient
+au contraste WCAG 2.2 AA dans leurs contextes d'usage réels (badges/alertes à opacité
+réduite), assombries avec une marge réelle (`frontend/app/globals.css`,
+`11-frontend-design-system.md` mis à jour en conséquence). Voir le rapport (sections 8-9) pour
+le détail complet.
+
+Un troisième écart, Design QA cette fois (tableaux Factures/Clients/Historique non
+transformés en cartes sur mobile, `11-frontend-design-system.md` section 24), a d'abord été
+consigné comme dette **volontairement différée** (cohérent avec le principe « ne jamais
+inventer de fonctionnalité pour fermer un écart de checklist » déjà appliqué en Phase 10),
+avant d'être explicitement demandé comme correction à part entière par décision produit - la
+Phase 11 devant servir à fermer les écarts qui empêchent une validation honnête du MVP, pas
+seulement ceux prévus dès le départ. Fermé dans cette même phase : `InvoiceList.tsx`,
+`CustomerList.tsx` et `ComplianceAnalysisHistory.tsx` exposent désormais chacun un second
+rendu (liste de cartes sous `sm:hidden`, tableau existant inchangé sous `hidden sm:block`),
+vérifié par lecture directe du CSS calculé dans un navigateur réel et par les 5 specs E2E
+(`filter({ visible: true })` ajouté aux locators dont le contenu est désormais dupliqué entre
+les deux rendus - `getByText` ne filtre pas par visibilité, contrairement à `getByRole`,
+comportement Playwright documenté). Aucune capture d'écran à une largeur mobile réelle n'a en
+revanche pu être obtenue (outil de contrôle navigateur indisponible pour changer effectivement
+la largeur de rendu dans cette session) - voir le rapport, section 10, pour ce point restant à
+confirmer visuellement.
+
+**DL-011** (section 50) tranche la décision laissée ouverte par la Security Roadmap (section
+23) : test d'intrusion non requis avant la Private Beta, requis avant la Phase 13.
+
+**Verdict** : MVP validé pour l'entrée en Private Beta (Phase 12) - voir
+`docs/13-mvp-validation-report.md` section 11 pour le détail des Release Gates et les limites
+explicitement non couvertes (build de production Next.js toujours cassé en amont, revue
+d'accessibilité manuelle complète non effectuée, performance non testée).
+
 **Phase 12 - Private Beta**
 Objective : confronter le produit à des utilisateurs réels du persona primaire.
 Business Value : valide les hypothèses de `03-market-analysis.md` (section 23) - en particulier, que la cible est prête à utiliser un outil distinct de son logiciel de facturation existant.
@@ -527,7 +576,7 @@ Evaluation (jeu de référence, 09-test-strategy.md section 30)
 
 **Security Hardening** (Phase 10) : headers de sécurité, CORS strict, rate limiting calibré, scanning de dépendances, chiffrement au repos, sécurité documentaire et XML complète, audit trail complet.
 
-**Pre-Production Security Review** (fin de Phase 10 / début Phase 11) : checklist complète (`10-security-privacy.md`, section 68), décision sur la nécessité d'un test d'intrusion (section 61) avant la Private Beta ou avant le lancement public.
+**Pre-Production Security Review** (fin de Phase 10 / début Phase 11) : checklist complète (`10-security-privacy.md`, section 68). **Résolu (DL-011, Phase 11)** : test d'intrusion non requis avant la Private Beta - le déclencheur textuel de la section 61 est la première mise en production **commerciale** (Phase 13), jamais la Private Beta elle-même (validation d'hypothèses produit, pas une mise sur le marché, section 29).
 
 ## 24. Privacy Roadmap
 
@@ -863,6 +912,7 @@ Backup & recovery validated (Phase 13 uniquement)
 | DL-008 | Design system MVP : `Primary #00695C` (à valider en contraste WCAG), police **Inter** (fallback `system-ui, sans-serif`), Dark mode **non MVP** (architecture tokens compatible), stack UI **Tailwind CSS v4 + Radix UI + Lucide React**, **pas de graphiques au MVP**, langue **française uniquement** (`locale = fr-FR`), devise **EUR** | Clôture des questions de design laissées ouvertes dans `11-frontend-design-system.md` (section 70)                                                              | Résout la question ouverte « palette, police, mode sombre, bibliothèque de composants » (section 51) ; ne bloque plus la Phase 2 (frontend foundation)                                                                                                                                          |
 | DL-009 | Modèle économique : **Freemium + abonnement Pro**, décision provisoire - prix et taux de conversion à déterminer après validation marché                                                                                                                                                                                                   | Cohérent avec `03-market-analysis.md` (hypothèses de marché à tester, pas à trancher techniquement)                                                             | Ne clôture que le type de modèle, pas les prix ; la validation marché (5 à 10 utilisateurs réels) reste une condition préalable avant tout investissement Post-MVP significatif dans le module `Subscription` (section 51)                                                                      |
 | DL-010 | AIPD : **screening de nécessité obligatoire avant mise en production** ; AIPD complète réalisée seulement si ce screening conclut qu'elle est requise                                                                                                                                                                                      | Cohérent avec `10-security-privacy.md` (section 46)                                                                                                             | Ne préjuge pas du résultat du screening (probable ici : données personnelles + données financières + traitement automatisé + IA) ; la nécessité finale d'une AIPD complète reste un point à valider (section 51)                                                                                |
+| DL-011 | Test d'intrusion **non requis avant la Private Beta** (Phase 12) ; requis avant la Phase 13 (première mise en production commerciale) | Lecture littérale de `10-security-privacy.md` section 61 : déclencheur explicite « avant la première mise en production **commerciale** impliquant des utilisateurs réels et des données réelles », jamais « avant toute exposition à des utilisateurs externes » - la Private Beta (section 29) reste une validation d'hypothèses produit, distincte de la Phase 13 (« Production Readiness & Public Launch », « mise sur le marché réelle »). Phase 11 n'ajoute aucune fonctionnalité critique d'authentification/autorisation/stockage susceptible de déclencher la clause « changement architectural important » de la même section | Clôt la décision laissée ouverte par la Security Roadmap (section 23) ; ne dispense pas d'un test d'intrusion avant la Phase 13 |
 
 Ce journal doit être complété au fil du développement, à mesure que de nouvelles décisions structurantes sont prises.
 

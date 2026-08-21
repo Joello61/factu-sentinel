@@ -55,6 +55,11 @@ export interface LoginResult {
   token: string;
 }
 
+/** GET /auth/verify-email/{userId} (docs/08-api-specification.md, section 7). */
+export interface EmailVerificationResult {
+  email_verified: boolean;
+}
+
 // Phase 3 (docs/08-api-specification.md, section 24, payload corrigé : plan Phase 3, gap 1 :
 // les trois valeurs brutes sont saisies par l'utilisateur, company_size_category est
 // toujours dérivé par le backend, jamais accepté en entrée).

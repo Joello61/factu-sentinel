@@ -84,43 +84,69 @@ export function CustomerList() {
       ) : null}
 
       {state.status === 'ready' && state.customers.length > 0 ? (
-        <div className="overflow-x-auto rounded-md border border-border">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-surface text-muted-foreground">
-              <tr>
-                <th className="px-4 py-2 font-medium">Nom</th>
-                <th className="px-4 py-2 font-medium">Type</th>
-                <th className="px-4 py-2 font-medium">SIREN</th>
-                <th className="px-4 py-2 font-medium">Pays</th>
-                <th className="px-4 py-2 font-medium" aria-hidden="true" />
-              </tr>
-            </thead>
-            <tbody>
-              {state.customers.map((customer) => (
-                <tr key={customer.id} className="border-t border-border">
-                  <td className="px-4 py-2 text-foreground">{customer.name}</td>
-                  <td className="px-4 py-2 text-foreground">
-                    {CUSTOMER_TYPE_LABELS[customer.customer_type]}
-                  </td>
-                  <td className="px-4 py-2 text-muted-foreground">
-                    {customer.siren ?? '-'}
-                  </td>
-                  <td className="px-4 py-2 text-muted-foreground">
-                    {customer.country}
-                  </td>
-                  <td className="px-4 py-2 text-right">
-                    <Link
-                      href={`/customers/${customer.id}`}
-                      className="text-sm font-medium text-primary hover:underline"
-                    >
-                      Modifier
-                    </Link>
-                  </td>
+        <>
+          {/* Desktop/tablette (docs/11-frontend-design-system.md, section 24). */}
+          <div className="hidden overflow-x-auto rounded-md border border-border sm:block">
+            <table className="w-full text-left text-sm">
+              <thead className="bg-surface text-muted-foreground">
+                <tr>
+                  <th className="px-4 py-2 font-medium">Nom</th>
+                  <th className="px-4 py-2 font-medium">Type</th>
+                  <th className="px-4 py-2 font-medium">SIREN</th>
+                  <th className="px-4 py-2 font-medium">Pays</th>
+                  <th className="px-4 py-2 font-medium" aria-hidden="true" />
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {state.customers.map((customer) => (
+                  <tr key={customer.id} className="border-t border-border">
+                    <td className="px-4 py-2 text-foreground">{customer.name}</td>
+                    <td className="px-4 py-2 text-foreground">
+                      {CUSTOMER_TYPE_LABELS[customer.customer_type]}
+                    </td>
+                    <td className="px-4 py-2 text-muted-foreground">
+                      {customer.siren ?? '-'}
+                    </td>
+                    <td className="px-4 py-2 text-muted-foreground">
+                      {customer.country}
+                    </td>
+                    <td className="px-4 py-2 text-right">
+                      <Link
+                        href={`/customers/${customer.id}`}
+                        className="text-sm font-medium text-primary hover:underline"
+                      >
+                        Modifier
+                      </Link>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Mobile (section 24) : nom + type toujours visibles (jamais dans un détail
+              secondaire - le type détermine les règles de conformité applicables), SIREN/pays
+              en ligne secondaire. Pas de disclosure supplémentaire ici : seulement deux champs
+              courts, une expansion ajouterait une interaction sans bénéfice réel. */}
+          <ul className="flex flex-col gap-3 sm:hidden">
+            {state.customers.map((customer) => (
+              <li key={customer.id}>
+                <Link
+                  href={`/customers/${customer.id}`}
+                  className="flex flex-col gap-1 rounded-md border border-border p-4 hover:bg-primary/5"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-sm font-medium text-foreground">{customer.name}</span>
+                    <span className="text-xs text-muted-foreground">{CUSTOMER_TYPE_LABELS[customer.customer_type]}</span>
+                  </div>
+                  <span className="text-xs text-muted-foreground">
+                    SIREN : {customer.siren ?? '-'} · {customer.country}
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </>
       ) : null}
     </div>
   );

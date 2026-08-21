@@ -72,7 +72,8 @@ export function ComplianceAnalysisHistory() {
 
       {state.status === 'ready' && state.items.length > 0 ? (
         <>
-          <div className="overflow-x-auto rounded-md border border-border">
+          {/* Desktop/tablette (docs/11-frontend-design-system.md, section 24). */}
+          <div className="hidden overflow-x-auto rounded-md border border-border sm:block">
             <table className="w-full text-left text-sm">
               <thead className="bg-surface text-muted-foreground">
                 <tr>
@@ -100,6 +101,25 @@ export function ComplianceAnalysisHistory() {
               </tbody>
             </table>
           </div>
+
+          {/* Mobile (section 24) : résultat en priorité (couleur + icône + label), numéro de
+              facture et date en complément. */}
+          <ul className="flex flex-col gap-3 sm:hidden">
+            {state.items.map((item) => (
+              <li key={item.id}>
+                <Link
+                  href={`/history/${item.id}`}
+                  className="flex flex-col gap-2 rounded-md border border-border p-4 hover:bg-primary/5"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-sm font-medium text-foreground">{item.invoice_number ?? '-'}</span>
+                    {item.global_result ? <ComplianceResultBadge result={item.global_result} /> : null}
+                  </div>
+                  <span className="text-xs text-muted-foreground">{formatTimestamp(item.triggered_at)}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
 
           {state.pagination.total_pages > 1 ? (
             <div className="flex items-center justify-between">

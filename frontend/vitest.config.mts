@@ -16,5 +16,10 @@ export default defineConfig({
     // d'un test à l'autre au sein d'un même fichier (constaté : "Found multiple elements").
     globals: true,
     setupFiles: ['./vitest.setup.ts'],
+    // e2e/ (Phase 11) : specs Playwright, exécutées uniquement par `npx playwright test`
+    // (frontend/e2e/playwright.config.ts) - le glob par défaut de Vitest matcherait sinon
+    // ces mêmes fichiers *.spec.ts et tenterait d'y exécuter test.describe() de
+    // @playwright/test dans le runtime Vitest, qui ne le supporte pas.
+    exclude: ['node_modules/**', 'e2e/**'],
   },
 });

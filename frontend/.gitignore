@@ -13,6 +13,14 @@
 # testing
 /coverage
 
+# Playwright (Phase 11, frontend/e2e) : rapports/traces générés localement ou en CI, jamais
+# committés - l'artefact CI est déjà téléchargé séparément (.github/workflows/lint.yml, job
+# "e2e").
+/test-results
+/playwright-report
+/blob-report
+/playwright/.cache
+
 # next.js
 /.next/
 /out/

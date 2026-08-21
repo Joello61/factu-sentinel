@@ -12,14 +12,28 @@ import type { NextRequest } from 'next/server';
  * 03-file-conventions/proxy.md), pas une convention supposée depuis une version antérieure.
  */
 const REFRESH_COOKIE_NAME = 'refresh_token';
+// Réservées aux comptes non connectés : un compte déjà authentifié y est redirigé vers "/".
 const PUBLIC_PATHS = ['/login', '/register'];
+// Accessibles quel que soit l'état de session, jamais redirigées dans un sens ou l'autre -
+// /verify-email/{id} est le lien reçu par email (docs/08-api-specification.md, section 7) :
+// un compte peut le suivre avant toute connexion (inscription, US-AUTH-001) ou une fois déjà
+// connecté (session restaurée depuis un onglet précédent), les deux cas doivent atteindre la
+// page réellement, jamais rebondir vers /login ou /.
+const ALWAYS_ACCESSIBLE_PATHS = ['/verify-email'];
+
+function matchesPath(pathname: string, paths: string[]): boolean {
+  return paths.some((path) => pathname === path || pathname.startsWith(`${path}/`));
+}
 
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
+  if (matchesPath(pathname, ALWAYS_ACCESSIBLE_PATHS)) {
+    return NextResponse.next();
+  }
+
   const hasSession = request.cookies.has(REFRESH_COOKIE_NAME);
-  const isPublicPath = PUBLIC_PATHS.some(
-    (path) => pathname === path || pathname.startsWith(`${path}/`),
-  );
+  const isPublicPath = matchesPath(pathname, PUBLIC_PATHS);
 
   if (!hasSession && !isPublicPath) {
     return NextResponse.redirect(new URL('/login', request.url));

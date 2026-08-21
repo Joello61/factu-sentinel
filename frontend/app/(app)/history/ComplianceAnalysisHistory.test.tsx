@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor, fireEvent } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent, within } from "@testing-library/react";
 import { ComplianceAnalysisHistory } from "./ComplianceAnalysisHistory";
 
 function jsonResponse(status: number, body: unknown): Response {
@@ -52,9 +52,23 @@ describe("ComplianceAnalysisHistory", () => {
 
     render(<ComplianceAnalysisHistory />);
 
-    await waitFor(() => expect(screen.getByText("F-2026-001")).toBeInTheDocument());
-    expect(screen.getByText("Non conforme")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /consulter/i })).toHaveAttribute("href", "/history/analysis-1");
+    // Deux rendus responsive coexistent dans le DOM (docs/11-frontend-design-system.md,
+    // section 24 : tableau desktop masqué en CSS, liste de cartes mobile masquée en CSS -
+    // jsdom ne charge pas Tailwind, donc les deux sont "visibles" pour testing-library).
+    // Le tableau reste la source canonique pour ces assertions ; la carte mobile est
+    // vérifiée séparément ci-dessous.
+    const table = await screen.findByRole("table");
+    expect(within(table).getByText("F-2026-001")).toBeInTheDocument();
+    expect(within(table).getByText("Non conforme")).toBeInTheDocument();
+    expect(within(table).getByRole("link", { name: /consulter/i })).toHaveAttribute(
+      "href",
+      "/history/analysis-1",
+    );
+
+    const mobileList = screen.getByRole("list");
+    expect(within(mobileList).getByText("F-2026-001")).toBeInTheDocument();
+    expect(within(mobileList).getByText("Non conforme")).toBeInTheDocument();
+    expect(within(mobileList).getByRole("link")).toHaveAttribute("href", "/history/analysis-1");
   });
 
   it("requests the next page when clicking Suivant", async () => {
@@ -71,10 +85,11 @@ describe("ComplianceAnalysisHistory", () => {
 
     render(<ComplianceAnalysisHistory />);
 
-    await waitFor(() => expect(screen.getByText("F-2026-001")).toBeInTheDocument());
+    const table = await screen.findByRole("table");
+    await waitFor(() => expect(within(table).getByText("F-2026-001")).toBeInTheDocument());
     fireEvent.click(screen.getByRole("button", { name: /suivant/i }));
 
-    await waitFor(() => expect(screen.getByText("F-2026-002")).toBeInTheDocument());
+    await waitFor(() => expect(within(table).getByText("F-2026-002")).toBeInTheDocument());
     expect(vi.mocked(fetch).mock.calls.some((call) => String(call[0]).includes("page=2"))).toBe(true);
   });
 

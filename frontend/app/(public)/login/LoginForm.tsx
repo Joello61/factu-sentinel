@@ -10,7 +10,13 @@ import { toFormErrors, type FormErrors } from '@/lib/forms/api-error';
 
 const EMPTY_ERRORS: FormErrors = { fieldErrors: {}, formError: null };
 
-export function LoginForm({ justRegistered }: { justRegistered: boolean }) {
+export function LoginForm({
+  justRegistered,
+  justVerified,
+}: {
+  justRegistered: boolean;
+  justVerified: boolean;
+}) {
   const { login } = useAuth();
   const router = useRouter();
   const emailRef = useRef<HTMLInputElement>(null);
@@ -50,6 +56,12 @@ export function LoginForm({ justRegistered }: { justRegistered: boolean }) {
       {justRegistered ? (
         <p className="rounded-md border border-success bg-success/10 px-3 py-2 text-sm text-success">
           Compte créé. Vous pouvez maintenant vous connecter.
+        </p>
+      ) : null}
+
+      {justVerified ? (
+        <p className="rounded-md border border-success bg-success/10 px-3 py-2 text-sm text-success">
+          Adresse email confirmée. Vous pouvez maintenant vous connecter.
         </p>
       ) : null}
 
