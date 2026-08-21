@@ -47,7 +47,10 @@ Les 5 parcours restants (E2E-001 à E2E-005) ont été exécutés **ensemble, da
 exécution Playwright** (`npx playwright test`, pile complète) : 5 passed en 1.1 minute. Chaque
 parcours pilote l'UI réelle de bout en bout (navigateur → Next.js → API Symfony →
 PostgreSQL/Redis/Mustang → retour UI) - jamais d'appel API direct pour contourner une étape
-testée.
+testée. **Confirmé en CI réelle** (pas seulement en local) : job `e2e` de
+`.github/workflows/lint.yml`, PR #10, vert en 5m41s
+(https://github.com/Joello61/factu-sentinel/actions/runs/32450291546/job/96677411430) - voir
+anomalie 5 (section 8) pour le problème d'environnement CI découvert et corrigé au premier run.
 
 **Comportement observé, non un défaut** : exécuter la suite plusieurs fois de suite en moins
 de 15 minutes depuis la même machine peut déclencher le rate limiter IP `login_throttling`
@@ -132,9 +135,8 @@ réelle - point à confirmer visuellement dès qu'un environnement le permettra.
 - `TenantIsolationTest` (backend) inchangé et toujours vert ; **complété** par E2E-005, qui
   vérifie pour la première fois l'isolation cross-tenant **au niveau du rendu frontend réel**
   (ressource d'une autre organisation → page "introuvable", jamais un message de permission).
-- gitleaks/CodeQL (jobs GitHub Actions dédiés) : non ré-exécutables localement dans cette
-  session - seront confirmés par le run CI réel sur push de cette branche (nouveau job `e2e`
-  ajouté au même workflow, `.github/workflows/lint.yml`).
+- gitleaks/CodeQL (jobs GitHub Actions dédiés) : **confirmés verts sur la PR #10**, run réel
+  sur push de cette branche - aucun secret détecté, aucune alerte CodeQL JS/TS.
 - Décision pentest (`10-security-privacy.md` section 61) : **DL-011** (`docs/12-roadmap.md`
   section 50) - non requis avant la Private Beta, requis avant la Phase 13.
 - Production Security Checklist (`10-security-privacy.md` section 68) : aucune case rouverte
@@ -152,6 +154,8 @@ réelle - point à confirmer visuellement dès qu'un environnement le permettra.
   erreurs préexistantes, `.next/types/validator.ts` et `CompanyForm.test.tsx`, confirmées
   antérieures à cette phase par comparaison avec `git stash`, hors périmètre), `npm run test`
   (Vitest, 74/74 tests verts, 17 fichiers), `npx playwright test` (5/5 specs vertes).
+- **CI (PR #10)** : les 6 checks sont verts - `Backend (PHP)`, `Frontend (Next.js)`,
+  `CodeQL`, `CodeQL (JavaScript/TypeScript)`, `Secret scanning (gitleaks)`, `E2E (Playwright)`.
 
 ## 8. Anomalies découvertes
 
@@ -173,6 +177,17 @@ réelle - point à confirmer visuellement dès qu'un environnement le permettra.
 4. Gap Design QA (tableaux non transformés en cartes sur mobile, section 24 du design
    system) - identifié par revue de code, corrigé dans cette même phase sur demande explicite
    (voir section 5 et section 9, anomalie 4).
+5. **Job CI `e2e` en échec au premier run réel** (PR #10) : `npm ci` échouait avec `EACCES`
+   sur `frontend/node_modules`. Cause : le service `frontend` monte `./frontend:/app` en bind
+   mount, et sur les runners GitHub-hosted ce chemin hôte est le même répertoire de travail
+   que celui du job - un conteneur (root) écrivant dans `/app` avant que `npm ci` ne
+   s'exécute côté hôte y laissait des fichiers appartenant à root. Invisible en local (Docker
+   Desktop y isole différemment le montage), donc uniquement détectable par un run CI réel -
+   raison précise pour laquelle ce rapport ne présume jamais qu'un job non exécuté en CI
+   passerait.
+
+Uniquement l'anomalie 5 a été découverte après la rédaction initiale de ce rapport, sur le
+premier run CI réel de la PR #10 - corrigée avant la version présentée ici (section 9).
 
 ## 9. Anomalies corrigées
 
@@ -196,6 +211,11 @@ contournées dans un test :
   checklist »), puis explicitement demandée comme correction à part entière par décision
   produit - fermée dans cette même phase (voir section 5 pour le détail technique et les
   limites de vérification).
+- **Anomalie 5 (EACCES en CI)** : `.github/workflows/lint.yml`, job `e2e` - `npm ci` et
+  l'installation de Playwright déplacés avant le build/démarrage de la pile Docker, pour que
+  `frontend/node_modules` soit créé proprement par l'utilisateur du runner avant qu'un
+  conteneur ne puisse toucher au même chemin hôte. Reconfirmé vert sur un second run CI
+  (section 3, section 7).
 
 ## 10. Limites connues
 
@@ -213,19 +233,18 @@ contournées dans un test :
   de contrôle navigateur disponible dans cette session n'a jamais permis de changer
   effectivement la largeur de rendu malgré plusieurs tentatives. À confirmer visuellement dès
   qu'un environnement le permettra.
-- gitleaks/CodeQL non ré-exécutés localement - à confirmer par le run CI réel de cette
-  branche.
 
 ## 11. Verdict MVP
 
 **MVP validé pour l'entrée en Private Beta (Phase 12)**, sur la base des preuves ci-dessus.
 Tous les Release Gates bloquants de `09-test-strategy.md` (section 45) et
-`10-security-privacy.md` (section 62) constatables dans cette session sont au vert : build
-(backend inchangé ; frontend testé en topologie `next dev`, seule topologie réellement
-utilisée à ce stade - voir limite ci-dessus), tests unitaires/intégration/API/multi-tenant
-(inchangés, backend non modifié), tests de sécurité de niveau critique (audits dépendances
-verts), déterminisme (Compliance Engine non modifié), **E2E critiques (les 5 parcours
-restants, verts pour la première fois via un navigateur réel)**, régression réglementaire
+`10-security-privacy.md` (section 62) sont au vert, **confirmés par un run CI réel** (PR #10,
+tous les checks verts) et non seulement en local : build (backend inchangé ; frontend testé
+en topologie `next dev`, seule topologie réellement utilisée à ce stade - voir limite
+ci-dessus), tests unitaires/intégration/API/multi-tenant (inchangés, backend non modifié),
+tests de sécurité de niveau critique (audits dépendances, gitleaks, CodeQL tous verts en CI),
+déterminisme (Compliance Engine non modifié), **E2E critiques (les 5 parcours restants, verts
+pour la première fois via un navigateur réel, en local et en CI)**, régression réglementaire
 (aucune règle modifiée cette phase). Les deux gates non bloquants (performance,
 accessibilité) restent explicitement "surveillés", pas complets - cohérent avec leur statut
 documenté, jamais présentés comme achevés.
@@ -241,5 +260,10 @@ depuis la Phase 10.
 - Overlay E2E : `docker-compose.e2e.yml`.
 - Nouveau job CI : `.github/workflows/lint.yml`, job `e2e` (rapport Playwright HTML téléchargé
   en artefact CI sur chaque run).
+- PR : https://github.com/Joello61/factu-sentinel/pull/10 - 6/6 checks verts (Backend,
+  Frontend, CodeQL, CodeQL JS/TS, gitleaks, E2E).
+- Run CI E2E de référence :
+  https://github.com/Joello61/factu-sentinel/actions/runs/32450291546/job/96677411430
+  (5m41s, après correction de l'anomalie 5).
 - Décisions produit : `docs/12-roadmap.md`, DL-011 (section 50), bilan Phase 11 (section 10).
 - Correctifs : voir section 9 de ce rapport pour les fichiers modifiés.
