@@ -309,6 +309,60 @@ Priorité : P2.
 **FR-TRUST-001** - _Permettre à l'utilisateur de signaler un désaccord avec un résultat_
 Priorité : Future.
 
+**FR-SETTINGS-001** - _Gérer les paramètres de son compte_
+Description : le système doit permettre à l'utilisateur de consulter et modifier les informations de son compte (email, mot de passe).
+Priorité : P1.
+
+**FR-SETTINGS-002** - _Supprimer son compte_
+Description : le système doit permettre à l'utilisateur de demander la suppression de son compte, dans les limites posées par les obligations de conservation légale (voir `10-security-privacy.md`, sections 38-39).
+Priorité : P1.
+
+**FR-TEAM-001** - _Inviter un membre dans son organisation_
+Description : un `OWNER` ou un `ADMIN` doit pouvoir inviter une personne à rejoindre son organisation avec un rôle donné (section 21).
+Justification : décision produit du 21/08/2026 - voir DEC-009, section 21.
+Priorité : P1.
+
+**FR-TEAM-002** - _Gérer le rôle d'un membre_
+Description : un `OWNER` doit pouvoir modifier le rôle d'un membre existant (`ADMIN`/`COLLABORATOR`), dans les limites de la matrice de permissions (section 21). Un `ADMIN` ne peut jamais promouvoir un membre au rôle `OWNER` ni retirer l'`OWNER`.
+Priorité : P1.
+
+**FR-TEAM-003** - _Retirer un membre de son organisation_
+Description : un `OWNER` ou un `ADMIN` doit pouvoir retirer un membre de l'organisation (jamais l'`OWNER` lui-même par un `ADMIN`, voir matrice de permissions section 21).
+Priorité : P1.
+
+**FR-NOTIFICATION-001** - _Envoyer une notification aux membres de son organisation_
+Description : un `OWNER` ou un `ADMIN` doit pouvoir composer et envoyer une notification à un ou plusieurs membres de sa propre organisation.
+Justification : distinct des notifications système de la section 19 - ici l'expéditeur est un humain de l'organisation, jamais le système lui-même.
+Priorité : P1.
+
+**FR-PLATFORMADMIN-001** - _Consulter la liste des organisations et des comptes_
+Description : un `PlatformAdministrator` (rôle distinct, jamais un rôle d'organisation - voir `06-technical-architecture.md`, ADR-009) doit pouvoir consulter, à travers toutes les organisations, la liste des comptes et organisations existants.
+Priorité : P1.
+
+**FR-PLATFORMADMIN-002** - _Suspendre ou réactiver un compte_
+Description : un `PlatformAdministrator` doit pouvoir suspendre l'accès d'une organisation ou d'un compte utilisateur, et le réactiver.
+Priorité : P1.
+
+**FR-PLATFORMADMIN-003** - _Consulter l'audit trail cross-tenant_
+Description : un `PlatformAdministrator` doit pouvoir consulter le journal d'audit à travers toutes les organisations, à des fins de support et d'investigation.
+Priorité : P1.
+
+**FR-PLATFORMADMIN-004** - _Envoyer une notification ciblée ou diffusée_
+Description : un `PlatformAdministrator` doit pouvoir composer une notification et la cibler sur un utilisateur précis, une organisation entière, un segment défini par critère (ex. statut TVA, catégorie de taille), ou l'ensemble des utilisateurs (diffusion globale).
+Priorité : P1.
+
+**FR-PLATFORMADMIN-005** - _Consulter la santé applicative_
+Description : un `PlatformAdministrator` doit pouvoir consulter des indicateurs de santé applicative : taux d'échec du Compliance Engine, jobs asynchrones en échec/dead-letter, volume et coût des appels IA, statut `/api/health`. Explicitement limité au niveau applicatif - le monitoring d'infrastructure réelle (uptime, ressources serveur) reste hors périmètre tant qu'aucun hébergeur n'est retenu (Phase 17, `12-roadmap.md`).
+Priorité : P2.
+
+**FR-ANALYTICS-001** - _Consulter des statistiques agrégées d'usage_
+Description : un `PlatformAdministrator` doit pouvoir consulter des statistiques agrégées (nombre d'organisations, d'utilisateurs, d'analyses de conformité effectuées, taux de conformité) sur l'ensemble de la plateforme.
+Priorité : P2.
+
+**FR-ANALYTICS-002** - _Visualiser l'évolution de ces statistiques dans le temps_
+Description : les statistiques de FR-ANALYTICS-001 doivent pouvoir être visualisées sous forme de graphiques d'évolution temporelle. Ne remet pas en cause DL-008 (`12-roadmap.md`, « pas de graphiques au MVP ») : cette exigence concerne exclusivement la surface d'administration plateforme, jamais le dashboard de l'utilisateur final (section 20), dont le périmètre reste inchangé.
+Priorité : P2.
+
 ## 14. Exigences non fonctionnelles
 
 ### Performance
@@ -402,12 +456,31 @@ Exigences transverses à tout résultat produit par le Compliance Engine :
 
 ## 19. Notifications
 
-Analyse des besoins, sans engagement au MVP :
+### 19.1 Notifications système (analyse initiale MVP, sans engagement)
 
 - **Problème détecté** lors d'une analyse - retour immédiat dans le parcours d'analyse lui-même (section 12, parcours 4-5), pas nécessairement une notification asynchrone séparée au MVP.
 - **Changement réglementaire** affectant une règle déjà appliquée à l'utilisateur - utile mais suppose un mécanisme de veille et de versionnement déjà mature (`02-regulatory-study.md`, section 21) ; repoussé en Future Scope.
 - **Échéance à venir** (par exemple, rappel de la date d'obligation d'émission déterminée par le diagnostic, section 12 parcours 2) - utile et relativement simple à mettre en œuvre une fois le diagnostic établi ; candidat raisonnable pour V1, non P0 au MVP.
 - **Action requise suite à une correction non effectuée** - repoussé, suppose un usage récurrent déjà établi.
+
+### 19.2 Notifications envoyées par un humain (décision produit du 21/08/2026, DEC-009/DEC-010)
+
+Distinctes des notifications système ci-dessus : ici, l'expéditeur est une personne, jamais le
+système lui-même. Deux portées, correspondant à deux rôles différents (section 21) :
+
+- **Portée organisation** (FR-NOTIFICATION-001, Phase 14) : un `OWNER` ou un `ADMIN` notifie un
+  ou plusieurs membres de sa propre organisation. Reste strictement dans les frontières
+  tenant existantes.
+- **Portée plateforme** (FR-PLATFORMADMIN-004, Phase 15) : un `PlatformAdministrator` cible un
+  utilisateur précis, une organisation entière, un segment défini par critère (statut TVA,
+  catégorie de taille INSEE, etc.), ou diffuse à l'ensemble des utilisateurs. Cette portée
+  traverse les organisations - elle n'est accessible qu'au rôle `PlatformAdministrator`,
+  jamais à un `OWNER`/`ADMIN` d'organisation (voir `06-technical-architecture.md`, ADR-009).
+
+Dans les deux cas, une notification portée par un humain reste soumise aux mêmes règles de
+minimisation des données que le reste du produit (`10-security-privacy.md`) - son contenu n'est
+jamais utilisé pour déduire ou afficher un résultat de conformité, qui reste la seule autorité
+du Compliance Engine (section 10).
 
 ## 20. Dashboard
 
@@ -425,9 +498,59 @@ Le dashboard reste priorité P1 (section 8) : une version minimale (liste simple
 
 ## 21. Utilisateurs et rôles
 
-Analyse des besoins pour le MVP : la cible primaire (micro-entrepreneur, indépendant) correspond très majoritairement à un usage **mono-utilisateur** (le dirigeant gère lui-même son compte). Une gestion de rôles multiples (administrateur, collaborateur, comptable) n'est pas justifiée par les personas primaires et secondaires retenus pour le MVP (section 3), et ajouterait une complexité non nécessaire à ce stade - cohérent avec le principe de simplicité de `01-intent-note.md`.
+**Historique de la décision** : le MVP (Phases 0-12) s'est délibérément limité à un rôle
+utilisateur unique, le **propriétaire du compte** (DEC-003, ci-dessous), la cible primaire
+(micro-entrepreneur, indépendant) correspondant très majoritairement à un usage
+mono-utilisateur. Cette décision est **révisée par décision produit explicite du 21/08/2026**
+(DEC-009) : l'utilisateur souhaite une application couvrant la gestion d'équipe au sein d'une
+organisation avant la mise en production (Phase 14, `12-roadmap.md`) - ce n'est pas une
+substitution silencieuse de préférence technique, mais une décision produit assumée, qui
+réouvre le persona secondaire C (cabinet comptable, `03-market-analysis.md` section 4) plus tôt
+que prévu initialement.
 
-**Décision** : le MVP ne définit qu'un seul rôle, le **propriétaire du compte**, avec un accès complet à ses propres données. Une gestion de rôles multiples pourra être envisagée en Future Scope si le persona secondaire C (cabinet comptable) est un jour prioritisé.
+### 21.1 Rôles au sein d'une organisation (Phase 14)
+
+Trois rôles, portés par la relation `Membership` entre un `User` et une `Organization`
+(jamais par le `User` directement - un même utilisateur peut avoir un rôle différent dans
+chaque organisation à laquelle il appartient, voir `07-data-model.md` section 5) :
+
+| Rôle            | Description                                                                          |
+| --------------- | ------------------------------------------------------------------------------------- |
+| `OWNER`         | Contrôle complet de l'organisation : gestion des membres, des rôles, des notifications d'équipe, et de toutes les données métier. Un seul `OWNER` par organisation à la création, transférable (mécanisme à préciser en implémentation). |
+| `ADMIN`         | Administration opérationnelle courante (gestion des factures, clients, analyses, invitation/retrait de membres) - sans les actions les plus sensibles réservées à `OWNER`. |
+| `COLLABORATOR`  | Usage métier courant (saisie, consultation, analyse) - aucune gestion d'équipe. |
+
+**Matrice de permissions (niveau produit, le détail technique relève de `10-security-privacy.md` section 15 et `08-api-specification.md`)** :
+
+| Action                                                    | OWNER | ADMIN | COLLABORATOR |
+| ---------------------------------------------------------- | :---: | :---: | :----------: |
+| Consulter/saisir/analyser des factures, clients, diagnostics | Oui   | Oui   | Oui          |
+| Envoyer une notification aux membres de l'organisation (FR-NOTIFICATION-001) | Oui | Oui | Non |
+| Inviter un membre (FR-TEAM-001)                            | Oui   | Oui   | Non          |
+| Modifier le rôle d'un membre (FR-TEAM-002)                 | Oui   | Non   | Non          |
+| Retirer un membre (FR-TEAM-003)                            | Oui   | Oui (jamais l'`OWNER`) | Non |
+| Modifier le contexte fiscal de l'organisation               | Oui   | Oui   | Non          |
+| Supprimer l'organisation / transférer la propriété          | Oui   | Non   | Non          |
+
+Cette matrice doit être reprise à l'identique dans `10-security-privacy.md` (section 15) et
+implémentée comme une vérification centralisée, jamais dupliquée par endpoint (cohérent avec
+`06-technical-architecture.md`, ADR-004 et section 19).
+
+### 21.2 Rôle plateforme (Phase 15, distinct des rôles d'organisation)
+
+Un quatrième rôle, **`PlatformAdministrator`**, est introduit en Phase 15 pour les besoins
+opérationnels internes (support, modération, communication) - voir section 19.2 et
+`06-technical-architecture.md` ADR-009. Ce rôle est **structurellement distinct** des rôles
+`OWNER`/`ADMIN`/`COLLABORATOR` ci-dessus : il n'appartient à aucune `Organization`, traverse
+l'isolation tenant de façon contrôlée et auditée, et n'est jamais accordé à un utilisateur final
+du produit. Un `PlatformAdministrator` ne peut jamais se voir accorder un rôle d'organisation
+sur le même compte (identités structurellement séparées, jamais un simple indicateur sur
+l'entité `User` existante).
+
+### 21.3 Décisions produit associées
+
+Voir DEC-009 (rôles d'organisation), DEC-010 (rôle plateforme, isolation), DEC-011 (analytics)
+en section 31.
 
 ## 22. Intégrations externes
 
@@ -602,9 +725,17 @@ Pour se protéger explicitement contre le risque de dérive « puisqu'on a déj�
 - **Pas de gestion de la paie.**
 - **Pas de gestion des notes de frais ou des achats fournisseurs.**
 - **Pas de CRM ni de gestion commerciale** (pipeline, opportunités).
-- **Pas de rôle de plateforme agréée**, ni d'ambition d'en devenir une à court ou moyen terme.
+- **Pas de rôle de plateforme agréée**, ni d'ambition d'en devenir une à court ou moyen terme -
+  **précision (Phase 15)** : l'introduction d'un rôle `PlatformAdministrator` interne (section
+  21.2) est une capacité opérationnelle de support/communication, elle ne rapproche en rien le
+  produit d'une plateforme agréée au sens réglementaire (`02-regulatory-study.md`, section 23) ;
+  cette exclusion reste pleinement valide.
 - **Pas de paiement intégré** (encaissement, relances de paiement) au MVP.
-- **Pas de multi-utilisateurs/rôles avancés** au MVP (section 21).
+- ~~**Pas de multi-utilisateurs/rôles avancés** au MVP (section 21).~~ **Levé par décision
+  produit (DEC-009, 21/08/2026, Phase 14)** : les rôles d'organisation (`OWNER`/`ADMIN`/
+  `COLLABORATOR`, section 21.1) sont désormais engagés avant la mise en production. Cette
+  levée ne concerne que les rôles **au sein d'une organisation** - elle ne rouvre aucune des
+  autres exclusions de cette liste.
 
 Toute proposition de fonctionnalité qui rapprocherait le produit de l'une de ces catégories doit être explicitement réévaluée au regard de la vision (`01-intent-note.md`) avant d'être intégrée à une itération future.
 
@@ -614,12 +745,15 @@ Toute proposition de fonctionnalité qui rapprocherait le produit de l'une de ce
 | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
 | DEC-001 | Le produit est centré sur la compréhension et la vérification de la conformité, pas sur la production ou l'émission de factures                                      | `01-intent-note.md`, section 3 ; `03-market-analysis.md`, section 19                                            |
 | DEC-002 | Le Compliance Engine déterministe est la seule source de vérité pour un résultat de conformité ; l'IA n'a qu'un rôle d'assistance et de reformulation                | Consigne du brief, section 20 ; `02-regulatory-study.md`, section 22                                            |
-| DEC-003 | Le MVP se limite à un rôle utilisateur unique (propriétaire du compte)                                                                                               | Cohérence avec les personas primaires (mono-utilisateur), simplicité (`01-intent-note.md`)                      |
+| DEC-003 | ~~Le MVP se limite à un rôle utilisateur unique (propriétaire du compte)~~ - **Révisé par DEC-009** (21/08/2026) | Cohérence avec les personas primaires (mono-utilisateur), simplicité (`01-intent-note.md`) - valable pour le MVP (Phases 0-12), révisé ensuite |
 | DEC-004 | Les états de conformité incluent des états intermédiaires (`A_VERIFIER`, `AVERTISSEMENT`, `INCERTAIN_REGLEMENTAIRE`), pas seulement un binaire conforme/non conforme | Reflète les zones d'incertitude documentées dans `02-regulatory-study.md`, section 23                           |
 | DEC-005 | Le produit ne se connecte à aucune plateforme agréée ni service externe critique au MVP                                                                              | Faisabilité pour un développeur solo (`03-market-analysis.md`, section 17)                                      |
 | DEC-006 | Le dashboard et l'historique sont priorité P1, pas P0                                                                                                                | La valeur centrale (comprendre/vérifier une facture donnée) ne dépend pas d'une vue d'ensemble pour être testée |
 | DEC-007 | Toute non-conformité affichée doit être accompagnée d'une explication et d'une action de correction, sans exception                                                  | Cœur de la différenciation produit (`03-market-analysis.md`, section 18)                                        |
 | DEC-008 | Le produit reste explicitement complémentaire à l'outil de facturation existant de l'utilisateur, jamais substitutif au MVP                                          | `01-intent-note.md` ; réduit le risque de concurrence frontale (`03-market-analysis.md`, section 6)             |
+| DEC-009 | Rôles d'organisation `OWNER`/`ADMIN`/`COLLABORATOR` (section 21.1), portés par `Membership` ; un `User` peut appartenir à plusieurs `Organization` avec un rôle différent dans chacune | Décision produit du 21/08/2026 - l'utilisateur souhaite une application complète avant le lancement, réouvre le persona secondaire C (cabinet comptable) plus tôt que prévu ; architecture déjà anticipée (`06-technical-architecture.md` section 19/39) |
+| DEC-010 | Rôle plateforme `PlatformAdministrator` (section 21.2), structurellement séparé des rôles d'organisation, jamais un indicateur sur `User` ; MFA obligatoire ; surface d'administration en application séparée si le coût reste raisonnable pour un développeur solo, sinon route strictement isolée ; test d'intrusion ciblé avant activation | Franchit délibérément et de façon contrôlée l'isolation tenant posée depuis la Phase 2 (`06-technical-architecture.md` ADR-004) - décision qui exige son propre ADR (ADR-009) et sa propre revue de sécurité, jamais une exception glissée dans le code existant |
+| DEC-011 | Statistiques et graphiques agrégés (FR-ANALYTICS-001/002) réservés à la surface d'administration plateforme, jamais au dashboard utilisateur final (section 20) | Ne contredit pas DL-008 (`12-roadmap.md`, « pas de graphiques au MVP ») qui portait exclusivement sur le dashboard client - distinction de périmètre assumée, pas une réouverture silencieuse de DL-008 |
 
 ## 32. Questions ouvertes
 

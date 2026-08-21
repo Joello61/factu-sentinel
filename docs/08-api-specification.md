@@ -78,9 +78,23 @@ Cohérent avec `06-technical-architecture.md` (section 19, ADR-007) et `07-data-
 
 ## 8. Authorization
 
-Rôle unique au MVP : **OWNER** (`04-product-requirements.md`, section 21 ; `07-data-model.md`, section 5). Toute opération authentifiée est donc implicitement autorisée pour le rôle `OWNER` sur les ressources de sa propre organisation - aucune matrice de permissions fine n'est nécessaire au MVP (cohérent avec la consigne de ne pas créer de RBAC non justifié).
+**Historique (MVP, Phases 0-12)** : rôle unique **OWNER** (`04-product-requirements.md`, section 21 historique). Toute opération authentifiée était donc implicitement autorisée pour l'`OWNER` sur les ressources de sa propre organisation.
 
-Chaque endpoint listé dans ce document indique néanmoins la permission logique requise (par exemple `invoice:create`), pour que l'ajout futur de rôles supplémentaires (persona secondaire C, `06-technical-architecture.md` section 39) n'impose pas de revoir le contrat d'URL, seulement la table de permissions associée à chaque rôle.
+**Depuis la Phase 14 (DEC-009)** : trois rôles d'organisation - **OWNER**, **ADMIN**,
+**COLLABORATOR** (`04-product-requirements.md` section 21.1 ; `07-data-model.md` section 5).
+Chaque endpoint de ce document indique la permission logique requise (par exemple
+`invoice:create`) - c'est précisément cette table de permissions par rôle, jamais le contrat
+d'URL lui-même, qui absorbe l'ajout de ces rôles (anticipation confirmée,
+`06-technical-architecture.md` section 39). Sauf indication contraire explicite dans
+l'endpoint concerné, une permission `xxx:read`/`xxx:create`/etc. sur une ressource métier est
+accordée aux trois rôles ; les permissions `team:*` et `notification:send_team` sont réservées
+à `OWNER`/`ADMIN` (jamais `COLLABORATOR`, matrice complète en
+`04-product-requirements.md` section 21.1).
+
+**Depuis la Phase 15 (DEC-010)** : un quatrième rôle, **`PlatformAdministrator`**, structurellement
+séparé des trois rôles d'organisation ci-dessus - jamais porté par un `Membership`, jamais
+accordé sur les ressources d'une organisation précise (section 38.2). Les permissions
+`platform:*` ne sont **jamais** accordées à un rôle d'organisation, quel qu'il soit.
 
 ## 9. Multi-tenancy
 
@@ -91,9 +105,27 @@ Retenu :        GET /api/v1/invoices
 Rejeté :         GET /api/v1/organizations/{organizationId}/invoices
 ```
 
-**Justification** : au MVP, un `User` n'appartient qu'à une seule `Organization` active à la fois du point de vue de l'usage courant (même si `07-data-model.md` section 5 prévoit `Membership` en 1:N pour permettre une évolution future). Le tenant courant est déterminé **à partir de la session authentifiée**, pas de l'URL - ce qui évite toute possibilité pour un client de manipuler un `organizationId` dans l'URL pour tenter d'accéder aux données d'une autre organisation (protection structurelle contre l'IDOR, section 60). Si un `User` devait un jour appartenir à plusieurs organisations (Future Scope), un endpoint dédié de sélection du tenant actif (`POST /auth/select-organization` ou équivalent) serait introduit plutôt que d'exposer l'`organizationId` dans chaque URL de ressource.
+**Justification** : au MVP (Phases 0-12), un `User` n'appartenait qu'à une seule `Organization`. **Depuis la Phase 14 (DEC-009)**, un `User` peut appartenir à plusieurs `Organization` via plusieurs `Membership` (`07-data-model.md` section 5) - le tenant courant reste néanmoins déterminé **à partir de la session authentifiée**, jamais de l'URL, ce qui évite toute possibilité pour un client de manipuler un `organizationId` dans l'URL pour tenter d'accéder aux données d'une autre organisation (protection structurelle contre l'IDOR, section 60).
 
-**Comment le tenant est déterminé** : à l'authentification, le jeton de session porte une référence à la `Membership` active, qui résout l'`organization_id` courant. Chaque module backend (`06-technical-architecture.md`, section 6-7) applique ensuite ce `organization_id` comme filtre systématique - jamais optionnel - à toute lecture ou écriture.
+**Sélection de l'organisation active (Phase 14, nouveau)** :
+
+```text
+POST /auth/select-organization
+Request: { "organization_id": "uuid" }
+Response: 200 OK - nouvel access token portant la Membership sélectionnée comme organisation active.
+Errors: 403 (l'appelant n'a pas de Membership sur cette organisation - jamais 404, l'existence de l'organisation elle-même n'est pas une information sensible ici puisque l'appelant en connaît déjà l'id via GET /auth/me/organizations).
+```
+
+```text
+GET /auth/me/organizations
+Response: 200 OK
+{ "data": [ { "organization_id": "uuid", "legal_name": "string | null", "role": "OWNER" | "ADMIN" | "COLLABORATOR" } ] }
+Description: liste des organisations auxquelles l'utilisateur connecté appartient, avec son rôle dans chacune - nécessaire pour construire l'écran de sélection avant/après POST /auth/select-organization.
+```
+
+**Comment le tenant est déterminé** : à l'authentification (ou après `POST /auth/select-organization`), le jeton de session porte une référence à la `Membership` active, qui résout l'`organization_id` courant. Chaque module backend (`06-technical-architecture.md`, section 6-7) applique ensuite ce `organization_id` comme filtre systématique - jamais optionnel - à toute lecture ou écriture.
+
+**`PlatformAdministrator` (Phase 15)** : n'a, par construction, **aucune** `Membership` ni `organization_id` courant - son authentification et son autorisation (section 38.2) sont structurellement distinctes de ce mécanisme de sélection de tenant, jamais une simple extension de celui-ci (ADR-009).
 
 **Ressources globales** (`RegulatoryRule`, `RuleVersion`, `07-data-model.md` section 25) : accessibles sans filtre de tenant, car elles ne sont pas tenant-scoped - voir section 34.
 
@@ -260,6 +292,8 @@ Stratégie conceptuelle, sans chiffres fixés arbitrairement :
 | Upload de documents                             | Oui - protection contre l'abus de stockage                             | À calibrer                                                                                 |
 | Assistant IA (`assistant/*`)                    | Oui - dépendance externe coûteuse                                      | À calibrer en cohérence avec les limites de coût de l'AI Gateway                           |
 | Endpoints administratifs internes               | Oui, mais périmètre d'accès déjà restreint (section 40)                | À calibrer                                                                                 |
+| Invitation de membre (Phase 14)                 | Oui - protection contre l'abus d'invitation (spam email)               | À calibrer, par organisation (même principe que `document_upload`, `10-security-privacy.md`) |
+| Notification plateforme (Phase 15)              | Oui - une diffusion globale mal maîtrisée impacte tous les utilisateurs | À calibrer, par `PlatformAdministrator`, avec confirmation explicite côté frontend pour `target_type=ALL` |
 
 ## 23. Authentication API
 
@@ -390,7 +424,45 @@ Audit: Oui : AuditLogEntry(event_type="organization_updated"), delta des champs 
 
 ## 25. Members & Roles API
 
-**Non exposée au MVP.** Cohérent avec `04-product-requirements.md` (section 21) et `05-user-stories.md` (Epic Administration en fonction interne uniquement) : aucun endpoint de gestion de membres, invitation ou rôle n'est créé au MVP, un seul rôle `OWNER` existant par organisation. **Réservé pour une évolution future** (persona secondaire C) sans être engagé ici.
+**Engagée en Phase 14** (décision produit du 21/08/2026, DEC-009) - historiquement non exposée
+au MVP (un seul rôle `OWNER`), désormais nécessaire pour `FR-TEAM-001/002/003`
+(`04-product-requirements.md` section 21.1).
+
+| Endpoint                       | Méthode | Description                                  | Permission        |
+| ------------------------------- | ------- | --------------------------------------------- | ------------------ |
+| `/organizations/current/invitations` | POST | Inviter un membre (US-TEAM-001)               | `team:invite`      |
+| `/organizations/current/invitations` | GET  | Lister les invitations en attente             | `team:read`        |
+| `/organizations/current/invitations/{id}` | DELETE | Révoquer une invitation en attente       | `team:invite`      |
+| `/organizations/current/members` | GET     | Lister les membres de l'organisation          | `team:read`        |
+| `/organizations/current/members/{id}` | PATCH | Modifier le rôle d'un membre (US-TEAM-002) | `team:manage_roles` |
+| `/organizations/current/members/{id}` | DELETE | Retirer un membre (US-TEAM-003)          | `team:remove`      |
+
+```text
+POST /organizations/current/invitations
+Request: { "email": "string", "role": "ADMIN" | "COLLABORATOR" }
+Response: 201 Created
+{ "data": { "id": "uuid", "email": "string", "role": "string", "status": "pending", "created_at": "..." } }
+Errors: 422 VALIDATION_ERROR (role invalide ou absent) ; 403 (appelant COLLABORATOR, jamais autorisé - matrice PRD §21.1).
+Idempotency-Key: requise (même convention que POST /invoices, §20).
+Audit: Oui - AuditLogEntry(event_type="member_invited").
+```
+
+```text
+PATCH /organizations/current/members/{id}
+Request: { "role": "ADMIN" | "COLLABORATOR" }
+Response: 200 OK - Membership mis à jour.
+Errors: 403 (appelant non-OWNER, jamais autorisé - seul un OWNER modifie un rôle, matrice PRD §21.1) ; 409 CONFLICT (tentative de modifier le rôle de l'OWNER lui-même, toujours refusée).
+Audit: Oui - AuditLogEntry(event_type="member_role_changed"), ancien/nouveau rôle.
+```
+
+```text
+DELETE /organizations/current/members/{id}
+Response: 204 No Content.
+Errors: 403 (appelant COLLABORATOR ; ou appelant ADMIN tentant de retirer l'OWNER - toujours refusé, matrice PRD §21.1).
+Audit: Oui - AuditLogEntry(event_type="member_removed").
+```
+
+**Isolation** : ces endpoints n'opèrent jamais que sur l'organisation courante de l'appelant (résolue depuis la session, jamais un `organization_id` en paramètre) - même principe que le reste de l'API (section 9).
 
 ## 26. Customers API
 
@@ -703,10 +775,32 @@ Justification : les trois états du bucket `open_issues_count` appellent tous un
 
 | Endpoint                   | Méthode | Description                       | Permission            |
 | -------------------------- | ------- | --------------------------------- | --------------------- |
-| `/notifications`           | GET     | Lister les notifications (paginé) | `notification:read`   |
+| `/notifications`           | GET     | Lister les notifications reçues (paginé) | `notification:read`   |
 | `/notifications/{id}/read` | PATCH   | Marquer comme lue                 | `notification:update` |
+| `/organizations/current/notifications` | POST | Envoyer une notification aux membres de son organisation (US-NOTIFICATION-003, Phase 14) | `notification:send_team` |
 
-Périmètre P2 (`05-user-stories.md`, US-NOTIFICATION-001) - endpoints définis pour cohérence du contrat, non bloquants pour le MVP.
+`GET /notifications`/`PATCH /notifications/{id}/read` : périmètre P2 pour le rappel système
+(`05-user-stories.md`, US-NOTIFICATION-001) - endpoints définis pour cohérence du contrat, non
+bloquants pour le MVP.
+
+```text
+POST /organizations/current/notifications
+Description: Envoyer une notification à un ou plusieurs membres de son organisation (Phase 14).
+Permission: notification:send_team (OWNER, ADMIN uniquement - matrice PRD §21.1)
+Request: {
+  "recipient_ids": ["uuid", ...],   // doivent tous appartenir à l'organisation de l'appelant
+  "message": "string"
+}
+Response: 201 Created
+{ "data": { "id": "uuid", "sender_type": "ORGANIZATION_OWNER", "target_type": "ORGANIZATION_MEMBERS", "status": "pending" } }
+Errors: 403 (appelant COLLABORATOR) ; 422 VALIDATION_ERROR (recipient_ids vide, ou contenant un utilisateur hors de l'organisation - jamais 403 pour ce dernier cas, cohérent avec §46).
+Idempotency-Key: requise.
+Audit: Oui - AuditLogEntry(event_type="team_notification_sent").
+```
+
+**Notifications à portée plateforme** (ciblage individuel/organisation/segment/diffusion
+globale, `sender_type=PLATFORM_ADMIN`) : voir section 38 (Platform Administration API) - jamais
+accessible via cet endpoint organisation, réservées au rôle `PlatformAdministrator`.
 
 ## 35. AI Assistant API
 
@@ -768,14 +862,93 @@ Audit: Oui - trace de la tentative (succès/échec, longueur de la question), ja
 
 ## 38. Administration API
 
-**Séparée explicitement de l'API utilisateur**, sous un préfixe distinct et un mécanisme d'authentification propre (non détaillé ici, renvoyé à `10-security-privacy.md`) :
+Deux sous-espaces distincts, sous un préfixe séparé de l'API utilisateur et un mécanisme
+d'authentification propre à chacun (non détaillé ici, renvoyé à `10-security-privacy.md`) :
+
+### 38.1 Regulatory Rules Administration (interne, historique)
 
 ```text
 /api/v1/admin/rule-versions   POST   Créer une nouvelle version de règle (jamais de PATCH/PUT - immutabilité, 07-data-model.md §16)
 /api/v1/admin/rule-versions   GET    Lister les versions existantes d'une règle
 ```
 
-Cette API n'est **jamais** accessible avec les permissions d'un `OWNER` d'organisation - elle est réservée à un accès opérationnel interne (développeur solo au MVP), cohérent avec `05-user-stories.md` (Epic Administration : fonction interne, non utilisateur).
+Cette API n'est **jamais** accessible avec les permissions d'un `OWNER` d'organisation ni d'un
+`PlatformAdministrator` (rôles distincts, ADR-009) - réservée à un accès opérationnel interne
+(développeur solo au MVP), cohérent avec `05-user-stories.md` (Epic Administration, partie
+interne).
+
+### 38.2 Platform Administration API (Phase 15, nouveau, ADR-009)
+
+**Préfixe distinct `/api/v1/platform-admin/`, authentification `PlatformAdministrator`
+exclusivement (MFA obligatoire, `10-security-privacy.md`)** - jamais accessible avec un jeton
+tenant-scoped (`OWNER`/`ADMIN`/`COLLABORATOR`), et réciproquement un jeton
+`PlatformAdministrator` n'est jamais accepté sur l'API utilisateur normale (section 9, étendue).
+
+| Endpoint                                          | Méthode | Description                                              | Permission                  |
+| -------------------------------------------------- | ------- | ---------------------------------------------------------- | ---------------------------- |
+| `/platform-admin/organizations`                    | GET     | Lister les organisations (paginé, filtrable)                | `platform:organizations:read` |
+| `/platform-admin/organizations/{id}`               | GET     | Consulter une organisation (détail, membres)                 | `platform:organizations:read` |
+| `/platform-admin/organizations/{id}/suspend`       | POST    | Suspendre une organisation (US-PLATFORMADMIN-002)             | `platform:organizations:suspend` |
+| `/platform-admin/organizations/{id}/reactivate`    | POST    | Réactiver une organisation                                    | `platform:organizations:suspend` |
+| `/platform-admin/audit-events`                     | GET     | Consulter l'audit trail cross-tenant (US-PLATFORMADMIN-003)   | `platform:audit:read`        |
+| `/platform-admin/notifications`                    | POST    | Envoyer une notification ciblée/segmentée/diffusée (US-PLATFORMADMIN-004) | `platform:notifications:send` |
+| `/platform-admin/health`                           | GET     | Indicateurs de santé applicative (US-PLATFORMADMIN-005)       | `platform:health:read`       |
+
+```text
+POST /platform-admin/organizations/{id}/suspend
+Response: 200 OK - Organization.suspended_at renseigné.
+Effet: tous les membres de l'organisation perdent l'accès applicatif immédiatement (07-data-model.md, invariant Organization Phase 15).
+Audit: Oui, obligatoire - AuditLogEntry(event_type="organization_suspended", actor=PlatformAdministrator.id) - jamais une action silencieuse.
+```
+
+```text
+POST /platform-admin/notifications
+Request: {
+  "target_type": "USER" | "ORGANIZATION" | "SEGMENT" | "ALL",
+  "target_id": "uuid"        | null,   // requis si USER ou ORGANIZATION
+  "target_criteria": { ... } | null,   // requis si SEGMENT (07-data-model.md §21 : critères repris de FiscalContext)
+  "message": "string"
+}
+Response: 201 Created
+{ "data": { "id": "uuid", "sender_type": "PLATFORM_ADMIN", "target_type": "string", "estimated_recipient_count": "integer" } }
+Errors: 422 VALIDATION_ERROR (target_id/target_criteria incohérent avec target_type).
+Audit: Oui, obligatoire - AuditLogEntry(event_type="platform_notification_sent", actor=PlatformAdministrator.id, target_type, target_criteria).
+```
+
+```text
+GET /platform-admin/health
+Response: 200 OK
+{
+  "data": {
+    "compliance_engine_failure_rate_24h": "string (decimal)",
+    "async_jobs_dead_letter_count": "integer",
+    "ai_calls_volume_24h": "integer",
+    "ai_estimated_cost_24h": "string (decimal)",
+    "api_health": "ok" | "degraded"
+  }
+}
+```
+Explicitement limité au niveau applicatif (`04-product-requirements.md`, FR-PLATFORMADMIN-005) -
+aucun indicateur d'infrastructure réelle (uptime, ressources serveur) tant qu'aucun hébergeur
+n'est retenu (Phase 17).
+
+**Isolation** : ces endpoints lisent/écrivent à travers toutes les organisations - **jamais**
+via le mécanisme `TenantFilter` utilisé par le reste de l'API (section 9), toujours via des
+requêtes explicitement cross-tenant réservées à ce module (`06-technical-architecture.md`,
+ADR-009). Toute action de cette API est journalisée avec l'identité de l'acteur
+`PlatformAdministrator`, sans exception.
+
+### 38.3 Platform Analytics API (Phase 16)
+
+| Endpoint                          | Méthode | Description                                              | Permission              |
+| ----------------------------------- | ------- | ---------------------------------------------------------- | ------------------------ |
+| `/platform-admin/analytics/summary` | GET     | Statistiques agrégées (US-ANALYTICS-001)                    | `platform:analytics:read` |
+| `/platform-admin/analytics/trends`  | GET     | Évolution temporelle des statistiques (US-ANALYTICS-002)    | `platform:analytics:read` |
+
+Même autorisation `PlatformAdministrator` que la section 38.2, jamais un accès distinct moins
+strict (`06-technical-architecture.md`, ADR-009, conséquences). Lecture seule, agrégation
+construite sur le même patron que `DashboardAggregator` (Phase 9), jamais un nouveau mécanisme
+d'agrégation inventé.
 
 ## 39. Audit API
 

@@ -60,9 +60,10 @@ Cette User Story Map ne comporte donc pas d'Epic dédiée à la « facturation �
 | EPIC-DOCUMENTS      | Support de EPIC-INVOICES (PRD, section 16)                                                                                                                                                                 | Oui, périmètre minimal                                         |
 | EPIC-DASHBOARD      | FR-DASHBOARD-001, FR-HISTORY-001                                                                                                                                                                           | Oui, priorité P1                                               |
 | EPIC-AI-ASSISTANT   | Section 17 du PRD - couche d'assistance et de reformulation                                                                                                                                                | Oui, périmètre restreint (P1)                                  |
-| EPIC-NOTIFICATIONS  | Section 19 du PRD - analysée mais non engagée au MVP                                                                                                                                                       | Partiellement - P2/Future selon la notification                |
-| EPIC-SETTINGS       | Nécessaire pour gérer le compte et l'entreprise après la configuration initiale                                                                                                                            | Oui, périmètre minimal                                         |
-| EPIC-ADMINISTRATION | Non prévue comme fonctionnalité utilisateur par le PRD (pas de rôles multiples au MVP, section 21) ; nécessaire malgré tout comme fonction interne minimale (gestion des règles de conformité elles-mêmes) | Oui, mais strictement interne (voir section 26)                |
+| EPIC-NOTIFICATIONS  | Section 19 du PRD - notifications système (P2/Future) et, depuis le 21/08/2026, notifications envoyées par un humain (FR-NOTIFICATION-001, Phase 14)                                                      | Partiellement - voir détail par story                          |
+| EPIC-SETTINGS       | Nécessaire pour gérer le compte et l'entreprise après la configuration initiale                                                                                                                            | Non au MVP, engagée en Phase 17 (`12-roadmap.md`)               |
+| EPIC-TEAM           | FR-TEAM-001/002/003 (PRD section 21.1) - gestion des membres et rôles d'une organisation                                                                                                                    | Non au MVP, engagée en Phase 14 (`12-roadmap.md`)               |
+| EPIC-ADMINISTRATION | Fonction interne (gestion des règles de conformité) **et**, depuis le 21/08/2026 (DEC-010, PRD section 21.2), fonction utilisateur pour le rôle `PlatformAdministrator` (FR-PLATFORMADMIN-*, FR-ANALYTICS-*) | Oui pour la partie interne ; Phase 15/16 pour la partie `PlatformAdministrator` |
 
 Aucune Epic « EPIC-CRM », « EPIC-PAYMENT » ou « EPIC-ACCOUNTING » n'est créée, conformément au hors périmètre défini par le PRD (section 30).
 
@@ -556,6 +557,21 @@ Epic : EPIC-NOTIFICATIONS - Persona : Utilisateur (tous)
 Titre : Être notifié d'un changement réglementaire affectant une règle déjà appliquée
 Priorité : FUTURE - le PRD indique explicitement que cette fonctionnalité « suppose un mécanisme de veille et de versionnement déjà mature » et la classe en Future Scope (section 19).
 
+**US-NOTIFICATION-003**
+Epic : EPIC-NOTIFICATIONS - Persona : Utilisateur (OWNER, ADMIN)
+Titre : Notifier les membres de mon organisation
+En tant que propriétaire ou administrateur d'organisation, je veux pouvoir envoyer une notification à un ou plusieurs membres de mon organisation, afin de communiquer une information importante sans passer par un canal externe.
+Priorité : P1
+Traçabilité PRD : FR-NOTIFICATION-001 (section 19.2, section 21.1).
+Critères d'acceptation :
+
+```text
+Given je suis OWNER ou ADMIN d'une organisation ayant plusieurs membres
+When je compose une notification et sélectionne un ou plusieurs destinataires parmi les membres de mon organisation
+Then chaque destinataire sélectionné reçoit la notification
+And un COLLABORATOR ne peut jamais accéder à cette fonctionnalité (matrice de permissions, PRD section 21.1).
+```
+
 ### Epic EPIC-SETTINGS
 
 **US-SETTINGS-001**
@@ -563,18 +579,134 @@ Epic : EPIC-SETTINGS - Persona : Utilisateur (tous)
 Titre : Gérer les informations de mon compte
 En tant qu'utilisateur, je veux pouvoir consulter et modifier les informations de mon compte, afin de les garder à jour.
 Priorité : P1
-Traçabilité PRD : conséquence logique d'EPIC-AUTH, non détaillée telle quelle dans le PRD. **Priorité confirmée par décision produit** : P1, probablement hors MVP au sens strict (voir section 18, Questions ouvertes) - le MVP reste centré sur le parcours entreprise → facture → analyse → correction.
+Traçabilité PRD : FR-SETTINGS-001. **Engagée en Phase 17** (`12-roadmap.md`), avant la mise en production - ne fait plus l'objet d'une simple mention pour mémoire.
 
 **US-SETTINGS-002**
 Epic : EPIC-SETTINGS - Persona : Utilisateur (tous)
 Titre : Supprimer mon compte et mes données
 En tant qu'utilisateur, je veux pouvoir supprimer mon compte et mes données, afin de garder le contrôle sur les informations que je confie au produit.
 Priorité : P1
-Traçabilité PRD : cohérent avec le principe de minimisation des données (PRD, section 14 - Confidentialité). **Priorité confirmée par décision produit** : P1/P2, probablement hors MVP au sens strict (voir section 18, Questions ouvertes) ; les modalités précises de suppression restent à détailler dans `10-security-privacy.md`.
+Traçabilité PRD : FR-SETTINGS-002 ; cohérent avec le principe de minimisation des données (PRD, section 14 - Confidentialité). **Engagée en Phase 17** ; les modalités précises de suppression restent détaillées dans `10-security-privacy.md` (sections 38-39).
 
-### Epic EPIC-ADMINISTRATION (fonction interne, non utilisateur)
+### Epic EPIC-TEAM (nouvel Epic, décision produit du 21/08/2026)
 
-Le PRD (section 21) exclut explicitement une gestion de rôles multiples au MVP ; il n'y a donc **aucune User Story orientée utilisateur final** dans cette Epic. Elle couvre uniquement un besoin interne nécessaire au fonctionnement du produit, distinct de toute fonctionnalité accessible à l'utilisateur (voir section 26).
+**US-TEAM-001**
+Epic : EPIC-TEAM - Persona : Utilisateur (OWNER, ADMIN)
+Titre : Inviter un membre dans mon organisation
+En tant que propriétaire ou administrateur d'organisation, je veux inviter une personne à rejoindre mon organisation avec un rôle donné, afin de collaborer à plusieurs sur les mêmes données.
+Priorité : P1
+Traçabilité PRD : FR-TEAM-001 (section 21.1).
+Critères d'acceptation :
+
+```text
+Given je suis OWNER ou ADMIN d'une organisation
+When j'invite une personne par email avec un rôle ADMIN ou COLLABORATOR
+Then cette personne reçoit une invitation lui permettant de rejoindre l'organisation avec le rôle indiqué
+And un ADMIN ne peut jamais inviter quelqu'un avec le rôle OWNER (matrice de permissions, PRD section 21.1).
+```
+
+**US-TEAM-002**
+Epic : EPIC-TEAM - Persona : Utilisateur (OWNER)
+Titre : Modifier le rôle d'un membre
+En tant que propriétaire d'organisation, je veux pouvoir changer le rôle d'un membre existant, afin d'ajuster ses permissions à son usage réel.
+Priorité : P1
+Traçabilité PRD : FR-TEAM-002 (section 21.1).
+Critères d'acceptation :
+
+```text
+Given je suis OWNER d'une organisation ayant au moins un membre ADMIN ou COLLABORATOR
+When je modifie le rôle de ce membre
+Then le nouveau rôle s'applique immédiatement à ses accès
+And seul un OWNER peut effectuer cette action (jamais un ADMIN, matrice de permissions, PRD section 21.1).
+```
+
+**US-TEAM-003**
+Epic : EPIC-TEAM - Persona : Utilisateur (OWNER, ADMIN)
+Titre : Retirer un membre de mon organisation
+En tant que propriétaire ou administrateur d'organisation, je veux pouvoir retirer un membre de mon organisation, afin de révoquer son accès lorsqu'il ne doit plus l'avoir.
+Priorité : P1
+Traçabilité PRD : FR-TEAM-003 (section 21.1).
+Critères d'acceptation :
+
+```text
+Given je suis OWNER ou ADMIN d'une organisation ayant plusieurs membres
+When je retire un membre autre que l'OWNER
+Then ce membre perd immédiatement l'accès à l'organisation
+And un ADMIN ne peut jamais retirer l'OWNER de l'organisation (matrice de permissions, PRD section 21.1).
+```
+
+### Epic EPIC-ADMINISTRATION
+
+Historiquement une fonction interne uniquement (gestion des `RegulatoryRule`/`RuleVersion`,
+sans aucune story orientée utilisateur final - le PRD section 21 excluait toute gestion de
+rôles multiples au MVP). **Réouverte par décision produit du 21/08/2026 (DEC-010)** : le rôle
+`PlatformAdministrator` (PRD section 21.2) est un véritable utilisateur de cette Epic, distinct
+de l'utilisateur final du produit et de tout rôle d'organisation.
+
+**US-PLATFORMADMIN-001**
+Epic : EPIC-ADMINISTRATION - Persona : PlatformAdministrator
+Titre : Consulter la liste des organisations et des comptes
+En tant qu'administrateur plateforme, je veux consulter la liste de toutes les organisations et comptes utilisateurs, afin d'assurer le support et le suivi opérationnel du produit.
+Priorité : P1
+Traçabilité PRD : FR-PLATFORMADMIN-001 (section 21.2).
+
+**US-PLATFORMADMIN-002**
+Epic : EPIC-ADMINISTRATION - Persona : PlatformAdministrator
+Titre : Suspendre ou réactiver un compte
+En tant qu'administrateur plateforme, je veux pouvoir suspendre l'accès d'une organisation ou d'un compte, et le réactiver, afin de réagir à un usage abusif ou à une demande de support.
+Priorité : P1
+Traçabilité PRD : FR-PLATFORMADMIN-002.
+Critères d'acceptation :
+
+```text
+Given un compte ou une organisation existant
+When un PlatformAdministrator suspend ce compte/cette organisation
+Then tous les utilisateurs de cette organisation perdent l'accès jusqu'à réactivation
+And cette action est journalisée dans l'audit trail cross-tenant (US-PLATFORMADMIN-003).
+```
+
+**US-PLATFORMADMIN-003**
+Epic : EPIC-ADMINISTRATION - Persona : PlatformAdministrator
+Titre : Consulter l'audit trail cross-tenant
+En tant qu'administrateur plateforme, je veux consulter le journal d'audit à travers toutes les organisations, afin d'investiguer un incident ou une demande de support.
+Priorité : P1
+Traçabilité PRD : FR-PLATFORMADMIN-003.
+
+**US-PLATFORMADMIN-004**
+Epic : EPIC-ADMINISTRATION - Persona : PlatformAdministrator
+Titre : Envoyer une notification ciblée ou diffusée
+En tant qu'administrateur plateforme, je veux cibler ma notification sur un utilisateur, une organisation, un segment défini par critère, ou l'ensemble des utilisateurs, afin de communiquer efficacement selon le public concerné.
+Priorité : P1
+Traçabilité PRD : FR-PLATFORMADMIN-004 (section 19.2).
+Critères d'acceptation :
+
+```text
+Given je suis PlatformAdministrator
+When je compose une notification et choisis une cible (utilisateur, organisation, segment, ou diffusion globale)
+Then seuls les destinataires correspondant à la cible choisie reçoivent la notification
+And cette action est journalisée dans l'audit trail cross-tenant.
+```
+
+**US-PLATFORMADMIN-005**
+Epic : EPIC-ADMINISTRATION - Persona : PlatformAdministrator
+Titre : Consulter la santé applicative
+En tant qu'administrateur plateforme, je veux consulter le taux d'échec du Compliance Engine, l'état des jobs asynchrones, le volume/coût des appels IA et le statut de `/api/health`, afin de détecter un problème opérationnel sans attendre un signalement utilisateur.
+Priorité : P2
+Traçabilité PRD : FR-PLATFORMADMIN-005 - explicitement limité au niveau applicatif, pas d'infrastructure réelle (Phase 17).
+
+**US-ANALYTICS-001**
+Epic : EPIC-ADMINISTRATION - Persona : PlatformAdministrator
+Titre : Consulter des statistiques agrégées d'usage
+En tant qu'administrateur plateforme, je veux consulter des statistiques agrégées (organisations, utilisateurs, analyses, taux de conformité), afin de comprendre l'usage réel du produit.
+Priorité : P2
+Traçabilité PRD : FR-ANALYTICS-001.
+
+**US-ANALYTICS-002**
+Epic : EPIC-ADMINISTRATION - Persona : PlatformAdministrator
+Titre : Visualiser l'évolution de ces statistiques dans le temps
+En tant qu'administrateur plateforme, je veux visualiser ces statistiques sous forme de graphiques d'évolution, afin de repérer des tendances d'adoption.
+Priorité : P2
+Traçabilité PRD : FR-ANALYTICS-002 - ne remet pas en cause DL-008 (dashboard client, `12-roadmap.md`).
 
 ## 7. Parcours utilisateurs
 
@@ -751,6 +883,9 @@ Dépendances transverses (non séquentielles) :
 - US-COMPLIANCE-005 dépend techniquement de US-INVOICE-001 (import d'un document), mais peut se déclencher dès la première tentative d'import, avant même une analyse complète.
 - US-AI-001 et US-AI-002 dépendent de l'existence d'un résultat produit par US-COMPLIANCE-002/003 : l'IA ne peut reformuler que ce que le moteur déterministe a déjà produit (PRD, DEC-002).
 - US-NOTIFICATION-001 dépend de US-COMPLIANCE-001 (le diagnostic doit exister pour connaître l'échéance à rappeler).
+- US-NOTIFICATION-003 dépend de US-TEAM-001 (il faut qu'une organisation ait des membres avant de pouvoir les notifier).
+- US-TEAM-002/003 dépendent de US-TEAM-001 (il faut un membre existant avant de modifier son rôle ou de le retirer).
+- US-PLATFORMADMIN-004 (ciblage par segment) dépend de US-COMPANY-001/002 (les critères de segmentation - statut TVA, catégorie de taille - proviennent du contexte fiscal déjà collecté, jamais un nouveau champ dupliqué).
 
 ## 17. Priorisation finale
 
@@ -765,9 +900,10 @@ Dépendances transverses (non séquentielles) :
 | EPIC-COMPLIANCE     |   6 |   0 |   3 |                                                                       0 |
 | EPIC-AI-ASSISTANT   |   0 |   2 |   0 |                                                                       0 |
 | EPIC-DASHBOARD      |   0 |   2 |   0 |                                                                       0 |
-| EPIC-NOTIFICATIONS  |   0 |   0 |   1 |                                                                       1 |
+| EPIC-NOTIFICATIONS  |   0 |   1 |   1 |                                                                       1 |
 | EPIC-SETTINGS       |   0 |   2 |   0 |                                                                       0 |
-| EPIC-ADMINISTRATION |   - |   - |   - | - _(fonction interne, hors priorisation utilisateur - voir section 26)_ |
+| EPIC-TEAM           |   0 |   3 |   0 |                                                                       0 |
+| EPIC-ADMINISTRATION |   0 |   4 |   3 |  0 _(chiffres pour la partie `PlatformAdministrator` uniquement - la gestion interne des règles reste hors priorisation utilisateur, section 26)_ |
 
 **Lecture** : le MVP (P0) est concentré presque exclusivement sur EPIC-AUTH, EPIC-ONBOARDING, EPIC-COMPANY, EPIC-CUSTOMERS, EPIC-INVOICES et surtout EPIC-COMPLIANCE (6 User Stories P0), ce qui est cohérent avec le PRD : le Compliance Engine et le triptyque comprendre/vérifier/corriger sont le cœur du MVP, tandis que le dashboard, l'historique, l'IA et les paramètres de compte, bien qu'importants, restent P1 et ne conditionnent pas la validation de la proposition de valeur initiale.
 

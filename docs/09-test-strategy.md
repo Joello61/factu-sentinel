@@ -271,15 +271,42 @@ Scénario de base : deux organisations `Tenant A` et `Tenant B`, avec des donné
 
 Ces tests s'exécutent à **tous les niveaux** (integration, API, E2E - E2E-005 section 38), pas uniquement en test API isolé, car l'isolation doit être garantie de bout en bout.
 
+**Extension Phase 15 (critique, cohérent avec ADR-009)** : un jeton `PlatformAdministrator` ne
+doit **jamais** fonctionner sur un endpoint tenant normal (`/invoices`, `/organizations/current`,
+etc.) et, réciproquement, un jeton tenant-scoped (`OWNER`/`ADMIN`/`COLLABORATOR`) ne doit
+**jamais** fonctionner sur un endpoint `/platform-admin/*`. Ce test est aussi important que
+l'isolation entre deux tenants ci-dessus - une confusion entre les deux modèles d'autorisation
+exposerait potentiellement toutes les organisations, pas une seule.
+
 ## 23. Authorization Testing
 
-Bien qu'un seul rôle (`OWNER`) existe au MVP (`04-product-requirements.md`, section 21), les cas suivants restent à tester :
+**Historique (MVP, Phases 0-12)** : un seul rôle (`OWNER`) existait
+(`04-product-requirements.md`, section 21 historique). **Depuis la Phase 14 (DEC-009)**, trois
+rôles d'organisation (`OWNER`/`ADMIN`/`COLLABORATOR`) - la matrice de permissions
+(`04-product-requirements.md` section 21.1) doit être testée exhaustivement, pas seulement les
+cas déjà couverts au MVP :
 
 - Utilisateur authentifié mais non membre d'aucune organisation (état transitoire possible, ex. juste après inscription avant configuration).
 - Tentative d'accès à une ressource inexistante (`404`, distinct d'une ressource existante mais appartenant à un autre tenant, section 22).
-- Tentative d'action sur `admin/rule-versions` (`08-api-specification.md`, section 38) avec les seules permissions `OWNER` → doit être strictement refusée, cette API étant réservée à un accès interne distinct. **Différé (revu en Phase 10)** : cet endpoint n'a jamais été implémenté - la publication de `RuleVersion` se fait par migration SQL directe (`App\Tests\Functional\Compliance\RuleVersionNonRetroactivityTest`), jamais via une API. Construire cette API uniquement pour faire passer ce test de rejet serait transformer un hardening de sécurité en nouvelle fonctionnalité (dette documentée `12-roadmap.md`, Phase 10) - ce test reste différé jusqu'à ce que la surface d'administration soit réellement construite, jamais ajouté en la simulant.
+- Tentative d'action sur `admin/rule-versions` (`08-api-specification.md`, section 38.1) avec les seules permissions `OWNER` → doit être strictement refusée, cette API étant réservée à un accès interne distinct. **Différé (revu en Phase 10)** : cet endpoint n'a jamais été implémenté - la publication de `RuleVersion` se fait par migration SQL directe (`App\Tests\Functional\Compliance\RuleVersionNonRetroactivityTest`), jamais via une API. Construire cette API uniquement pour faire passer ce test de rejet serait transformer un hardening de sécurité en nouvelle fonctionnalité (dette documentée `12-roadmap.md`, Phase 10) - ce test reste différé jusqu'à ce que la surface d'administration soit réellement construite, jamais ajouté en la simulant.
+- **(Phase 14) Matrice OWNER/ADMIN/COLLABORATOR** : pour chaque action de la matrice
+  (`04-product-requirements.md` section 21.1), un scénario positif (rôle autorisé effectue
+  l'action avec succès) et un scénario négatif (rôle non autorisé reçoit `403`) - en particulier
+  un `COLLABORATOR` ne doit jamais pouvoir inviter/gérer/retirer un membre ni envoyer une
+  notification d'équipe, et un `ADMIN` ne doit jamais pouvoir modifier le rôle de l'`OWNER` ni le
+  retirer (`08-api-specification.md`, section 25).
+- **(Phase 15) Surface Platform Administration** : chaque endpoint `/platform-admin/*`
+  (`08-api-specification.md` section 38.2) testé avec un jeton `PlatformAdministrator` valide
+  (succès) et avec chacun des trois rôles d'organisation (`403` systématique, jamais `404` -
+  l'existence de l'API elle-même n'est pas une information à cacher à un utilisateur
+  authentifié, contrairement à une ressource tenant d'un autre tenant) ; complétude de l'audit
+  trail sur chaque action cross-tenant (suspension, notification, lecture d'audit) - un test
+  dédié vérifie qu'aucune de ces actions ne peut réussir sans laisser d'`AuditLogEntry`
+  correspondante ; test de la logique de segmentation (`target_type=SEGMENT`) sur des critères
+  connus, pour vérifier que seules les organisations correspondant réellement au critère sont
+  résolues comme destinataires.
 
-**Préparation à l'évolution future** : bien que non nécessaire au MVP, les tests doivent être structurés de façon à pouvoir accueillir un second rôle sans réécriture complète (cohérent avec `06-technical-architecture.md`, section 19).
+**Préparation à l'évolution future** : les tests restent structurés de façon à pouvoir accueillir un rôle supplémentaire sans réécriture complète (cohérent avec `06-technical-architecture.md`, section 19/39).
 
 ## 24. Authentication Testing
 
