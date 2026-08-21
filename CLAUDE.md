@@ -30,6 +30,7 @@ Hiérarchie des sources de vérité pour ce projet, du plus général au plus pr
 | `docs/10-security-privacy.md`       | Sécurité, RGPD, gestion des secrets                                                               |
 | `docs/11-frontend-design-system.md` | Système de design, composants, accessibilité                                                      |
 | `docs/12-roadmap.md`                | Séquencement, décisions produit historisées (`DL-*`)                                              |
+| `docs/13-mvp-validation-report.md`  | Preuve de validation du MVP (Phase 11) - distinct de la roadmap : celle-ci documente ce qui a été construit phase par phase, le rapport documente si le MVP fonctionne réellement et quelles preuves l'attestent |
 
 Les documents de `docs/` définissent les décisions du projet. Avant d'implémenter une fonctionnalité importante :
 
