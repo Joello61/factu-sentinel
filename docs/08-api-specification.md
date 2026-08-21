@@ -355,6 +355,59 @@ Response: 200 OK
 Audit: Non (lecture simple).
 ```
 
+**PATCH /users/current**
+
+```text
+Description: Modifier l'email et/ou le mot de passe du compte authentifié (US-SETTINGS-001,
+  Phase 13). current_password est requis dès que email ou new_password est fourni (défense en
+  profondeur sur une action sensible d'une session déjà authentifiée). Un changement d'email
+  remet email_verified_at à null et déclenche un nouvel envoi de l'email de vérification
+  (VerifyEmailMailer, déjà utilisé par POST /auth/register). Un changement de mot de passe
+  révoque tous les refresh tokens du compte (docs/10-security-privacy.md, section 14).
+Authentication: Requise.
+Request:
+{
+  "email": "string (optionnel)",
+  "current_password": "string (requis si email ou new_password fourni)",
+  "new_password": "string (optionnel, 15-128 caractères, NIST 2026)"
+}
+Response: 200 OK
+{
+  "data": {
+    "id": "uuid",
+    "email": "string",
+    "email_verified_at": "string (ISO 8601) | null",
+    "created_at": "string (ISO 8601)"
+  }
+}
+Errors: 422 (rien à modifier, current_password manquant/incorrect, new_password trop court/long,
+  email invalide), 409 (email déjà utilisé par un autre compte)
+Async: Non.
+Idempotency: Non requise (PATCH naturellement idempotent sur ce contrat).
+Audit: Oui - AuditLogEntry(event_type="USER_UPDATED", newState contient email et
+  password_changed uniquement - jamais de hash ni de mot de passe en clair).
+```
+
+**DELETE /users/current**
+
+```text
+Description: Demander la suppression du compte authentifié (US-SETTINGS-002, Phase 13). Soft
+  delete uniquement (docs/07-data-model.md, section 30) : perte d'accès immédiate (login,
+  refresh, et jeton d'accès déjà émis - rejeté dès la requête authentifiée suivante), tous les
+  refresh tokens révoqués. L'Organization et ses données (Customer, Invoice, ...) ne sont pas
+  supprimées ni anonymisées par cet endpoint (aucun mécanisme de soft delete sur Organization à
+  ce stade ; voir docs/10-security-privacy.md sections 38-39 pour la tension conservation
+  légale / droit à l'effacement). L'email redevient disponible pour une nouvelle inscription.
+Authentication: Requise.
+Request: { "current_password": "string (requis)" }
+Response: 204 No Content
+Errors: 422 (current_password manquant ou incorrect)
+Async: Non.
+Idempotency: Non requise (un compte déjà soft-deleted ne peut plus s'authentifier pour
+  rejouer la requête).
+Audit: Oui - AuditLogEntry(event_type="USER_DELETED", newState=null).
+```
+
 ## 24. Organization API
 
 **GET /organizations/current**

@@ -61,7 +61,7 @@ Cette User Story Map ne comporte donc pas d'Epic dédiée à la « facturation �
 | EPIC-DASHBOARD      | FR-DASHBOARD-001, FR-HISTORY-001                                                                                                                                                                           | Oui, priorité P1                                               |
 | EPIC-AI-ASSISTANT   | Section 17 du PRD - couche d'assistance et de reformulation                                                                                                                                                | Oui, périmètre restreint (P1)                                  |
 | EPIC-NOTIFICATIONS  | Section 19 du PRD - notifications système (P2/Future) et, depuis le 21/08/2026, notifications envoyées par un humain (FR-NOTIFICATION-001, Phase 14)                                                      | Partiellement - voir détail par story                          |
-| EPIC-SETTINGS       | Nécessaire pour gérer le compte et l'entreprise après la configuration initiale                                                                                                                            | Non au MVP, engagée en Phase 17 (`12-roadmap.md`)               |
+| EPIC-SETTINGS       | Nécessaire pour gérer le compte et l'entreprise après la configuration initiale                                                                                                                            | Non au MVP, engagée en Phase 13 (`12-roadmap.md`)               |
 | EPIC-TEAM           | FR-TEAM-001/002/003 (PRD section 21.1) - gestion des membres et rôles d'une organisation                                                                                                                    | Non au MVP, engagée en Phase 14 (`12-roadmap.md`)               |
 | EPIC-ADMINISTRATION | Fonction interne (gestion des règles de conformité) **et**, depuis le 21/08/2026 (DEC-010, PRD section 21.2), fonction utilisateur pour le rôle `PlatformAdministrator` (FR-PLATFORMADMIN-*, FR-ANALYTICS-*) | Oui pour la partie interne ; Phase 15/16 pour la partie `PlatformAdministrator` |
 
@@ -579,14 +579,14 @@ Epic : EPIC-SETTINGS - Persona : Utilisateur (tous)
 Titre : Gérer les informations de mon compte
 En tant qu'utilisateur, je veux pouvoir consulter et modifier les informations de mon compte, afin de les garder à jour.
 Priorité : P1
-Traçabilité PRD : FR-SETTINGS-001. **Engagée en Phase 17** (`12-roadmap.md`), avant la mise en production - ne fait plus l'objet d'une simple mention pour mémoire.
+Traçabilité PRD : FR-SETTINGS-001. **Engagée en Phase 13** (`12-roadmap.md`) - ne fait plus l'objet d'une simple mention pour mémoire.
 
 **US-SETTINGS-002**
 Epic : EPIC-SETTINGS - Persona : Utilisateur (tous)
 Titre : Supprimer mon compte et mes données
 En tant qu'utilisateur, je veux pouvoir supprimer mon compte et mes données, afin de garder le contrôle sur les informations que je confie au produit.
 Priorité : P1
-Traçabilité PRD : FR-SETTINGS-002 ; cohérent avec le principe de minimisation des données (PRD, section 14 - Confidentialité). **Engagée en Phase 17** ; les modalités précises de suppression restent détaillées dans `10-security-privacy.md` (sections 38-39).
+Traçabilité PRD : FR-SETTINGS-002 ; cohérent avec le principe de minimisation des données (PRD, section 14 - Confidentialité). **Engagée en Phase 13** ; les modalités précises de suppression restent détaillées dans `10-security-privacy.md` (sections 38-39).
 
 ### Epic EPIC-TEAM (nouvel Epic, décision produit du 21/08/2026)
 

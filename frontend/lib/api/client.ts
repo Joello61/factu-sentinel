@@ -68,6 +68,12 @@ async function parseEnvelope<T>(response: Response): Promise<T> {
     });
   }
 
+  // 204 No Content (ex. DELETE /users/current, docs/08-api-specification.md) n'a pas de
+  // corps : pas d'enveloppe { "data": ... } à déballer dans ce cas.
+  if (null === body) {
+    return undefined as T;
+  }
+
   return (body as { data: T }).data;
 }
 

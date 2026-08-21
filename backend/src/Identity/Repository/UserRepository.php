@@ -24,9 +24,20 @@ final class UserRepository extends ServiceEntityRepository implements UserProvid
         parent::__construct($registry, User::class);
     }
 
+    /**
+     * Exclut les comptes soft-deleted (docs/07-data-model.md, section 30 ; US-SETTINGS-002,
+     * Phase 13) : un email de compte supprimé redevient disponible pour une nouvelle
+     * inscription, et un compte supprimé ne peut plus s'authentifier (login, refresh, et
+     * jeton déjà émis - voir plan Phase 13).
+     */
     public function findOneByEmail(string $email): ?User
     {
-        return $this->findOneBy(['email' => $email]);
+        return $this->createQueryBuilder('u')
+            ->andWhere('u.email = :email')
+            ->andWhere('u.deletedAt IS NULL')
+            ->setParameter('email', $email)
+            ->getQuery()
+            ->getOneOrNullResult();
     }
 
     public function loadUserByIdentifier(string $identifier): UserInterface
