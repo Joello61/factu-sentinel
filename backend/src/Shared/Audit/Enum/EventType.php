@@ -48,4 +48,13 @@ enum EventType: string
      */
     case COMPLIANCE_FINDING_EXPLAINED = 'COMPLIANCE_FINDING_EXPLAINED';
     case ASSISTANT_QUESTION_ASKED = 'ASSISTANT_QUESTION_ASKED';
+
+    /**
+     * Ajoutés en Phase 13 (Paramètres & Profil utilisateur, docs/12-roadmap.md).
+     * USER_UPDATED ne porte jamais de hash de mot de passe ni la valeur de current_password/
+     * new_password dans previousState/newState (docs/10-security-privacy.md, section 35) -
+     * uniquement l'email (si modifié) et un indicateur password_changed.
+     */
+    case USER_UPDATED = 'USER_UPDATED';
+    case USER_DELETED = 'USER_DELETED';
 }
