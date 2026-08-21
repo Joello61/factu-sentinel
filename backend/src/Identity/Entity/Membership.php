@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Identity\Entity;
 
 use App\Identity\Enum\Role;
+use App\Identity\Repository\MembershipRepository;
 use App\Organization\Entity\Organization;
 use App\Shared\Doctrine\TenantScopedInterface;
 use Doctrine\DBAL\Types\Types;
@@ -14,15 +15,15 @@ use Symfony\Component\Uid\Uuid;
 
 /**
  * Relation entre un User et une Organization, porteuse du Role (docs/07-data-model.md,
- * section 5). Un User peut avoir plusieurs Membership : cas plausible (une même personne
- * gérant plusieurs entreprises), non encore utilisé par le produit au MVP (un seul actif,
- * décision Phase 2) mais qui évite une refonte du modèle si ce besoin est confirmé plus
- * tard.
+ * section 5). Un User peut avoir plusieurs Membership - un par Organization à laquelle il
+ * appartient (une seule au MVP, décision Phase 2 ; plusieurs possibles depuis la Phase 14,
+ * DEC-009, via l'acceptation d'une Invitation - App\Identity\Controller\
+ * AcceptInvitationController).
  *
  * Première entité réellement tenant-scoped du projet : implémente TenantScopedInterface,
  * contrairement à Organization qui est le tenant racine lui-même.
  */
-#[ORM\Entity]
+#[ORM\Entity(repositoryClass: MembershipRepository::class)]
 #[ORM\Table(name: 'memberships')]
 #[ORM\UniqueConstraint(name: 'uniq_membership_user_organization', columns: ['user_id', 'organization_id'])]
 class Membership implements TenantScopedInterface
@@ -84,6 +85,17 @@ class Membership implements TenantScopedInterface
     public function getRole(): Role
     {
         return $this->role;
+    }
+
+    /**
+     * US-TEAM-002 (App\Identity\Controller\UpdateMemberRoleController). Ne vérifie jamais
+     * elle-même l'invariant "jamais OWNER" - ce contrôle métier appartient à l'appelant
+     * (le rôle assignable dépend du contexte : jamais OWNER via ce chemin, matrice PRD
+     * section 21.1), pas à l'entité.
+     */
+    public function setRole(Role $role): void
+    {
+        $this->role = $role;
     }
 
     public function getCreatedAt(): \DateTimeImmutable
