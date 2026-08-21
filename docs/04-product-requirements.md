@@ -525,6 +525,7 @@ chaque organisation à laquelle il appartient, voir `07-data-model.md` section 5
 | Action                                                    | OWNER | ADMIN | COLLABORATOR |
 | ---------------------------------------------------------- | :---: | :---: | :----------: |
 | Consulter/saisir/analyser des factures, clients, diagnostics | Oui   | Oui   | Oui          |
+| Consulter la liste des membres et des invitations en attente (`team:read`) | Oui | Oui | Oui |
 | Envoyer une notification aux membres de l'organisation (FR-NOTIFICATION-001) | Oui | Oui | Non |
 | Inviter un membre (FR-TEAM-001)                            | Oui   | Oui   | Non          |
 | Modifier le rôle d'un membre (FR-TEAM-002)                 | Oui   | Non   | Non          |
@@ -532,9 +533,21 @@ chaque organisation à laquelle il appartient, voir `07-data-model.md` section 5
 | Modifier le contexte fiscal de l'organisation               | Oui   | Oui   | Non          |
 | Supprimer l'organisation / transférer la propriété          | Oui   | Non   | Non          |
 
+**`team:read` (ligne ajoutée à l'implémentation, Phase 14)** : absente de la version
+précédente de cette matrice, alors que `08-api-specification.md` section 25 nommait déjà une
+permission `team:read` distincte sur `GET .../members`/`GET .../invitations` sans préciser
+qui la détenait - écart de documentation, pas une décision produit contredite. Tranché en
+cohérence avec la ligne "Consulter/saisir/analyser..." ci-dessus (la restriction du
+`COLLABORATOR` porte sur la **gestion** d'équipe, jamais sur sa simple consultation) :
+`COLLABORATOR` peut lister les membres et les invitations en attente de son organisation,
+mais ne peut ni en inviter, ni en retirer, ni en modifier le rôle.
+
 Cette matrice doit être reprise à l'identique dans `10-security-privacy.md` (section 15) et
 implémentée comme une vérification centralisée, jamais dupliquée par endpoint (cohérent avec
-`06-technical-architecture.md`, ADR-004 et section 19).
+`06-technical-architecture.md`, ADR-004 et section 19) - implémentée par un Voter unique,
+`App\Shared\Security\OrganizationPermissionVoter`, vérifié par
+`App\Tests\Functional\Identity\TeamAuthorizationTest` (un scénario positif et un négatif par
+action).
 
 ### 21.2 Rôle plateforme (Phase 15, distinct des rôles d'organisation)
 

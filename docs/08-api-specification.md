@@ -125,6 +125,12 @@ Description: liste des organisations auxquelles l'utilisateur connecté appartie
 
 **Comment le tenant est déterminé** : à l'authentification (ou après `POST /auth/select-organization`), le jeton de session porte une référence à la `Membership` active, qui résout l'`organization_id` courant. Chaque module backend (`06-technical-architecture.md`, section 6-7) applique ensuite ce `organization_id` comme filtre systématique - jamais optionnel - à toute lecture ou écriture.
 
+**Organisation active par défaut à la connexion (`POST /auth/login`, précision Phase 14, implémentée et vérifiée)** : lorsqu'un `User` a plusieurs `Membership`, le claim `org` du token émis porte le `Membership` **le plus ancien** (`createdAt` minimal) - un simple repli déterministe, jamais présenté comme "l'organisation de l'utilisateur" ou une organisation privilégiée sur le plan produit. Aucun mécanisme de préférence persistée (dernière organisation utilisée) n'est documenté ailleurs dans `05-user-stories.md`/`11-frontend-design-system.md` : ce comportement n'est donc pas une richesse fonctionnelle attendue, seulement le point de départ avant un `POST /auth/select-organization` explicite. Une organisation sélectionnée explicitement survit à un rafraîchissement de l'access token (voir ci-dessous) - elle n'est jamais recalculée silencieusement vers ce défaut tant que la session (le refresh token) reste valide.
+
+**Le claim `org` n'est jamais, à lui seul, une preuve d'appartenance** - qu'il s'agisse de l'access token ou, en amont, du refresh token qui en détermine le contenu au renouvellement. Chaque requête authentifiée revalide que l'utilisateur porté par le token dispose réellement d'un `Membership` sur l'organisation revendiquée (`App\Shared\Security\TenantFilterActivationListener`) ; un jeton valide et correctement signé mais dont le claim ne correspond plus à aucun `Membership` réel (ex. retrait d'un membre après émission d'un token encore valide pendant sa courte durée de vie résiduelle) est rejeté (`401`), jamais accepté sur la seule foi de la signature.
+
+**Continuité de la sélection au rafraîchissement (Phase 14, implémentée et vérifiée)** : le refresh token (cookie `HttpOnly`, `06-technical-architecture.md` ADR-007) porte lui-même l'organisation active associée (`organization_id`, renseigné à l'émission/rotation) - sans quoi `POST /auth/select-organization` ne durerait que la durée de vie de l'access token en cours (quelques minutes) avant de silencieusement revenir au défaut ci-dessus. Cette valeur du refresh token n'est, elle non plus, jamais une preuve suffisante : `POST /auth/refresh` revalide systématiquement `User -> Membership -> Organization` avant d'émettre le nouvel access token, et refuse (`401`) si le `Membership` correspondant n'existe plus.
+
 **`PlatformAdministrator` (Phase 15)** : n'a, par construction, **aucune** `Membership` ni `organization_id` courant - son authentification et son autorisation (section 38.2) sont structurellement distinctes de ce mécanisme de sélection de tenant, jamais une simple extension de celui-ci (ADR-009).
 
 **Ressources globales** (`RegulatoryRule`, `RuleVersion`, `07-data-model.md` section 25) : accessibles sans filtre de tenant, car elles ne sont pas tenant-scoped - voir section 34.
@@ -292,7 +298,8 @@ Stratégie conceptuelle, sans chiffres fixés arbitrairement :
 | Upload de documents                             | Oui - protection contre l'abus de stockage                             | À calibrer                                                                                 |
 | Assistant IA (`assistant/*`)                    | Oui - dépendance externe coûteuse                                      | À calibrer en cohérence avec les limites de coût de l'AI Gateway                           |
 | Endpoints administratifs internes               | Oui, mais périmètre d'accès déjà restreint (section 40)                | À calibrer                                                                                 |
-| Invitation de membre (Phase 14)                 | Oui - protection contre l'abus d'invitation (spam email)               | À calibrer, par organisation (même principe que `document_upload`, `10-security-privacy.md`) |
+| Invitation de membre (Phase 14)                 | Oui - protection contre l'abus d'invitation (spam email)               | Calibré à l'implémentation : 30/heure par organisation (`limiter.team_invite`, `backend/config/packages/rate_limiter.yaml`), même ordre de grandeur que `document_upload` |
+| `GET /invitations/{token}` / `POST /invitations/{token}/accept` (Phase 14, revue de complétude) | Oui - seuls endpoints de cette phase où l'appelant n'appartient à aucune organisation, `organization_id` inutilisable comme clé | Calibré à l'implémentation : 20/15 minutes par IP (`limiter.invitation_token_access`), compteur partagé entre les deux endpoints - même clé que `password_reset_request` |
 | Notification plateforme (Phase 15)              | Oui - une diffusion globale mal maîtrisée impacte tous les utilisateurs | À calibrer, par `PlatformAdministrator`, avec confirmation explicite côté frontend pour `target_type=ALL` |
 
 ## 23. Authentication API
@@ -429,6 +436,7 @@ Response: 200 OK
     "country": "string | null",
     "configured": "boolean",
     "created_at": "string (ISO 8601)",
+    "role": "OWNER" | "ADMIN" | "COLLABORATOR",  // rôle de l'appelant dans cette organisation (Phase 14) - confort d'affichage frontend uniquement, jamais l'autorité d'autorisation (OrganizationPermissionVoter)
     "fiscal_context": { ... } | absent tant que non configuré (Phase 3)
   }
 }
@@ -481,23 +489,29 @@ Audit: Oui : AuditLogEntry(event_type="organization_updated"), delta des champs 
 au MVP (un seul rôle `OWNER`), désormais nécessaire pour `FR-TEAM-001/002/003`
 (`04-product-requirements.md` section 21.1).
 
-| Endpoint                       | Méthode | Description                                  | Permission        |
+| Endpoint                       | Méthode | Description                                  | Permission (OWNER / ADMIN / COLLABORATOR) |
 | ------------------------------- | ------- | --------------------------------------------- | ------------------ |
-| `/organizations/current/invitations` | POST | Inviter un membre (US-TEAM-001)               | `team:invite`      |
-| `/organizations/current/invitations` | GET  | Lister les invitations en attente             | `team:read`        |
-| `/organizations/current/invitations/{id}` | DELETE | Révoquer une invitation en attente       | `team:invite`      |
-| `/organizations/current/members` | GET     | Lister les membres de l'organisation          | `team:read`        |
-| `/organizations/current/members/{id}` | PATCH | Modifier le rôle d'un membre (US-TEAM-002) | `team:manage_roles` |
-| `/organizations/current/members/{id}` | DELETE | Retirer un membre (US-TEAM-003)          | `team:remove`      |
+| `/organizations/current/invitations` | POST | Inviter un membre (US-TEAM-001)               | `team:invite` (Oui / Oui / Non)      |
+| `/organizations/current/invitations` | GET  | Lister les invitations en attente             | `team:read` (Oui / Oui / Oui)        |
+| `/organizations/current/invitations/{id}` | DELETE | Révoquer une invitation en attente       | `team:invite` (Oui / Oui / Non)      |
+| `/organizations/current/members` | GET     | Lister les membres de l'organisation          | `team:read` (Oui / Oui / Oui)        |
+| `/organizations/current/members/{id}` | PATCH | Modifier le rôle d'un membre (US-TEAM-002) | `team:manage_roles` (Oui / Non / Non) |
+| `/organizations/current/members/{id}` | DELETE | Retirer un membre (US-TEAM-003)          | `team:remove` (Oui / Oui, jamais l'OWNER / Non) |
+| `/invitations/{token}` | GET | Aperçu public d'une invitation (plan Phase 14, gap de spécification comblé) | Publique, aucune authentification |
+| `/invitations/{token}/accept` | POST | Accepter une invitation (plan Phase 14, gap de spécification comblé) | Authentification requise, aucune permission de rôle (l'appelant ne peut par définition pas encore être membre de l'organisation cible) |
+
+`team:read` détenu par les trois rôles (précision d'implémentation, section 21.1 du PRD mise à
+jour en conséquence) : la restriction du `COLLABORATOR` porte sur la gestion d'équipe, jamais
+sur sa simple consultation.
 
 ```text
 POST /organizations/current/invitations
 Request: { "email": "string", "role": "ADMIN" | "COLLABORATOR" }
 Response: 201 Created
 { "data": { "id": "uuid", "email": "string", "role": "string", "status": "pending", "created_at": "..." } }
-Errors: 422 VALIDATION_ERROR (role invalide ou absent) ; 403 (appelant COLLABORATOR, jamais autorisé - matrice PRD §21.1).
+Errors: 422 VALIDATION_ERROR (role invalide ou absent, ou une invitation "pending" existe déjà pour cet email dans cette organisation) ; 403 (appelant COLLABORATOR, jamais autorisé - matrice PRD §21.1) ; 429 (limite team_invite dépassée, section 22).
 Idempotency-Key: requise (même convention que POST /invoices, §20).
-Audit: Oui - AuditLogEntry(event_type="member_invited").
+Audit: Oui - AuditLogEntry(event_type="MEMBER_INVITED").
 ```
 
 ```text
@@ -505,17 +519,47 @@ PATCH /organizations/current/members/{id}
 Request: { "role": "ADMIN" | "COLLABORATOR" }
 Response: 200 OK - Membership mis à jour.
 Errors: 403 (appelant non-OWNER, jamais autorisé - seul un OWNER modifie un rôle, matrice PRD §21.1) ; 409 CONFLICT (tentative de modifier le rôle de l'OWNER lui-même, toujours refusée).
-Audit: Oui - AuditLogEntry(event_type="member_role_changed"), ancien/nouveau rôle.
+Audit: Oui - AuditLogEntry(event_type="MEMBER_ROLE_CHANGED"), ancien/nouveau rôle.
 ```
 
 ```text
 DELETE /organizations/current/members/{id}
 Response: 204 No Content.
 Errors: 403 (appelant COLLABORATOR ; ou appelant ADMIN tentant de retirer l'OWNER - toujours refusé, matrice PRD §21.1).
-Audit: Oui - AuditLogEntry(event_type="member_removed").
+Audit: Oui - AuditLogEntry(event_type="MEMBER_REMOVED").
 ```
 
-**Isolation** : ces endpoints n'opèrent jamais que sur l'organisation courante de l'appelant (résolue depuis la session, jamais un `organization_id` en paramètre) - même principe que le reste de l'API (section 9).
+**Acceptation d'une invitation (plan Phase 14, endpoints non couverts par la version
+précédente de cette section - `05-user-stories.md` US-TEAM-001 ne décrit que l'émission côté
+`OWNER`/`ADMIN`, jamais le parcours de l'invité)** :
+
+```text
+GET /invitations/{token}
+Description: Aperçu public d'une invitation (organisation, rôle, email invité, expiration) -
+  jamais authentifié, pour que le frontend puisse orienter l'invité vers une connexion ou une
+  inscription avant l'acceptation elle-même.
+Response: 200 OK
+{ "data": { "organization_name": "string | null", "email": "string", "role": "ADMIN" | "COLLABORATOR", "expires_at": "..." } }
+Errors: 404 uniforme pour un jeton invalide, inconnu, expiré ou révoqué - jamais de distinction
+  observable depuis cet endpoint public (éviter toute énumération).
+Audit: Non (lecture publique).
+```
+
+```text
+POST /invitations/{token}/accept
+Description: Transforme l'Invitation en Membership pour l'utilisateur authentifié, si (et
+  seulement si) son email correspond exactement à celui de l'invitation.
+Authentication: Requise.
+Response: 201 Created
+{ "data": { "organization_id": "uuid", "role": "ADMIN" | "COLLABORATOR" } }
+Errors: 404 (jeton invalide/inconnu) ; 409 CONFLICT (invitation expirée, révoquée, déjà acceptée,
+  ou l'appelant est déjà membre de cette organisation) ; 403 (l'email du compte authentifié ne
+  correspond pas à celui de l'invitation - jamais un rattachement silencieux à un autre compte).
+Audit: Oui - AuditLogEntry(event_type="MEMBER_INVITATION_ACCEPTED") - ne porte jamais le jeton,
+  en clair ou haché, dans previousState/newState.
+```
+
+**Isolation** : ces endpoints n'opèrent jamais que sur l'organisation courante de l'appelant (résolue depuis la session, jamais un `organization_id` en paramètre) - même principe que le reste de l'API (section 9). `GET /invitations/{token}` et `POST /invitations/{token}/accept` font exception par nature (l'appelant n'appartient par définition pas encore à l'organisation cible) - jamais un précédent pour un autre endpoint de cette section.
 
 ## 26. Customers API
 
@@ -828,9 +872,20 @@ Justification : les trois états du bucket `open_issues_count` appellent tous un
 
 | Endpoint                   | Méthode | Description                       | Permission            |
 | -------------------------- | ------- | --------------------------------- | --------------------- |
-| `/notifications`           | GET     | Lister les notifications reçues (paginé) | `notification:read`   |
-| `/notifications/{id}/read` | PATCH   | Marquer comme lue                 | `notification:update` |
-| `/organizations/current/notifications` | POST | Envoyer une notification aux membres de son organisation (US-NOTIFICATION-003, Phase 14) | `notification:send_team` |
+| `/notifications`           | GET     | Lister les notifications reçues (paginé) | `notification:read` (authentifié + propriétaire uniquement, jamais un rôle - voir précision ci-dessous) |
+| `/notifications/{id}/read` | PATCH   | Marquer comme lue                 | `notification:update` (authentifié + propriétaire uniquement, même précision) |
+| `/organizations/current/notifications` | POST | Envoyer une notification aux membres de son organisation (US-NOTIFICATION-003, Phase 14) | `notification:send_team` (rôle - OWNER/ADMIN uniquement) |
+
+**Précision (revue de complétude Phase 14)** : contrairement à `team:invite`/`team:manage_roles`/
+`notification:send_team` (permissions par **rôle**, vérifiées par
+`App\Shared\Security\OrganizationPermissionVoter`), `notification:read` et
+`notification:update` ne sont **jamais** des permissions par rôle - n'importe quel membre,
+quel que soit son rôle, lit et marque comme lues ses propres notifications. L'autorisation
+réelle ici est une vérification de **propriété** (`recipient_user_id = utilisateur courant`),
+appliquée au niveau du repository (`App\Notification\Repository\NotificationRepository`),
+jamais au niveau d'un Voter de rôle - ces deux noms de permission désignent donc un contrôle
+d'appartenance de ressource, pas une entrée de la matrice `04-product-requirements.md` section
+21.1.
 
 `GET /notifications`/`PATCH /notifications/{id}/read` : périmètre P2 pour le rappel système
 (`05-user-stories.md`, US-NOTIFICATION-001) - endpoints définis pour cohérence du contrat, non
@@ -838,18 +893,30 @@ bloquants pour le MVP.
 
 ```text
 POST /organizations/current/notifications
-Description: Envoyer une notification à un ou plusieurs membres de son organisation (Phase 14).
+Description: Envoyer une notification à un ou plusieurs membres explicitement choisis de son
+  organisation (Phase 14).
 Permission: notification:send_team (OWNER, ADMIN uniquement - matrice PRD §21.1)
 Request: {
-  "recipient_ids": ["uuid", ...],   // doivent tous appartenir à l'organisation de l'appelant
+  "recipient_ids": ["uuid", ...],   // destinataires choisis nommément par l'expéditeur, jamais un ciblage implicite "tous les membres" - doivent tous appartenir à l'organisation de l'appelant
   "message": "string"
 }
 Response: 201 Created
-{ "data": { "id": "uuid", "sender_type": "ORGANIZATION_OWNER", "target_type": "ORGANIZATION_MEMBERS", "status": "pending" } }
+{ "data": { "sender_type": "ORGANIZATION_OWNER", "target_type": "ORGANIZATION_MEMBERS", "status": "sent", "recipient_count": 3 } }
 Errors: 403 (appelant COLLABORATOR) ; 422 VALIDATION_ERROR (recipient_ids vide, ou contenant un utilisateur hors de l'organisation - jamais 403 pour ce dernier cas, cohérent avec §46).
 Idempotency-Key: requise.
-Audit: Oui - AuditLogEntry(event_type="team_notification_sent").
+Audit: Oui - AuditLogEntry(event_type="TEAM_NOTIFICATION_SENT") - porte uniquement recipient_count, jamais le contenu du message.
 ```
+
+**Correction (Phase 14, même patron que la correction D1 de la section 26)** : la version
+précédente de cet exemple de réponse montrait un unique objet `{ "id", "sender_type",
+"target_type": "ORGANIZATION_MEMBERS", "status": "pending" }`, incompatible avec la
+résolution immédiate des destinataires retenue à l'implémentation (une ligne `Notification`
+par destinataire effectif, chacune `target_type: USER` - voir `07-data-model.md` section 21
+et le raisonnement documenté sur `App\Notification\Enum\TargetType`). La réponse ci-dessus
+décrit l'action d'envoi dans son ensemble (`target_type: ORGANIZATION_MEMBERS`,
+`status: sent` puisque l'envoi est synchrone, `recipient_count` plutôt qu'un `id` unique
+puisqu'aucune ligne canonique n'existe) - chaque destinataire retrouve sa propre notification,
+individuellement, via `GET /notifications`.
 
 **Notifications à portée plateforme** (ciblage individuel/organisation/segment/diffusion
 globale, `sender_type=PLATFORM_ADMIN`) : voir section 38 (Platform Administration API) - jamais

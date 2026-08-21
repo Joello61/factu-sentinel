@@ -467,8 +467,19 @@ Parcours critiques, adaptés aux documents précédents :
 - **E2E-004** - Import d'un document PDF simple → traitement → analyse → finding explicite sur la non-conformité du format (US-COMPLIANCE-005, REG-006).
 - **E2E-005** - Deux organisations distinctes → vérification de l'isolation complète des données à chaque étape du parcours (section 22 de ce document, exécuté en E2E en complément des niveaux inférieurs).
 - **E2E-006** - Analyse historique consultée → une nouvelle version de règle est publiée en arrière-plan → l'analyse historique consultée à nouveau reste strictement inchangée (section 12 de ce document, US-HISTORY-001).
+- **E2E-007** (Phase 14, ajout de périmètre documenté après une revue de complétude du
+  21/08/2026, jamais une extension silencieuse) - un `OWNER` invite un `COLLABORATOR` par
+  email → l'invité (compte inexistant) suit le lien reçu, crée son compte, le vérifie, se
+  connecte, puis accepte l'invitation → il apparaît dans la liste des membres du propriétaire
+  → le propriétaire lui envoie une notification d'équipe → l'invité la reçoit et la marque
+  comme lue (EPIC-TEAM, US-NOTIFICATION-003). A détecté, lors de sa toute première exécution
+  réelle, un bug bloquant que ni les tests fonctionnels backend ni les tests de composants
+  frontend ne pouvaient révéler : `frontend/proxy.ts` ne laissait jamais un utilisateur
+  anonyme atteindre `/invitations/{token}` (absent de son allowlist `ALWAYS_ACCESSIBLE_PATHS`,
+  contrairement à `/verify-email`), rebondissant systématiquement vers `/login` avant que
+  l'invité n'ait jamais vu l'aperçu de l'invitation - corrigé dans la même revue.
 
-Ces six parcours constituent le socle E2E minimal ; aucun parcours supplémentaire n'est ajouté sans justification directe dans les documents précédents (cohérent avec le principe de la section 5 : peu de tests E2E, mais couvrant la valeur bout en bout).
+Ces sept parcours constituent le socle E2E minimal ; aucun parcours supplémentaire n'est ajouté sans justification directe dans les documents précédents (cohérent avec le principe de la section 5 : peu de tests E2E, mais couvrant la valeur bout en bout).
 
 ## 39. Accessibility Testing
 
