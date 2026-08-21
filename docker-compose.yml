@@ -33,6 +33,14 @@ services:
       # Chemin absolu du conteneur - backend/.env porte un chemin relatif utilisable pour un
       # usage direct de bin/console sur l'hôte, jamais le bon répertoire de travail ici.
       STORAGE_LOCAL_PATH: '/app/var/storage/documents'
+      # Défini également ici, en variable d'environnement réelle du processus (getenv()) -
+      # backend/.env porte la même valeur par défaut (usage direct de bin/console sur l'hôte),
+      # mais le framework.yaml `trusted_proxies: '%env(TRUSTED_PROXIES)%'` doit être résolvable
+      # dans tous les environnements Symfony (dev ET test), pas seulement celui que Dotenv
+      # charge par défaut - même nuance getenv()/Dotenv que celle déjà documentée ci-dessus pour
+      # APP_ENV (vérifié : `--env=test` échoue avec "Environment variable not found" tant que
+      # cette variable n'existe pas comme variable de processus réelle).
+      TRUSTED_PROXIES: 'PRIVATE_SUBNETS'
     volumes:
       - ./backend:/app
       - backend_vendor:/app/vendor
@@ -68,6 +76,7 @@ services:
       MESSENGER_TRANSPORT_DSN: 'redis://redis:6379/messages'
       MUSTANG_BASE_URL: 'http://mustang:8080'
       STORAGE_LOCAL_PATH: '/app/var/storage/documents'
+      TRUSTED_PROXIES: 'PRIVATE_SUBNETS'
       # Cache/logs isolés de "backend" (App\Kernel::getCacheDir()/getLogDir()) : ce worker
       # est un processus long-lived (messenger:consume) qui ne doit jamais dépendre du
       # cache Symfony régénéré par un cache:clear/redémarrage de "backend" sur le même

@@ -342,6 +342,31 @@ Definition of Done : un nombre suffisant d'utilisateurs a complété le parcours
 Risks : hypothèse de valeur invalidée (`03-market-analysis.md`, section 23) - signal à prendre au sérieux plutôt qu'à ignorer.
 Exit Criteria : aucun bug critique non résolu ; retours suffisamment positifs pour poursuivre (jugement produit, pas un seuil chiffré arbitraire).
 
+**Bilan à l'implémentation** : le plan d'exécution complet (accès, protocole de session,
+formulaire de feedback, limitations assumées) est `docs/14-private-beta-plan.md` (nouveau
+document, même esprit que `docs/13-mvp-validation-report.md` pour la Phase 11). Voir DL-012
+(section 50) pour les deux décisions de périmètre actées avant l'implémentation. Résumé
+technique : aucun hébergement public n'a été provisionné - accès via la stack Docker existante
+exposée temporairement par un Cloudflare Quick Tunnel pointant sur `nginx` uniquement, jamais
+directement sur `next dev` ni le backend (nouvel overlay `docker-compose.beta.yml`, sur le
+modèle de `docker-compose.e2e.yml`, réutilisant Mailpit plutôt qu'un nouveau fournisseur email
+réel). Un correctif permanent (pas seulement bêta) a été nécessaire et appliqué à cette
+occasion : `backend/config/packages/framework.yaml` (`trusted_proxies: PRIVATE_SUBNETS`,
+`trusted_headers` limités à `x-forwarded-for`/`x-forwarded-proto`) et
+`docker/nginx/default.conf` (résolution de l'IP/schéma réels via `CF-Connecting-IP` avec repli
+sur `$remote_addr`/`$scheme` en accès direct, en écrasant - jamais en accumulant - la valeur
+transmise à Symfony) - sans cela, `login_throttling` et les logs de sécurité n'auraient vu que
+l'adresse de nginx, jamais celle de l'appelant réel, quel que soit l'environnement. Détail et
+justification complète en `docs/10-security-privacy.md` (section 21) et `docs/14`. Bug distinct
+découvert lors de la vérification, initialement signalé comme hors périmètre puis corrigé sur
+demande explicite (voir `docs/14` section 4, `docs/10-security-privacy.md` section 36) :
+`login_throttling` (`security.yaml`) ne bloquait aucune tentative de connexion répétée -
+`App\Shared\Security\AuthFailureEnvelopeListener` écrasait systématiquement la
+`TooManyLoginAttemptsAuthenticationException` levée par Symfony en un `401` générique
+indiscernable d'un échec d'identifiants ordinaire. Corrigé (réponse `429` avec `Retry-After`,
+sans révéler d'information sur le compte), test de régression ajouté
+(`LoginControllerTest::testRepeatedFailedLoginsAreThrottledWith429`).
+
 **Phase 13 - Production Readiness & Public Launch**
 Objective : ouvrir le produit plus largement.
 Business Value : mise sur le marché réelle.
@@ -913,6 +938,7 @@ Backup & recovery validated (Phase 13 uniquement)
 | DL-009 | Modèle économique : **Freemium + abonnement Pro**, décision provisoire - prix et taux de conversion à déterminer après validation marché                                                                                                                                                                                                   | Cohérent avec `03-market-analysis.md` (hypothèses de marché à tester, pas à trancher techniquement)                                                             | Ne clôture que le type de modèle, pas les prix ; la validation marché (5 à 10 utilisateurs réels) reste une condition préalable avant tout investissement Post-MVP significatif dans le module `Subscription` (section 51)                                                                      |
 | DL-010 | AIPD : **screening de nécessité obligatoire avant mise en production** ; AIPD complète réalisée seulement si ce screening conclut qu'elle est requise                                                                                                                                                                                      | Cohérent avec `10-security-privacy.md` (section 46)                                                                                                             | Ne préjuge pas du résultat du screening (probable ici : données personnelles + données financières + traitement automatisé + IA) ; la nécessité finale d'une AIPD complète reste un point à valider (section 51)                                                                                |
 | DL-011 | Test d'intrusion **non requis avant la Private Beta** (Phase 12) ; requis avant la Phase 13 (première mise en production commerciale) | Lecture littérale de `10-security-privacy.md` section 61 : déclencheur explicite « avant la première mise en production **commerciale** impliquant des utilisateurs réels et des données réelles », jamais « avant toute exposition à des utilisateurs externes » - la Private Beta (section 29) reste une validation d'hypothèses produit, distincte de la Phase 13 (« Production Readiness & Public Launch », « mise sur le marché réelle »). Phase 11 n'ajoute aucune fonctionnalité critique d'authentification/autorisation/stockage susceptible de déclencher la clause « changement architectural important » de la même section | Clôt la décision laissée ouverte par la Security Roadmap (section 23) ; ne dispense pas d'un test d'intrusion avant la Phase 13 |
+| DL-012 | Private Beta (Phase 12) sans hébergement public ni staging anticipé : accès par tunnel éphémère (Cloudflare Quick Tunnel) sur la stack de développement existante, sessions supervisées uniquement ; feedback collecté par un outil externe et des entretiens directs, `FR-TRUST-001` (signalement in-app) inchangé, toujours **Future** | `docs/13-mvp-validation-report.md` documente qu'aucun hébergeur n'est retenu et que `next build` reste cassé (bug amont Next.js toujours ouvert au 21/08/2026) - anticiper le staging de la Phase 13 pour cette phase aurait mélangé une validation d'hypothèses produit avec un chantier d'infrastructure non mûr ; `FR-TRUST-001` est explicitement priorité Future dans `04-product-requirements.md` section 18, un développement produit pour fermer ce besoin de feedback irait à l'encontre du principe déjà appliqué en Phase 10 (ne jamais inventer de fonctionnalité pour fermer un écart) | Détail complet en `docs/14-private-beta-plan.md` ; ferme la tension entre la Phase 12 (« utilisateurs réels ») et l'absence d'infrastructure hébergée sans avancer le travail de la Phase 13 ; nécessite un correctif permanent de visibilité IP à travers nginx (`trusted_proxies`, `docs/10-security-privacy.md` section 21), sans quoi le rate limiting et les logs de sécurité n'auraient vu que l'adresse de nginx |
 
 Ce journal doit être complété au fil du développement, à mesure que de nouvelles décisions structurantes sont prises.
 

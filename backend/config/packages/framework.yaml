@@ -5,6 +5,16 @@ framework:
     # Note that the session will be started ONLY if you read or write from it.
     session: true
 
+    # nginx est l'unique reverse proxy de la stack (docker-compose.yml) - backend:9000 n'est
+    # jamais publié en dehors du réseau Docker interne (expose, pas ports), donc nginx est
+    # structurellement le seul pair TCP possible de PHP-FPM. Faire confiance à PRIVATE_SUBNETS
+    # ici équivaut en pratique à ne faire confiance qu'à nginx, pas à toute adresse privée
+    # (docs/10-security-privacy.md section 21). En-têtes volontairement limités à ceux
+    # réellement positionnés par nginx (docker/nginx/default.conf, bloc location /api/) -
+    # jamais x-forwarded-host/x-forwarded-prefix, non utilisés ici.
+    trusted_proxies: '%env(TRUSTED_PROXIES)%'
+    trusted_headers: ['x-forwarded-for', 'x-forwarded-proto']
+
     #esi: true
     #fragments: true
 

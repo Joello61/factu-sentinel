@@ -26,6 +26,11 @@ desktop.ini
 /.env.local
 /.env.*.local
 
+# Valeurs réelles de la session Private Beta en cours (Phase 12, docs/14-private-beta-plan.md) -
+# URL de tunnel et origine CORS de la session, jamais figées ni commitées ; seul
+# .env.beta.example (placeholders) est versionné.
+/.env.beta
+
 # Docker (volumes/données locales, overrides personnels)
 docker-compose.override.yml
 docker/**/data/
