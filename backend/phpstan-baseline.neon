@@ -16,6 +16,21 @@
 parameters:
 	ignoreErrors:
 		-
+			# Phase 14 : App\Notification\Entity\Notification::$sourceDiagnosticId est un champ
+			# du schéma complet documenté dès la Phase 14 (docs/07-data-model.md, section 21 :
+			# "conçus dès la Phase 14 avec l'ensemble des valeurs déjà prévues... pour éviter une
+			# migration cassante entre les deux phases"), rempli uniquement pour
+			# notification_type=echeance_obligation, un rappel système P2 non construit cette
+			# phase (docs/05-user-stories.md, US-NOTIFICATION-001, section 19 du PRD). Aucun
+			# écrivain n'existe donc encore dans le code - inspecté individuellement, pas une
+			# erreur, jamais baselinée à l'aveugle (même discipline que la baseline Phase 10
+			# ci-dessous). À retirer de cette baseline dès qu'un premier écrivain existera.
+			message: '#^Property App\\Notification\\Entity\\Notification\:\:\$sourceDiagnosticId \(Symfony\\Component\\Uid\\Uuid\|null\) is never assigned Symfony\\Component\\Uid\\Uuid so it can be removed from the property type\.$#'
+			identifier: property.unusedType
+			count: 1
+			path: src/Notification/Entity/Notification.php
+
+		-
 			message: '#^Property App\\Compliance\\Engine\\Entity\\ComplianceAnalysis\:\:\$contextSnapshot \(App\\Compliance\\Engine\\Entity\\ContextSnapshot\|null\) is never assigned App\\Compliance\\Engine\\Entity\\ContextSnapshot so it can be removed from the property type\.$#'
 			identifier: property.unusedType
 			count: 1
