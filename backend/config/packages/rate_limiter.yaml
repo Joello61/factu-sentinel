@@ -46,3 +46,28 @@ framework:
             policy: sliding_window
             limit: 30
             interval: "1 hour"
+        # POST /organizations/current/invitations (docs/08-api-specification.md, section 22 :
+        # "Invitation de membre - protection contre l'abus d'invitation (spam email)", Phase
+        # 14) - même clé organization_id que les compteurs ci-dessus, même raisonnement
+        # (budget SaaS de l'organisation). Ordre de grandeur aligné sur document_upload : une
+        # invitation reste un geste ponctuel par membre à ajouter, jamais une boucle légitime
+        # au sein d'une même heure.
+        team_invite:
+            policy: sliding_window
+            limit: 30
+            interval: "1 hour"
+        # GET /invitations/{token} et POST /invitations/{token}/accept (revue de complétude
+        # Phase 14) - clé par IP (request.getClientIp()), même patron que
+        # password_reset_request : ce sont les deux seuls endpoints de cette phase où
+        # l'appelant n'appartient encore à aucune organisation (l'un est même entièrement
+        # public), donc organization_id ne peut jamais servir de clé ici. L'entropie du jeton
+        # (sélecteur 128 bits + vérificateur 256 bits, App\Identity\Service\
+        # InvitationTokenResolver) rend un brute-force déjà infaisable en pratique ; cette
+        # limite protège plutôt contre l'épuisement de ressources (une requête = une lecture
+        # base par tentative), même compteur partagé entre les deux endpoints (même
+        # raisonnement que ai_assistant : l'aperçu précède presque toujours l'acceptation dans
+        # le même parcours utilisateur).
+        invitation_token_access:
+            policy: sliding_window
+            limit: 20
+            interval: "15 minutes"
