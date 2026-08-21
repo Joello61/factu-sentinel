@@ -6,7 +6,7 @@ import type { ButtonHTMLAttributes } from "react";
  * réellement utilisées à ce stade sont implémentées ; les autres (outline, ghost,
  * destructive, link) seront ajoutées quand un écran en aura réellement besoin.
  */
-type ButtonVariant = "primary" | "secondary";
+type ButtonVariant = "primary" | "secondary" | "destructive";
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: ButtonVariant;
@@ -16,6 +16,7 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 const VARIANT_CLASSES: Record<ButtonVariant, string> = {
   primary: "bg-primary text-white hover:bg-primary/90",
   secondary: "border border-border text-foreground hover:bg-primary/10",
+  destructive: "bg-error text-white hover:bg-error/90",
 };
 
 export function Button({
