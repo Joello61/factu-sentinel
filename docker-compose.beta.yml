@@ -1,0 +1,59 @@
+# Overlay Private Beta (Phase 12, docs/12-roadmap.md, docs/14-private-beta-plan.md) - jamais
+# fusionné dans docker-compose.yml, jamais laissé actif en dehors d'une session supervisée.
+# Usage :
+#   docker compose --env-file .env.beta -f docker-compose.yml -f docker-compose.beta.yml up -d
+#   ... session avec le testeur ...
+#   docker compose --env-file .env.beta -f docker-compose.yml -f docker-compose.beta.yml down
+#
+# Ceci n'est PAS un environnement de staging (docs/12-roadmap.md section 27, toujours Phase 13) :
+# c'est la stack de développement existante, exposée temporairement et sous supervision via un
+# tunnel éphémère (Cloudflare Quick Tunnel) pointant uniquement sur nginx, jamais sur next dev
+# (port 3000) ni sur le backend (port 9000) directement.
+#
+# Variables attendues dans .env.beta (jamais commité, voir .env.beta.example) :
+#   BETA_PUBLIC_URL           - URL https publique du tunnel de la session (ex. https://xxx.trycloudflare.com)
+#   BETA_PUBLIC_ORIGIN_REGEX  - regex d'origine correspondante pour CORS_ALLOW_ORIGIN
+
+services:
+  # Réutilise le patron déjà établi par docker-compose.e2e.yml (Phase 11) : Mailpit permet de
+  # récupérer le lien de vérification d'email / réinitialisation de mot de passe sans provisionner
+  # un vrai fournisseur email pour "quelques utilisateurs ciblés" en session supervisée
+  # (docs/10-security-privacy.md section 44 : éviter un nouveau sous-traitant/DPA pour ce besoin
+  # ponctuel). Le développeur relaie le lien au testeur pendant la session ; l'interface Mailpit
+  # n'est jamais exposée via le tunnel, uniquement en local.
+  mailpit:
+    image: axllent/mailpit:v1.30.7
+    expose:
+      - '1025'
+    ports:
+      - '127.0.0.1:8025:8025'
+
+  backend:
+    environment:
+      MAILER_DSN: 'smtp://mailpit:1025'
+      CORS_ALLOW_ORIGIN: '${BETA_PUBLIC_ORIGIN_REGEX}'
+      FRONTEND_URL: '${BETA_PUBLIC_URL}'
+      # Explicite, indépendamment de la valeur par défaut de Symfony Runtime en APP_ENV=dev -
+      # jamais de trace d'erreur Symfony détaillée exposée à un utilisateur externe.
+      APP_DEBUG: '0'
+    depends_on:
+      mailpit:
+        condition: service_started
+
+  worker:
+    environment:
+      MAILER_DSN: 'smtp://mailpit:1025'
+      APP_DEBUG: '0'
+    depends_on:
+      mailpit:
+        condition: service_started
+
+  # Cloudflare Quick Tunnel (aucun compte/token requis, sous-domaine trycloudflare.com aléatoire) -
+  # documenté par Cloudflare comme "intended for testing and development only", cohérent avec
+  # l'usage prévu ici. Cible directement le service nginx interne au réseau Docker Compose, jamais
+  # localhost ni un autre service - nginx reste le seul point d'entrée.
+  cloudflared:
+    image: cloudflare/cloudflared:2026.8.2
+    command: tunnel --url http://nginx:80
+    depends_on:
+      - nginx

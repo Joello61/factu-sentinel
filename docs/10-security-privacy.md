@@ -280,6 +280,26 @@ Politique stricte : **`Access-Control-Allow-Origin` limité explicitement au(x) 
 - **Headers** : limités à ceux nécessaires (`Authorization`, `Content-Type`, `Idempotency-Key`, `If-Match`, `X-Request-ID`).
 - **Credentials** : autorisés uniquement si le mécanisme de session retenu (section 12) en a besoin (cookie).
 
+**IP/schéma client réels à travers nginx (Phase 12, `docs/14-private-beta-plan.md`)** :
+`backend/config/packages/framework.yaml` déclare `trusted_proxies: PRIVATE_SUBNETS` et
+`trusted_headers: ['x-forwarded-for', 'x-forwarded-proto']`. Restrictif dans la topologie
+actuelle car `backend:9000` n'est jamais publié hors du réseau Docker interne (`expose`,
+jamais `ports:` dans `docker-compose.yml`) - `nginx` est structurellement le seul pair TCP
+possible de PHP-FPM, donc faire confiance à `PRIVATE_SUBNETS` équivaut en pratique à ne faire
+confiance qu'à nginx. `docker/nginx/default.conf` résout l'IP/le schéma réels via l'en-tête
+`CF-Connecting-IP` (posé par l'edge Cloudflare lui-même lors d'un accès par tunnel bêta, jamais
+falsifiable par le client - vérifié sur la documentation officielle Cloudflare, qui déconseille
+explicitement `X-Forwarded-For` pour cet usage), avec repli sur `$remote_addr`/`$scheme` en
+accès direct local (sans tunnel) - et **écrase** systématiquement la valeur transmise à
+Symfony plutôt que de l'accumuler, empêchant un client de faire remonter sa propre valeur.
+Sans ce correctif, le rate limiting de connexion et les logs de sécurité (section 36) ne
+verraient que l'adresse de nginx, jamais celle de l'appelant réel - constaté empiriquement lors
+de l'implémentation de la Phase 12. **Limite assumée** : `nginx` est publié sur `0.0.0.0:8080`
+(pas seulement `127.0.0.1`) pour rester utilisable en développement local ; si la machine hôte
+était elle-même directement joignable depuis Internet sur ce port, `CF-Connecting-IP` pourrait
+être forgé en contournant le tunnel - hypothèse retenue : le réseau du développeur n'est pas
+exposé publiquement en dehors du tunnel pendant les sessions de Private Beta.
+
 ## 22. File Upload Security
 
 Contrôle critique, cohérent avec `06-technical-architecture.md` (section 26) et `09-test-strategy.md` (section 19) :
@@ -439,6 +459,23 @@ Le journal d'audit doit être difficile à falsifier, cohérent avec `07-data-mo
 ## 36. Security Monitoring
 
 Événements à surveiller : taux d'échec de connexion anormalement élevé (indice de brute force) ; volume d'accès refusés (`403`/`404` sur ressources tenant-scoped) anormalement élevé pour un même compte (indice de tentative d'IDOR) ; upload de fichiers en volume ou en fréquence anormale ; erreurs `5xx` en rafale (indice d'incident technique ou d'attaque) ; appels IA en volume anormal (coût et abus, `06-technical-architecture.md` section 15) ; échecs répétés des dépendances externes.
+
+**Bug corrigé (constaté puis résolu en Phase 12, `docs/14-private-beta-plan.md` section 4)** :
+`login_throttling` (`security.yaml`, `max_attempts: 5` par tranche de 15 minutes) ne bloquait
+aucune tentative de connexion répétée lors d'une vérification manuelle (7 tentatives
+consécutives avec des identifiants invalides, sans aucune usurpation d'en-tête), y compris
+après correction de la visibilité IP à travers nginx (section 21). Cause racine identifiée :
+`Symfony\Component\Security\Http\EventListener\LoginThrottlingListener` était bien enregistré
+et levait correctement une `TooManyLoginAttemptsAuthenticationException` (elle-même une
+`AuthenticationException`) à la 6e tentative, mais
+`App\Shared\Security\AuthFailureEnvelopeListener` écrasait systématiquement toute
+`AuthenticationException` reçue via l'événement Lexik `AUTHENTICATION_FAILURE` par un `401`
+générique - le rate limiting de connexion était donc actif côté Symfony sans jamais être
+opposable en pratique. Corrigé : ce listener distingue désormais explicitement ce cas et
+répond `429` avec un en-tête `Retry-After`, sans révéler si l'identifiant ou le mot de passe
+est en cause (US-AUTH-002 toujours respecté - un `429` ne signale qu'un volume de tentatives,
+jamais une information sur le compte). Test de régression :
+`backend/tests/Functional/Auth/LoginControllerTest::testRepeatedFailedLoginsAreThrottledWith429`.
 
 ## 37. Alerting
 
