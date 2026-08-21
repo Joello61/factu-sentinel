@@ -8,15 +8,22 @@ use App\Organization\Repository\OrganizationRepository;
 use App\Organization\Service\ConfigureOrganizationService;
 use App\Shared\Exception\AuthenticatedIdentityWithoutOrganizationException;
 use App\Shared\Security\CurrentOrganizationResolver;
+use App\Shared\Security\OrganizationPermissionVoter;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Component\Security\Http\Attribute\IsGranted;
 
 /**
  * PATCH /organizations/current (docs/08-api-specification.md, section 24, payload
  * corrigé : voir plan Phase 3, gap 1 : trois valeurs brutes en entrée, jamais
  * company_size_category directement). Controller volontairement mince
  * (backend/CLAUDE.md, section 3) : délègue toute la logique à ConfigureOrganizationService.
+ *
+ * `organization:update` (Phase 14, DEC-009, matrice PRD section 21.1) : réservé à
+ * OWNER/ADMIN - un COLLABORATOR reçoit désormais 403 (App\Shared\Security\
+ * OrganizationPermissionVoter), écart fermé par rapport au comportement Phase 3-13 où
+ * n'importe quel membre authentifié pouvait modifier le contexte fiscal.
  *
  * Ne passe pas par #[MapRequestPayload] : la sémantique de fusion partielle de cet endpoint
  * exige de distinguer un champ absent d'un champ explicitement null, ce que le mapping
@@ -32,6 +39,7 @@ final class UpdateOrganizationController
     }
 
     #[Route('/api/v1/organizations/current', name: 'organizations_current_update', methods: ['PATCH'])]
+    #[IsGranted(OrganizationPermissionVoter::ORGANIZATION_UPDATE)]
     public function __invoke(Request $request): JsonResponse
     {
         $organization = $this->organizationRepository->find($this->currentOrganizationResolver->getOrganizationId());

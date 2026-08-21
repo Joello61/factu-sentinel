@@ -7,6 +7,7 @@ namespace App\Organization\Controller;
 use App\Organization\Repository\FiscalContextRepository;
 use App\Organization\Repository\OrganizationRepository;
 use App\Shared\Exception\AuthenticatedIdentityWithoutOrganizationException;
+use App\Shared\Security\CurrentMembershipResolver;
 use App\Shared\Security\CurrentOrganizationResolver;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\Routing\Attribute\Route;
@@ -26,6 +27,7 @@ final class CurrentOrganizationController
         private readonly CurrentOrganizationResolver $currentOrganizationResolver,
         private readonly OrganizationRepository $organizationRepository,
         private readonly FiscalContextRepository $fiscalContextRepository,
+        private readonly CurrentMembershipResolver $currentMembershipResolver,
     ) {
     }
 
@@ -52,6 +54,12 @@ final class CurrentOrganizationController
             'country' => $organization->getCountry(),
             'configured' => $organization->isConfigured(),
             'created_at' => $organization->getCreatedAt()->format(\DateTimeInterface::ATOM),
+            // Rôle de l'appelant dans CETTE organisation (Phase 14, DEC-009) - jamais le
+            // seul endroit où l'autorisation est vérifiée (App\Shared\Security\
+            // OrganizationPermissionVoter reste l'autorité), seulement une commodité pour
+            // que le frontend adapte son affichage (confort d'expérience, jamais un contrôle
+            // de sécurité - ../../frontend/CLAUDE.md section 6).
+            'role' => $this->currentMembershipResolver->getMembership()->getRole()->value,
         ];
 
         // fiscal_context absent tant que non configuré (Phase 3, docs/08-api-specification.md

@@ -69,6 +69,17 @@ abstract class ApiTestCase extends WebTestCase
     {
         $this->registerUser($email, $password);
 
+        return $this->loginExisting($client, $email, $password);
+    }
+
+    /**
+     * Se connecte avec un compte déjà créé (par loginAs(), registerUser() ou
+     * addMemberToOrganization() - plan Phase 14) sans tenter de le recréer - jamais
+     * loginAs() pour un compte déjà existant, qui échouerait sur la contrainte unique
+     * d'email (voir la découverte documentée dans le plan Phase 14).
+     */
+    protected function loginExisting(KernelBrowser $client, string $email, string $password = 'a-very-long-password-1234'): string
+    {
         $previousAuthorization = $client->getServerParameter('HTTP_AUTHORIZATION');
         $client->setServerParameter('HTTP_AUTHORIZATION', '');
 
@@ -153,5 +164,37 @@ abstract class ApiTestCase extends WebTestCase
             [$email],
         );
         $em->clear();
+    }
+
+    /**
+     * Ajoute directement en base un second (ou N-ième) Membership sur l'organisation d'un
+     * compte déjà créé (plan Phase 14) - jamais via registerUser(), qui crée systématiquement
+     * une nouvelle Organization vide. Contourne l'API d'invitation (POST .../invitations puis
+     * accept) pour les tests qui ne portent pas sur ce parcours lui-même, même raisonnement
+     * que registerUser() contournant POST /auth/register.
+     */
+    protected function addMemberToOrganization(string $ownerEmail, string $memberEmail, Role $role, string $password = 'a-very-long-password-1234'): User
+    {
+        $container = static::getContainer();
+
+        /** @var EntityManagerInterface $em */
+        $em = $container->get(EntityManagerInterface::class);
+        /** @var UserPasswordHasherInterface $hasher */
+        $hasher = $container->get(UserPasswordHasherInterface::class);
+        $userRepository = $container->get(UserRepository::class);
+
+        $owner = $userRepository->findOneByEmail($ownerEmail);
+        \assert($owner instanceof User, "Aucun compte trouvé pour {$ownerEmail}.");
+        $organization = $owner->getMemberships()->first()->getOrganization();
+
+        $member = new User($memberEmail, 'temporary');
+        $member->setPassword($hasher->hashPassword($member, $password));
+        $membership = new Membership($member, $organization, $role);
+
+        $em->persist($member);
+        $em->persist($membership);
+        $em->flush();
+
+        return $member;
     }
 }

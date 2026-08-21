@@ -426,6 +426,98 @@ Definition of Done : un `OWNER` peut inviter un collaborateur, lui attribuer un 
 Risks : introduire un bug d'autorisation intra-organisation en étendant un mécanisme jusqu'ici mono-rôle - mitigé par la centralisation déjà en place (`06-technical-architecture.md` section 19) et par la densité de tests exigée ci-dessus.
 Exit Criteria : matrice de permissions testée exhaustivement (positif/négatif par action) ; aucune régression sur les tests d'isolation multi-tenant existants (TC-TENANT-*).
 
+**Bilan à l'implémentation** : livré - `Role` étendu à `OWNER`/`ADMIN`/`COLLABORATOR`,
+`App\Shared\Security\OrganizationPermissionVoter` (Voter unique, matrice codée en dur,
+additif à `TenantFilter`, jamais un remplacement), nouvelles entités `Invitation` et
+`Notification` (module `App\Notification\`, jamais sous `Shared/` - fonctionnalité métier,
+pas un élément transverse). Deux décisions de documentation comblées à l'implémentation, sans
+contredire de décision déjà actée (gaps de spécification, pas des révisions) : matrice
+`team:read` (les trois rôles peuvent consulter la liste des membres, seule la gestion reste
+restreinte - `04-product-requirements.md` section 21.1 mise à jour) et endpoints
+d'acceptation d'invitation `GET /invitations/{token}` / `POST /invitations/{token}/accept`,
+absents de la version initiale de `08-api-specification.md` section 25 (US-TEAM-001 ne
+décrivait que l'émission côté `OWNER`/`ADMIN`, jamais le parcours de l'invité).
+
+**Point de sécurité le plus significatif de cette phase** (identifié en cours
+d'implémentation, au-delà de ce que le plan initial anticipait) : un `User` pouvant désormais
+avoir plusieurs `Membership`, le claim `org` d'un JWT ne pouvait plus être traité comme
+suffisant à lui seul. `App\Shared\Security\TenantFilterActivationListener` revalide
+désormais, à chaque requête authentifiée, que l'utilisateur a réellement un `Membership`
+actif sur l'organisation revendiquée par le token (`App\Shared\Exception\
+OrganizationMembershipMismatchException`, 401, distincte de la violation d'invariant interne
+que reste `AuthenticatedIdentityWithoutOrganizationException` à zéro `Membership`). Corollaire
+direct, découvert en traçant le comportement réel des bundles installés (`gesdinet/jwt-refresh-token-bundle`
+3.0.0, `lexik/jwt-authentication-bundle` 3.2.0, jamais supposé de mémoire) : sans propagation
+de l'organisation active sur le refresh token lui-même, `POST /auth/select-organization`
+n'aurait duré que la vie de l'access token en cours (quelques minutes) avant de revenir
+silencieusement au défaut. `App\Identity\Entity\RefreshToken::$organizationId` (nouvelle
+colonne) et `App\Shared\Security\PropagateOrganizationToRefreshTokenListener` (priorité -10
+sur `Events::AUTHENTICATION_SUCCESS`, après la rotation du token par le bundle) ferment ce
+point - vérifié empiriquement sur deux rafraîchissements consécutifs réels (pas seulement en
+théorie), en plus des tests automatisés.
+
+Migration (`Version20260821133610`) élaguée manuellement du diff auto-généré par
+`doctrine:migrations:diff` : la commande proposait aussi de supprimer, sans jamais les
+recréer, les index uniques partiels déjà en place (`uniq_user_email` depuis la Phase 13,
+`uniq_fiscal_contexts_current_per_organization` depuis la Phase 3) - limitation déjà connue du
+comparateur de schéma Doctrine sur les index partiels créés en SQL brut, pas un écart réel à
+corriger. Retirées de la migration appliquée plutôt qu'exécutées aveuglément.
+
+Tests : `App\Tests\Functional\Identity\TeamAuthorizationTest` (matrice combinée rôle x
+tenant, y compris le cas `OrganizationMembershipMismatchException` explicite), `App\Tests\
+Functional\Identity\InvitationLifecycleTest` (expirée, révoquée, déjà acceptée, déjà membre,
+mauvais compte, jeton invalide - jamais seulement le chemin heureux),
+`App\Tests\Functional\Notification\NotificationIsolationTest` (`recipient_user_id` filtre
+systématiquement en plus de `organization_id`, jamais à sa place). Suite complète revérifiée
+verte (235 tests) après ce changement, `App\Tests\Integration\MultiTenant\TenantIsolationTest`
+inclus sans modification de ses assertions.
+
+Frontend : pages `/team` (membres, invitation, changement de rôle, retrait, composeur de
+notification), `/select-organization`, `/invitations/[token]` (aperçu public + acceptation),
+`/notifications` (centre de notifications, bouton cloche du Header désormais câblé) ;
+`Sidebar` filtre désormais "Équipe" par rôle (confort d'affichage, le backend revalide
+systématiquement). Vérifié en conditions réelles dans un navigateur (inscription, connexion,
+invitation, aperçu public, liste des membres) en plus des tests de composants.
+
+**Différé explicitement** : aucune préférence d'organisation persistée au-delà du refresh
+token de la session en cours (ex. "dernière organisation utilisée" restaurée sur un nouvel
+appareil/après déconnexion complète) - non demandé par la documentation existante, pas
+construit par anticipation.
+
+**Revue de complétude (21/08/2026, avant clôture de la phase)** : une vérification explicite
+« cette phase est-elle réellement à 100% ? » a révélé cinq écarts, tous fermés dans la
+foulée plutôt que silencieusement ignorés :
+
+1. `GET /notifications` était documenté "(paginé)" (`08-api-specification.md` section 34)
+   mais implémenté sans pagination - `App\Notification\Repository\NotificationRepository::paginate()`
+   ajoutée (même patron que `App\Customer\Repository\CustomerRepository::paginate()`).
+2. `notification:read`/`notification:update` figuraient dans la même colonne "Permission"
+   que les permissions par rôle (`team:invite`, etc.) sans jamais l'être - clarifié dans
+   `08-api-specification.md` section 34 et `10-security-privacy.md` section 15 : ce sont des
+   contrôles de propriété de ressource (`recipient_user_id`), jamais une entrée de la matrice
+   de rôle vérifiée par le Voter.
+3. La matrice de permissions n'avait été reprise que dans `04-product-requirements.md`
+   section 21.1, jamais mirée dans `10-security-privacy.md` section 15 comme l'exigeait déjà
+   l'entrée initiale de cette phase - fait.
+4. `GET /invitations/{token}` et `POST /invitations/{token}/accept` (seuls endpoints de
+   cette phase où l'appelant n'appartient encore à aucune organisation) n'avaient aucune
+   limite de débit - `limiter.invitation_token_access` ajouté (20/15 minutes par IP, même
+   clé que `password_reset_request`).
+5. Aucun test E2E ne couvrait le parcours équipe/invitation/notification -
+   **E2E-007** ajouté (`docs/09-test-strategy.md` section 38,
+   `frontend/e2e/specs/e2e-007-team-invitation.spec.ts`), décision explicitement validée par
+   l'utilisateur pour ce périmètre supplémentaire.
+
+**E2E-007 a immédiatement justifié sa construction** : sa toute première exécution réelle
+(pas une simulation) a révélé un bug bloquant invisible à tous les niveaux de test inférieurs
+- `frontend/proxy.ts` ne laissait jamais un utilisateur anonyme atteindre
+`/invitations/{token}` (absent de `ALWAYS_ACCESSIBLE_PATHS`, à la différence de
+`/verify-email`), rebondissant systématiquement vers `/login` avant que l'invité n'ait
+jamais vu l'aperçu de son invitation - un utilisateur réel suivant le lien reçu par email
+aurait été bloqué à la toute première étape. Corrigé dans la même revue ; les six autres
+parcours E2E (E2E-001 à E2E-005 déjà existants, plus E2E-007) revérifiés verts après ce
+correctif partagé.
+
 **Phase 15 - Administration plateforme & Notifications avancées**
 Objective : donner à l'opérateur de la plateforme les moyens de support, modération, communication et surveillance applicative à travers toutes les organisations.
 Business Value : capacité opérationnelle jugée nécessaire par décision produit (DEC-010) pour exploiter le produit au-delà d'un cercle de bêta-testeurs restreint.

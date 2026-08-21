@@ -18,8 +18,12 @@ const PUBLIC_PATHS = ['/login', '/register'];
 // /verify-email/{id} est le lien reçu par email (docs/08-api-specification.md, section 7) :
 // un compte peut le suivre avant toute connexion (inscription, US-AUTH-001) ou une fois déjà
 // connecté (session restaurée depuis un onglet précédent), les deux cas doivent atteindre la
-// page réellement, jamais rebondir vers /login ou /.
-const ALWAYS_ACCESSIBLE_PATHS = ['/verify-email'];
+// page réellement, jamais rebondir vers /login ou /. /invitations/{token} (Phase 14) suit le
+// même principe - trouvé manquant ici par le premier run réel de e2e-007-team-invitation.spec.ts
+// (l'invité anonyme cliquant le lien reçu par email était systématiquement rebondi vers
+// /login avant de jamais voir l'aperçu de l'invitation, l'endpoint public
+// GET /invitations/{token} lui-même n'étant jamais en cause).
+const ALWAYS_ACCESSIBLE_PATHS = ['/verify-email', '/invitations'];
 
 function matchesPath(pathname: string, paths: string[]): boolean {
   return paths.some((path) => pathname === path || pathname.startsWith(`${path}/`));

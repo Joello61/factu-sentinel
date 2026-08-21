@@ -36,6 +36,14 @@ interface AuthContextValue {
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string) => Promise<RegisteredAccount>;
   logout: () => Promise<void>;
+  /**
+   * POST /auth/select-organization (Phase 14) : remplace l'access token en mémoire par un
+   * nouveau, portant l'organisation choisie comme active. Ne rafraîchit jamais `user` lui-même
+   * (GET /users/current ne porte aucune information par organisation) - l'appelant reste
+   * responsable de redéclencher le chargement des données scopées à l'organisation
+   * (ex. navigation vers /dashboard après l'appel).
+   */
+  selectOrganization: (organizationId: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -143,6 +151,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  const selectOrganization = useCallback(async (organizationId: string) => {
+    const result = await apiRequest<LoginResult>('/api/v1/auth/select-organization', {
+      method: 'POST',
+      body: { organization_id: organizationId },
+    });
+    accessTokenRef.current = result.token;
+  }, []);
+
   const logout = useCallback(async () => {
     try {
       await apiRequest('/api/v1/auth/logout', { method: 'POST' });
@@ -158,8 +174,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo<AuthContextValue>(
-    () => ({ status, user, login, register, logout }),
-    [status, user, login, register, logout],
+    () => ({ status, user, login, register, logout, selectOrganization }),
+    [status, user, login, register, logout, selectOrganization],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

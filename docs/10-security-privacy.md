@@ -216,6 +216,27 @@ organisation autorise-t-il cette action précise ?** (matrice `OWNER`/`ADMIN`/`C
 couche unique**, jamais dupliquée par endpoint - c'est précisément la préparation anticipée
 ci-dessous qui a permis cette extension sans réécrire chaque handler.
 
+**Matrice reprise à l'identique de `04-product-requirements.md` section 21.1 (implémentation :
+`App\Shared\Security\OrganizationPermissionVoter`, Voter unique)** :
+
+| Permission              | OWNER | ADMIN              | COLLABORATOR |
+| ------------------------ | :---: | :-----------------: | :----------: |
+| `team:read`              | Oui   | Oui                 | Oui          |
+| `team:invite`             | Oui   | Oui                 | Non          |
+| `team:manage_roles`       | Oui   | Non                 | Non          |
+| `team:remove`             | Oui   | Oui (jamais OWNER)  | Non          |
+| `notification:send_team`  | Oui   | Oui                 | Non          |
+| `organization:update`     | Oui   | Oui                 | Non          |
+
+`team:read` accordé aux trois rôles (précision Phase 14) : la restriction porte sur la
+**gestion** d'équipe, jamais sur sa simple consultation - cohérent avec le fait qu'un
+`COLLABORATOR` consulte déjà librement factures/clients/diagnostics (section 21.1 du PRD).
+`notification:read`/`notification:update` (`GET /notifications`, `PATCH /notifications/{id}/read`)
+ne figurent volontairement **pas** dans cette matrice : ce ne sont jamais des permissions par
+rôle, mais un contrôle de propriété de ressource (`recipient_user_id = utilisateur courant`,
+appliqué par `App\Notification\Repository\NotificationRepository`, jamais par ce Voter - voir
+`08-api-specification.md` section 34).
+
 **Depuis la Phase 15 (DEC-010)** : le rôle `PlatformAdministrator` suit un chemin
 d'autorisation **entièrement distinct**, jamais une extension de la matrice ci-dessus - aucune
 des trois vérifications tenant-scoped (membre actif, appartenance de ressource, rôle

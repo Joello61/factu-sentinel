@@ -7,13 +7,22 @@ import {
   LayoutDashboard,
   Bell,
   Settings,
+  UsersRound,
   type LucideIcon,
 } from "lucide-react";
+import type { Role } from "@/lib/api/types";
 
 export interface NavItem {
   label: string;
   href: string;
   icon: LucideIcon;
+  /**
+   * Phase 14 : restreint l'affichage de cette entrée aux rôles listés dans l'organisation
+   * active - absent signifie visible par tous les rôles. Confort d'expérience uniquement
+   * (../../CLAUDE.md frontend section 6) : le backend revalide systématiquement, ce filtrage
+   * ne remplace jamais App\Shared\Security\OrganizationPermissionVoter.
+   */
+  roles?: Role[];
 }
 
 /**
@@ -34,5 +43,6 @@ export const NAV_ITEMS: NavItem[] = [
   { label: "Historique", href: "/history", icon: History },
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { label: "Notifications", href: "/notifications", icon: Bell },
+  { label: "Équipe", href: "/team", icon: UsersRound, roles: ["OWNER", "ADMIN"] },
   { label: "Paramètres", href: "/settings", icon: Settings },
 ];

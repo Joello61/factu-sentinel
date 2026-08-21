@@ -81,6 +81,13 @@ export interface FiscalContext {
   effective_from: string;
 }
 
+/**
+ * Rôle porté par un Membership (docs/07-data-model.md, section 5 ; Phase 14, DEC-009) -
+ * jamais une donnée d'autorisation en soi côté frontend : le backend revalide
+ * systématiquement (../../CLAUDE.md frontend, section 6).
+ */
+export type Role = "OWNER" | "ADMIN" | "COLLABORATOR";
+
 export interface Organization {
   id: string;
   legal_name: string | null;
@@ -91,6 +98,7 @@ export interface Organization {
   country: string | null;
   configured: boolean;
   created_at: string;
+  role: Role;
   fiscal_context?: FiscalContext;
   eligibility_diagnostic?: EligibilityDiagnostic;
 }
@@ -380,4 +388,76 @@ export interface DocumentFile {
   suggestions: Record<string, string> | null;
   uploaded_at: string;
   status_url: string;
+}
+
+// Phase 14 (docs/08-api-specification.md, sections 9, 25, 34 ; docs/07-data-model.md,
+// section 5, 21). Rôles d'organisation, gestion d'équipe, notifications internes.
+
+/** GET /auth/me/organizations. */
+export interface UserOrganizationMembership {
+  organization_id: string;
+  legal_name: string | null;
+  role: Role;
+}
+
+export type AssignableRole = Exclude<Role, "OWNER">;
+
+/** GET/POST /organizations/current/members, /invitations. */
+export interface Member {
+  id: string;
+  user_id: string;
+  email: string;
+  role: Role;
+  created_at: string;
+}
+
+export type InvitationStatus = "pending" | "accepted" | "expired" | "revoked";
+
+export interface Invitation {
+  id: string;
+  email: string;
+  role: AssignableRole;
+  status: InvitationStatus;
+  created_at: string;
+}
+
+export interface InviteMemberPayload {
+  email: string;
+  role: AssignableRole;
+}
+
+/** GET /invitations/{token} (public). */
+export interface InvitationPreview {
+  organization_name: string | null;
+  email: string;
+  role: AssignableRole;
+  expires_at: string;
+}
+
+/** POST /invitations/{token}/accept. */
+export interface AcceptedInvitation {
+  organization_id: string;
+  role: AssignableRole;
+}
+
+export interface SendTeamNotificationPayload {
+  recipient_ids: string[];
+  message: string;
+}
+
+export type NotificationType = "echeance_obligation" | "message_organisation" | "message_plateforme";
+export type NotificationSenderType = "SYSTEM" | "ORGANIZATION_OWNER" | "PLATFORM_ADMIN";
+export type NotificationChannel = "email" | "in_app";
+export type NotificationStatus = "pending" | "sent" | "failed";
+
+export interface AppNotification {
+  id: string;
+  notification_type: NotificationType;
+  sender_type: NotificationSenderType;
+  message: string;
+  channel: NotificationChannel;
+  status: NotificationStatus;
+  scheduled_for: string;
+  sent_at: string | null;
+  read_at: string | null;
 }

@@ -41,4 +41,10 @@ security:
     access_control:
         - { path: ^/api/health, roles: PUBLIC_ACCESS }
         - { path: ^/api/v1/auth/(register|login|refresh|password/forgot|password/reset|verify-email), roles: PUBLIC_ACCESS }
+        # GET /invitations/{token} (plan Phase 14, aperçu public d'une invitation avant
+        # inscription/connexion) - exclusivement la lecture par jeton : jamais
+        # POST /invitations/{token}/accept, qui reste soumis à la règle générale
+        # IS_AUTHENTICATED_FULLY ci-dessous (ancre de fin de ligne "$" nécessaire pour ne
+        # jamais matcher un sous-chemin comme .../accept).
+        - { path: ^/api/v1/invitations/[^/]+$, methods: [GET], roles: PUBLIC_ACCESS }
         - { path: ^/api, roles: IS_AUTHENTICATED_FULLY }

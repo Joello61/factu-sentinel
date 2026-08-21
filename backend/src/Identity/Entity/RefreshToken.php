@@ -10,6 +10,8 @@ use Gesdinet\JWTRefreshTokenBundle\Entity\RefreshTokenRepository;
 use Gesdinet\JWTRefreshTokenBundle\Model\AbstractRefreshToken;
 use Gesdinet\JWTRefreshTokenBundle\Model\FamilyAwareRefreshTokenInterface;
 use Gesdinet\JWTRefreshTokenBundle\Model\RefreshTokenFamilyTrait;
+use Symfony\Bridge\Doctrine\Types\UuidType;
+use Symfony\Component\Uid\Uuid;
 
 /**
  * Table de gestion des refresh tokens (docs/06-technical-architecture.md, ADR-007 ;
@@ -24,6 +26,16 @@ use Gesdinet\JWTRefreshTokenBundle\Model\RefreshTokenFamilyTrait;
  * `RefreshTokenFamilyTrait` porte le "family" nécessaire à `reuse_detection` (config
  * gesdinet_jwt_refresh_token.yaml) : un refresh token déjà consommé, présenté à nouveau,
  * révoque toute la famille plutôt que d'être simplement refusé.
+ *
+ * `organizationId` (Phase 14, DEC-009) : organisation active associée à ce refresh token -
+ * jamais une preuve d'appartenance à elle seule (même principe que le claim `org` du JWT,
+ * App\Shared\Security\TenantFilterActivationListener), seulement une indication de contexte
+ * que App\Shared\Security\JwtOrganizationClaimListener revalide contre les Membership réels
+ * de l'utilisateur avant de l'utiliser pour émettre un nouvel access token au refresh.
+ * Nullable : une ligne créée avant cette colonne, ou un login initial avant toute
+ * sélection explicite, n'a pas encore de préférence propre - App\Shared\Security\
+ * PropagateOrganizationToRefreshTokenListener la renseigne à chaque émission de token
+ * (login, sélection d'organisation, rotation au refresh).
  */
 #[ORM\Entity(repositoryClass: RefreshTokenRepository::class)]
 #[ORM\Table(name: 'refresh_tokens')]
@@ -50,4 +62,17 @@ class RefreshToken extends AbstractRefreshToken implements FamilyAwareRefreshTok
 
     #[ORM\Column(name: 'family_valid', type: Types::DATETIME_MUTABLE, nullable: true)]
     protected ?\DateTimeInterface $familyValid = null;
+
+    #[ORM\Column(name: 'organization_id', type: UuidType::NAME, nullable: true)]
+    private ?Uuid $organizationId = null;
+
+    public function getOrganizationId(): ?Uuid
+    {
+        return $this->organizationId;
+    }
+
+    public function setOrganizationId(?Uuid $organizationId): void
+    {
+        $this->organizationId = $organizationId;
+    }
 }
