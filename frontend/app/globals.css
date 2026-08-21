@@ -2,19 +2,26 @@
 
 /*
  * Design tokens - décisions actées dans docs/11-frontend-design-system.md (section 5, 7, 70).
- * Palette fonctionnelle uniquement (pas de charte de marque complète). Contraste WCAG à
- * valider avant mise en production (section 6).
+ * Palette fonctionnelle uniquement (pas de charte de marque complète).
  *
- * Mode sombre : non MVP (section 6, 70). Ces tokens restent volontairement structurés en
- * variables CSS nommées sémantiquement plutôt qu'en couleurs Tailwind en dur dans les
- * composants, pour qu'un thème sombre puisse être ajouté plus tard sans les réécrire.
+ * Contraste WCAG (section 6, vérifié formellement en Phase 11, docs/12-roadmap.md) : les
+ * quatre couleurs sémantiques ci-dessous sont utilisées dans tout le produit sous la forme
+ * "border-X bg-X/10 text-X" (alertes) ou "bg-X/15 text-X" (badges, dont ComplianceResultBadge
+ * - l'élément le plus critique du produit) - jamais en aplat. Les valeurs d'origine (DL-008)
+ * échouaient au ratio 4.5:1 (texte normal, WCAG 2.2 AA) dans ces deux contextes, révélé par
+ * un scan @axe-core/playwright automatisé sur E2E-001 : success 4.21:1, warning 2.64:1, error
+ * 3.97:1, info 3.20:1 (fond à 15% d'opacité, le pire cas des deux). Assombries ci-dessous
+ * jusqu'à repasser 4.5:1 dans les deux contextes avec une marge réelle (jamais au seuil
+ * pile) ; primary et uncertain n'ont pas eu besoin d'ajustement (déjà 5.24:1 et 7.18:1 au
+ * pire cas). Toute nouvelle valeur ici doit être revérifiée dans ces deux contextes, pas
+ * seulement contre un fond blanc plein.
  */
 :root {
   --color-primary: #00695c;
-  --color-success: #2e7d32;
-  --color-warning: #ed6c02;
-  --color-error: #d32f2f;
-  --color-info: #0288d1;
+  --color-success: #1b5e20;
+  --color-warning: #984501;
+  --color-error: #b71c1c;
+  --color-info: #01579b;
   /*
    * Système de conformité (11-frontend-design-system.md, section 5) : les cinq autres
    * états (CONFORME/AVERTISSEMENT/NON_CONFORME/A_VERIFIER/NON_APPLICABLE) réutilisent
