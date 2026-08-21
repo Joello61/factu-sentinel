@@ -388,6 +388,32 @@ Definition of Done : un utilisateur peut consulter/modifier ses informations de 
 Risks : faible - fonctionnalité déjà entièrement spécifiée, aucune décision architecturale nouvelle.
 Exit Criteria : `US-SETTINGS-001/002` couvertes par des tests fonctionnels passants.
 
+**Bilan à l'implémentation** : `PATCH /users/current` et `DELETE /users/current` (nom conservé
+depuis la Phase 2 plutôt que le raccourci informel `/users/me` employé dans le libellé des
+Deliverables ci-dessus - contrat déjà documenté, testé, `08-api-specification.md` section 23).
+`User.deleted_at` (soft delete, `07-data-model.md` section 30) découvre à l'implémentation que
+l'index unique historique `uniq_user_email` (Phase 1) portait sur toute la table : un email de
+compte supprimé restait donc indisponible pour une nouvelle inscription, contraire à la
+« perte d'accès » attendue de `10-security-privacy.md` (section 39) - corrigé par un index
+unique partiel `WHERE deleted_at IS NULL`, même patron que `uniq_fiscal_contexts_current_per_organization`
+(Phase 3). Une modification d'email ou de mot de passe exige systématiquement `current_password`
+(défense en profondeur non explicitement exigée par la documentation mais cohérente avec ses
+principes, appliquée aussi à `DELETE /users/current`) ; un changement de mot de passe révoque
+tous les refresh tokens (`10-security-privacy.md` section 14) ; un changement d'email remet
+`email_verified_at` à `null` et redéclenche `VerifyEmailMailer`. Un compte soft-deleted perd
+l'accès dès la requête authentifiée suivante : `UserRepository::findOneByEmail()`/
+`loadUserByIdentifier()` l'excluent désormais, et le firewall JWT stateless recharge
+l'utilisateur via ce même provider à chaque requête (jamais seulement au login) - vérifié
+contre `lexik/jwt-authentication-bundle` avant d'en dépendre. Portée volontairement limitée :
+`Organization`/`Customer`/`Invoice` de l'utilisateur supprimé ne sont ni supprimées ni
+anonymisées par cette phase (aucun mécanisme de soft delete sur `Organization` à ce stade,
+aucune exigence documentée de suppression en cascade). Frontend : premier usage de `radix-ui`
+`AlertDialog` (déjà présent au `package.json` depuis la Phase 1 comme la primitive `DropdownMenu`
+de `Header.tsx`, jamais installé jusqu'ici) pour la confirmation de suppression de compte ;
+ajout du variant `destructive` à `components/ui/Button.tsx` (anticipé mais non implémenté avant
+cette phase) ; correctif nécessaire de `lib/api/client.ts` (`parseEnvelope` ne gérait pas une
+réponse `204 No Content` sans corps - premier appel `DELETE` réel câblé depuis le frontend).
+
 **Phase 14 - Rôles d'organisation & Notifications internes**
 Objective : permettre à une organisation de fonctionner à plusieurs, avec des rôles différenciés, et de communiquer en interne.
 Business Value : réouvre le persona secondaire C (cabinet comptable, `03-market-analysis.md` section 4) plus tôt que prévu par décision produit assumée (DEC-009, `04-product-requirements.md` section 21) ; prérequis architectural à la Phase 15.
