@@ -9,7 +9,7 @@ use App\Customer\Entity\Customer;
 use App\Identity\Entity\Membership;
 use App\Identity\Entity\User;
 use App\Invoicing\Entity\Invoice;
-use App\Tests\Support\ApiTestCase;
+use App\Tests\Support\PlatformAdminApiTestCase;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 
@@ -18,8 +18,13 @@ use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
  * aucune donnée l'un de l'autre. Cinq scénarios distincts plutôt qu'un seul, cohérent avec
  * la défense en profondeur exigée par docs/10-security-privacy.md (section 3) : session +
  * couche d'accès aux données + tests, trois couches vérifiées indépendamment.
+ *
+ * Étend App\Tests\Support\PlatformAdminApiTestCase depuis la Phase 15 (extension explicite
+ * demandée par le plan Phase 15, même patron que TC-TENANT-008 pour GET /audit-events en
+ * Phase 10) - PlatformAdminApiTestCase n'ajoute que des méthodes, jamais de comportement
+ * modifié par rapport à ApiTestCase.
  */
-final class TenantIsolationTest extends ApiTestCase
+final class TenantIsolationTest extends PlatformAdminApiTestCase
 {
     /**
      * WebTestCase n'autorise qu'un seul static::createClient() par test : les scénarios
@@ -288,5 +293,33 @@ final class TenantIsolationTest extends ApiTestCase
         self::assertResponseStatusCodeSame(200);
         $bodyB = $this->jsonBody($client);
         self::assertSame(0, $bodyB['meta']['pagination']['total_count'], 'Aucun événement de A ne doit fuiter vers B.');
+    }
+
+    /**
+     * Phase 15 (ADR-009) : TenantFilter ne doit jamais s'activer pour une identité
+     * App\PlatformAdmin\Entity\PlatformAdministrator - vérifié ici au niveau Doctrine (pas
+     * seulement au niveau HTTP, déjà couvert par App\Tests\Functional\PlatformAdmin\
+     * PlatformAdminAuthenticationTest) : un PlatformAdministrator authentifié doit pouvoir
+     * lire des Organization appartenant à des tenants distincts dans le même processus,
+     * précisément parce qu'aucun filtre n'a jamais été activé pour sa session.
+     */
+    public function testTcTenant009PlatformAdminNeverActivatesTenantFilter(): void
+    {
+        $client = static::createClient();
+        $ownerA = $this->registerUser('tenant-a-009@example.test');
+        $ownerB = $this->registerUser('tenant-b-009@example.test');
+        $organizationAId = $ownerA->getMemberships()->first()->getOrganizationId()->toRfc4122();
+        $organizationBId = $ownerB->getMemberships()->first()->getOrganizationId()->toRfc4122();
+
+        ['plainSecret' => $plainSecret] = $this->createPlatformAdministrator('tenant-009-admin@example.test');
+        $adminToken = $this->loginPlatformAdministrator($client, 'tenant-009-admin@example.test', $plainSecret);
+        $client->setServerParameter('HTTP_AUTHORIZATION', 'Bearer '.$adminToken);
+
+        $client->jsonRequest('GET', '/api/v1/platform-admin/organizations');
+        self::assertResponseStatusCodeSame(200);
+        $ids = array_column($this->jsonBody($client)['data'], 'id');
+
+        self::assertContains($organizationAId, $ids);
+        self::assertContains($organizationBId, $ids, 'Un PlatformAdministrator doit voir les organisations de plusieurs tenants dans le même appel - preuve que tenant_filter n\'a jamais été activé pour cette session.');
     }
 }
