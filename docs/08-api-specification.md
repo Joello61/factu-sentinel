@@ -1006,6 +1006,10 @@ tenant-scoped (`OWNER`/`ADMIN`/`COLLABORATOR`), et réciproquement un jeton
 
 | Endpoint                                          | Méthode | Description                                              | Permission                  |
 | -------------------------------------------------- | ------- | ---------------------------------------------------------- | ---------------------------- |
+| `/platform-admin/auth/login`                       | POST    | Étape 1/2 : email + mot de passe, renvoie un ticket `mfa_challenge` (jamais un jeton exploitable) | `PUBLIC_ACCESS` |
+| `/platform-admin/auth/mfa/verify`                  | POST    | Étape 2/2 : consomme le ticket + code TOTP, renvoie le JWT complet | `PUBLIC_ACCESS` |
+| `/platform-admin/auth/refresh`                     | POST    | Rotation du refresh token (cookie `platform_admin_refresh_token`, distinct du tenant) | `PUBLIC_ACCESS` |
+| `/platform-admin/me`                                | GET     | Identité de l'administrateur authentifié - écart de spécification comblé à l'implémentation (Phase 15, `12-roadmap.md` bilan), nécessaire à la restauration de session côté frontend | `ROLE_PLATFORM_ADMIN` |
 | `/platform-admin/organizations`                    | GET     | Lister les organisations (paginé, filtrable)                | `platform:organizations:read` |
 | `/platform-admin/organizations/{id}`               | GET     | Consulter une organisation (détail, membres)                 | `platform:organizations:read` |
 | `/platform-admin/organizations/{id}/suspend`       | POST    | Suspendre une organisation (US-PLATFORMADMIN-002)             | `platform:organizations:suspend` |
