@@ -12,7 +12,6 @@ use App\Notification\Enum\SenderType;
 use App\Notification\Enum\TargetType;
 use App\Notification\Repository\NotificationRepository;
 use App\Organization\Entity\Organization;
-use App\Shared\Doctrine\TenantScopedInterface;
 use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Bridge\Doctrine\Types\UuidType;
@@ -39,18 +38,34 @@ use Symfony\Component\Uid\Uuid;
  * modules distincts (docs/06-technical-architecture.md, section 7) qui ne partagent jamais
  * directement leurs entités internes. Champ dormant en Phase 14 (rappel système
  * `echeance_obligation`, P2, non construit cette phase).
+ *
+ * **Révision Phase 15** (docs/07-data-model.md, section 21 : "organization_id nullable -
+ * null pour une notification émise par un PlatformAdministrator, portée cross-tenant") :
+ * cette entité **cesse d'implémenter TenantScopedInterface**. Un `organization_id` NULL
+ * pour une notification plateforme est incompatible avec ce marqueur (qui exige un
+ * organization_id non nul, App\Shared\Doctrine\TenantScopedInterface) - le filtre Doctrine
+ * (TenantFilter) exclurait par construction SQL toute ligne à organization_id NULL du
+ * firewall tenant, rendant ces notifications invisibles dans l'inbox normale de leur
+ * destinataire, ce qui contredirait l'objectif même de la fonctionnalité. La protection
+ * automatique est donc remplacée par une règle explicite, centralisée dans
+ * App\Notification\Repository\NotificationRepository : `recipientUser = :user AND
+ * (organization = :currentOrg OR organization IS NULL)` - jamais déléguée au filtre
+ * générique, cohérent avec le principe que l'isolation ne doit jamais reposer sur la seule
+ * discipline d'un mécanisme implicite (docs/06-technical-architecture.md, section 20).
+ * Exactement le même choix que App\Shared\Audit\Entity\AuditLogEntry, qui n'implémente déjà
+ * pas ce marqueur pour la même raison (docs/07-data-model.md, section 25).
  */
 #[ORM\Entity(repositoryClass: NotificationRepository::class)]
 #[ORM\Table(name: 'notifications')]
-class Notification implements TenantScopedInterface
+class Notification
 {
     #[ORM\Id]
     #[ORM\Column(type: UuidType::NAME, unique: true)]
     private Uuid $id;
 
     #[ORM\ManyToOne(targetEntity: Organization::class)]
-    #[ORM\JoinColumn(name: 'organization_id', nullable: false)]
-    private Organization $organization;
+    #[ORM\JoinColumn(name: 'organization_id', nullable: true)]
+    private ?Organization $organization;
 
     #[ORM\ManyToOne(targetEntity: User::class)]
     #[ORM\JoinColumn(name: 'recipient_user_id', nullable: false)]
@@ -65,6 +80,17 @@ class Notification implements TenantScopedInterface
     #[ORM\ManyToOne(targetEntity: User::class)]
     #[ORM\JoinColumn(name: 'sender_id', nullable: true)]
     private ?User $sender;
+
+    /**
+     * Renseigné uniquement si senderType = PLATFORM_ADMIN (Phase 15) - référence opaque
+     * (UUID nu, jamais une relation Doctrine vers App\PlatformAdmin\Entity\
+     * PlatformAdministrator) : Notification et PlatformAdmin sont deux modules distincts qui
+     * ne partagent jamais directement leurs entités internes (même patron que
+     * sourceDiagnosticId ci-dessus, et que App\Shared\Audit\Entity\AuditLogEntry::actorId).
+     * `sender` (ManyToOne User) reste réservé exclusivement à senderType = ORGANIZATION_OWNER.
+     */
+    #[ORM\Column(name: 'platform_admin_sender_id', type: UuidType::NAME, nullable: true)]
+    private ?Uuid $platformAdminSenderId = null;
 
     #[ORM\Column(name: 'target_type', type: Types::STRING, enumType: TargetType::class)]
     private TargetType $targetType;
@@ -91,7 +117,7 @@ class Notification implements TenantScopedInterface
     private ?\DateTimeImmutable $readAt = null;
 
     public function __construct(
-        Organization $organization,
+        ?Organization $organization,
         User $recipientUser,
         NotificationType $notificationType,
         SenderType $senderType,
@@ -99,6 +125,7 @@ class Notification implements TenantScopedInterface
         TargetType $targetType,
         string $message,
         Channel $channel,
+        ?Uuid $platformAdminSenderId = null,
     ) {
         $this->id = Uuid::v7();
         $this->organization = $organization;
@@ -106,6 +133,7 @@ class Notification implements TenantScopedInterface
         $this->notificationType = $notificationType;
         $this->senderType = $senderType;
         $this->sender = $sender;
+        $this->platformAdminSenderId = $platformAdminSenderId;
         $this->targetType = $targetType;
         $this->message = $message;
         $this->channel = $channel;
@@ -123,9 +151,9 @@ class Notification implements TenantScopedInterface
         return $this->id;
     }
 
-    public function getOrganizationId(): Uuid
+    public function getOrganizationId(): ?Uuid
     {
-        return $this->organization->getId();
+        return $this->organization?->getId();
     }
 
     public function getRecipientUser(): User
@@ -146,6 +174,11 @@ class Notification implements TenantScopedInterface
     public function getSender(): ?User
     {
         return $this->sender;
+    }
+
+    public function getPlatformAdminSenderId(): ?Uuid
+    {
+        return $this->platformAdminSenderId;
     }
 
     public function getTargetType(): TargetType
