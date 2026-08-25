@@ -13,6 +13,8 @@
         "gesdinet/jwt-refresh-token-bundle": "^3.0",
         "lexik/jwt-authentication-bundle": "^3.2",
         "nelmio/cors-bundle": "^2.6",
+        "spomky-labs/otphp": "^11.5",
+        "symfony/clock": "8.1.*",
         "symfony/console": "8.1.*",
         "symfony/doctrine-messenger": "8.1.*",
         "symfony/dotenv": "8.1.*",
