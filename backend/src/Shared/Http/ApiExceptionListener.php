@@ -6,6 +6,7 @@ namespace App\Shared\Http;
 
 use App\Shared\Exception\AuthenticatedIdentityWithoutOrganizationException;
 use App\Shared\Exception\EmailVerificationRequiredException;
+use App\Shared\Exception\PlatformAdministratorNotResolvedException;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpKernel\Event\ExceptionEvent;
@@ -61,7 +62,8 @@ final class ApiExceptionListener implements EventSubscriberInterface
     /** @return array{0: int, 1: string, 2: string, 3: list<array{field: string, issue: string}>} */
     private function resolve(\Throwable $throwable): array
     {
-        if ($throwable instanceof AuthenticatedIdentityWithoutOrganizationException) {
+        if ($throwable instanceof AuthenticatedIdentityWithoutOrganizationException
+            || $throwable instanceof PlatformAdministratorNotResolvedException) {
             // Violation d'invariant interne, jamais un refus d'autorisation ordinaire (403).
             return [500, 'INTERNAL_ERROR', 'Une erreur interne est survenue.', []];
         }
