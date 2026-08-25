@@ -304,12 +304,24 @@ jamais aux rôles d'organisation `OWNER`/`ADMIN`/`COLLABORATOR`.
 **Authentification** :
 
 - **MFA obligatoire, sans exception** - exigence de sécurité actée (DEC-010,
-  `04-product-requirements.md` section 21.2), jamais une option activable. Mécanisme précis
-  (TOTP, clé de sécurité physique) à choisir en implémentation en vérifiant les recommandations
-  actuelles (`CLAUDE.md` section 3), non figé ici.
+  `04-product-requirements.md` section 21.2), jamais une option activable. **Mécanisme retenu
+  à l'implémentation (Phase 15, `../CLAUDE.md` section 21)** : TOTP (RFC 6238) via
+  `spomky-labs/otphp` (version 11.5.0 au moment de l'implémentation, vérifiée activement
+  maintenue et compatible PHP 8.4) - bibliothèque de primitives pures, jamais un bundle
+  Symfony Security complet, cohérent avec le style déjà en place du projet (listeners JWT
+  écrits à la main plutôt que des bundles à fort couplage). Secret chiffré au repos
+  (`sodium_crypto_secretbox`, libsodium natif PHP 8.4, aucune dépendance ajoutée) - jamais en
+  clair en base. Une clé de sécurité physique (WebAuthn/FIDO2) n'a pas été retenue pour cette
+  phase : aucun besoin exprimé au-delà d'un unique administrateur au MVP de cette phase (section
+  17 bis ci-dessous, "pas de RBAC interne à ce rôle"), pourrait être réévalué si le nombre
+  d'administrateurs plateforme augmentait.
 - Authentification **structurellement séparée** du mécanisme JWT tenant-scoped (ADR-007) -
   jamais le même émetteur de jeton, jamais une simple revendication (`claim`) supplémentaire
-  sur un jeton par ailleurs identique à celui d'un `User` tenant-scoped.
+  sur un jeton par ailleurs identique à celui d'un `User` tenant-scoped. **Vérifié à
+  l'implémentation** : `lexik/jwt-authentication-bundle` ne permettant pas une seconde paire de
+  clés via sa configuration standard, un second trousseau JWT complet est câblé manuellement
+  (`backend/config/services.yaml`, `platform_admin_jwt.*`) en réutilisant les classes du bundle,
+  jamais en les réimplémentant - voir `12-roadmap.md`, bilan Phase 15.
 - Surface d'accès : application front séparée si le coût reste raisonnable pour un développeur
   solo, sinon route strictement isolée (`06-technical-architecture.md`, ADR-009) - décision à
   documenter concrètement au moment de l'implémentation, jamais présumée d'office.
