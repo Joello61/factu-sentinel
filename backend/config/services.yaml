@@ -71,6 +71,33 @@ services:
             - '%env(PLATFORM_ADMIN_JWT_PASSPHRASE)%'
             - []
 
+    # Réutilise Lexik\...\GenerateKeyPairCommand (même classe que `lexik:jwt:generate-keypair`,
+    # jamais réimplémentée) sous un second nom de commande, câblée sur ce trousseau plutôt que
+    # sur le trousseau tenant par défaut du bundle - vérifié contre
+    # vendor/lexik/jwt-authentication-bundle/Resources/config/console.php (le bundle enregistre
+    # déjà sa propre commande via ce même patron : tag `console.command` avec une clé `command`
+    # qui prend le pas sur le nom `#[AsCommand]` de la classe, confirmé dans
+    # vendor/symfony/console/DependencyInjection/AddConsoleCommandPass.php). Trou découvert lors
+    # de la revue de sécurité de fin de phase : ni backend/docker/entrypoint-dev.sh ni
+    # .github/workflows/lint.yml ne généraient ce second trousseau avant ce correctif - seule la
+    # paire tenant l'était, laissant `platform_admin_private.pem` absent sur tout environnement
+    # neuf (CI, nouveau poste de développement).
+    platform_admin_jwt.generate_keypair_command:
+        class: Lexik\Bundle\JWTAuthenticationBundle\Command\GenerateKeyPairCommand
+        # autoconfigure désactivé : sans ça, Symfony ajoute AUSSI un tag console.command basé
+        # sur #[AsCommand(name: 'lexik:jwt:generate-keypair')] porté par la classe elle-même
+        # (constaté via debug:container), créant un alias en collision avec la commande déjà
+        # enregistrée par le bundle sous ce même nom (lexik_jwt_authentication.generate_keypair_command).
+        autoconfigure: false
+        arguments:
+            - '@filesystem'
+            - '%env(resolve:PLATFORM_ADMIN_JWT_SECRET_KEY)%'
+            - '%env(resolve:PLATFORM_ADMIN_JWT_PUBLIC_KEY)%'
+            - '%env(PLATFORM_ADMIN_JWT_PASSPHRASE)%'
+            - 'RS256'
+        tags:
+            - { name: 'console.command', command: 'app:platform-admin:jwt:generate-keypair' }
+
     # TTL volontairement plus court que le firewall tenant (bundle par défaut : 3600s) -
     # 900s (15 minutes), cohérent avec le principe de moindre privilège pour le rôle le plus
     # sensible du produit (docs/10-security-privacy.md, section 17 bis).

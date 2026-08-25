@@ -61,6 +61,13 @@ jobs:
       - name: Generate JWT keypair
         run: php bin/console lexik:jwt:generate-keypair --skip-if-exists
 
+      # Second trousseau, structurellement séparé (Phase 15, ADR-009,
+      # backend/config/services.yaml platform_admin_jwt.*) - trou découvert lors de la revue
+      # de sécurité de fin de phase : cette paire n'était générée nulle part sur un checkout
+      # CI neuf, faisant échouer silencieusement toute émission de jeton PlatformAdministrator.
+      - name: Generate platform admin JWT keypair
+        run: php bin/console app:platform-admin:jwt:generate-keypair --skip-if-exists
+
       - name: Lint PHP syntax
         run: find src -type f -name '*.php' -print0 | xargs -0 -n1 -P "$(nproc)" php -l
 
