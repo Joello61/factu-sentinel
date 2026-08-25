@@ -20,6 +20,7 @@ services:
             int $documentMaxSizeBytes: '%env(int:DOCUMENT_MAX_SIZE_BYTES)%'
             string $mustangBaseUrl: '%env(MUSTANG_BASE_URL)%'
             bool $hstsEnabled: '%env(bool:HSTS_ENABLED)%'
+            string $platformAdminTotpEncryptionKeyHex: '%env(PLATFORM_ADMIN_TOTP_ENCRYPTION_KEY)%'
 
     # makes classes in src/ available to be used as services
     # this creates a service per class whose id is the fully-qualified class name
@@ -34,6 +35,11 @@ services:
     App\Shared\Storage\StorageInterface: '@App\Shared\Storage\LocalFilesystemStorage'
     App\Document\Service\StructuredDocumentValidatorInterface: '@App\Document\Service\MustangValidatorClient'
     App\AI\Service\AIProviderInterface: '@App\AI\Service\MistralProvider'
+    # Phase 15 - interfaces cross-module exposées à App\PlatformAdmin\Service\
+    # PlatformHealthAggregator (backend/CLAUDE.md, section 3 : jamais de lecture directe des
+    # tables internes d'un autre module).
+    App\Compliance\Engine\Service\ComplianceHealthReaderInterface: '@App\Compliance\Engine\Service\ComplianceHealthReader'
+    App\AI\Service\AiUsageReaderInterface: '@App\AI\Service\AiUsageReader'
 
     # Constaté à l'implémentation : contrairement à $mustangBaseUrl ci-dessus, ajouter ces
     # trois valeurs à _defaults.bind ne suffisait pas à les faire résoudre pour
@@ -46,6 +52,85 @@ services:
             $mistralApiKey: '%env(MISTRAL_API_KEY)%'
             $mistralBaseUrl: '%env(MISTRAL_BASE_URL)%'
             $mistralModel: '%env(MISTRAL_MODEL)%'
+
+    # Deuxième trousseau JWT, structurellement séparé de celui du firewall `api`
+    # (docs/06-technical-architecture.md, ADR-009 : "jamais le même émetteur de jeton").
+    # Vérifié contre le code source réellement installé de lexik/jwt-authentication-bundle
+    # 3.2 et gesdinet/jwt-refresh-token-bundle 3.0 avant d'écrire cette configuration (plan
+    # Phase 15, revue utilisateur du 21/08/2026) - ce bundle ne permet pas de configurer une
+    # deuxième paire de clés via lexik_jwt_authentication.yaml (secret_key/public_key sont
+    # globaux à tout le bundle), donc cette deuxième chaîne complète de services est câblée
+    # manuellement ici en réutilisant les classes du bundle (`RawKeyLoader`,
+    # `LcobucciJWSProvider`, `LcobucciJWTEncoder`, `JWTManager`, `JWTAuthenticator`,
+    # `AuthenticationSuccessHandler`), jamais réimplémentées.
+    platform_admin_jwt.key_loader:
+        class: Lexik\Bundle\JWTAuthenticationBundle\Services\KeyLoader\RawKeyLoader
+        arguments:
+            - '%env(resolve:PLATFORM_ADMIN_JWT_SECRET_KEY)%'
+            - '%env(resolve:PLATFORM_ADMIN_JWT_PUBLIC_KEY)%'
+            - '%env(PLATFORM_ADMIN_JWT_PASSPHRASE)%'
+            - []
+
+    # TTL volontairement plus court que le firewall tenant (bundle par défaut : 3600s) -
+    # 900s (15 minutes), cohérent avec le principe de moindre privilège pour le rôle le plus
+    # sensible du produit (docs/10-security-privacy.md, section 17 bis).
+    platform_admin_jwt.jws_provider:
+        class: Lexik\Bundle\JWTAuthenticationBundle\Services\JWSProvider\LcobucciJWSProvider
+        arguments:
+            - '@platform_admin_jwt.key_loader'
+            - 'RS256'
+            - 900
+            - 0
+            - false
+
+    platform_admin_jwt.encoder:
+        class: Lexik\Bundle\JWTAuthenticationBundle\Encoder\LcobucciJWTEncoder
+        arguments: ['@platform_admin_jwt.jws_provider']
+
+    # Chaîne d'enrichment propre à ce manager, jamais la chaîne globale
+    # `lexik_jwt_authentication.payload_enrichment` (réservée aux jetons User) - garantit que
+    # le claim typ=platform_admin (App\Shared\Security\PlatformAdminTypeClaimEnrichment) est
+    # embarqué sur absolument tout jeton émis par ce manager, y compris à la rotation du
+    # refresh token (Gesdinet\JWTRefreshTokenBundle\...\AttachRefreshTokenOnSuccessListener,
+    # qui appelle JWTManager::create() sans jamais repasser par un contrôleur applicatif).
+    platform_admin_jwt.payload_enrichment:
+        class: Lexik\Bundle\JWTAuthenticationBundle\Services\PayloadEnrichment\ChainEnrichment
+        public: true
+        arguments:
+            - ['@App\Shared\Security\PlatformAdminTypeClaimEnrichment']
+
+    platform_admin_jwt.manager:
+        class: Lexik\Bundle\JWTAuthenticationBundle\Services\JWTManager
+        arguments:
+            - '@platform_admin_jwt.encoder'
+            - '@event_dispatcher'
+            - 'username'
+            - '@platform_admin_jwt.payload_enrichment'
+
+    # ChildDefinition de l'authenticateur abstrait du bundle (parent également utilisé par
+    # `jwt: ~` sur le firewall `api`) - seuls le manager (arg 0) et le provider (arg 3)
+    # diffèrent, le token extractor (Authorization: Bearer, arg 2) et le dispatcher d'événements
+    # (arg 1) restent partagés, ce qui est sûr : chaque listener sur ces événements filtre déjà
+    # explicitement par type de principal (App\Shared\Security\TenantFilterActivationListener,
+    # App\Shared\Security\PlatformAdminAuthenticationListener).
+    platform_admin_jwt.authenticator:
+        parent: lexik_jwt_authentication.security.jwt_authenticator
+        arguments:
+            index_0: '@platform_admin_jwt.manager'
+            index_3: '@App\PlatformAdmin\Repository\PlatformAdministratorRepository'
+
+    # Réutilisé pour émettre le JWT complet après vérification TOTP
+    # (App\PlatformAdmin\Controller\ConfirmPlatformAdminMfaController) et comme
+    # `success_handler` du `refresh-jwt` de ce firewall (backend/config/packages/security.yaml)
+    # - même patron que `lexik_jwt_authentication.handler.authentication_success`, réutilisé
+    # tel quel par App\Identity\Controller\SelectOrganizationController côté tenant.
+    platform_admin_jwt.success_handler:
+        class: Lexik\Bundle\JWTAuthenticationBundle\Security\Http\Authentication\AuthenticationSuccessHandler
+        arguments:
+            - '@platform_admin_jwt.manager'
+            - '@event_dispatcher'
+            - []
+            - true
 
     # add more service definitions when explicit configuration is needed
     # please note that last definitions always *replace* previous ones

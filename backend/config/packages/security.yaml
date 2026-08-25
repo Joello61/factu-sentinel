@@ -5,15 +5,46 @@ security:
         # volontairement non figée sur un algorithme précis).
         App\Identity\Entity\User:
             algorithm: auto
+        App\PlatformAdmin\Entity\PlatformAdministrator:
+            algorithm: auto
 
     providers:
         app_user_provider:
             id: App\Identity\Repository\UserRepository
+        # Phase 15 (ADR-009) - jamais partagé avec app_user_provider ci-dessus, même si un
+        # email identique existait des deux côtés (identités structurellement séparées).
+        app_platform_administrator_provider:
+            id: App\PlatformAdmin\Repository\PlatformAdministratorRepository
 
     firewalls:
         dev:
             pattern: ^/(_(profiler|wdt)|css|images|js)/
             security: false
+
+        # Phase 15 (ADR-009) - doit précéder `api` ci-dessous : Symfony retient le premier
+        # firewall dont le pattern correspond, et ^/api matcherait aussi ce préfixe.
+        # Authentification structurellement séparée (backend/config/services.yaml,
+        # platform_admin_jwt.*) - jamais `jwt: ~` (qui utiliserait le trousseau JWT global du
+        # firewall `api`), un authenticator dédié lié à un second trousseau de clés.
+        # `tenant_filter` n'est jamais activé pour ce firewall (App\Shared\Security\
+        # TenantFilterActivationListener ignore tout principal qui n'est pas un
+        # App\Identity\Entity\User).
+        platform_admin:
+            pattern: ^/api/v1/platform-admin
+            stateless: true
+            provider: app_platform_administrator_provider
+            custom_authenticators:
+                - platform_admin_jwt.authenticator
+            entry_point: platform_admin_jwt.authenticator
+            refresh-jwt:
+                check_path: /api/v1/platform-admin/auth/refresh
+                # Nom de cookie distinct du firewall tenant (frontend/plan Phase 15) - ne
+                # doit jamais collisionner avec le cookie `refresh_token` tenant dans le même
+                # navigateur (route isolée (platform-admin) de la même application Next.js).
+                token_parameter_name: platform_admin_refresh_token
+                success_handler: platform_admin_jwt.success_handler
+            logout:
+                path: /api/v1/platform-admin/auth/logout
 
         # Un seul firewall pour toute l'API : json_login/jwt/refresh-jwt n'activent chacun
         # que sur leur propre condition (check_path exact ou en-tête Authorization
@@ -40,6 +71,11 @@ security:
 
     access_control:
         - { path: ^/api/health, roles: PUBLIC_ACCESS }
+        # Phase 15 - login/mfa-verify/refresh sont les trois seuls endpoints où l'appelant ne
+        # porte encore aucun jeton platform_admin valide (même patron que les endpoints
+        # publics du firewall tenant ci-dessous).
+        - { path: ^/api/v1/platform-admin/auth/(login|mfa/verify|refresh), roles: PUBLIC_ACCESS }
+        - { path: ^/api/v1/platform-admin, roles: ROLE_PLATFORM_ADMIN }
         - { path: ^/api/v1/auth/(register|login|refresh|password/forgot|password/reset|verify-email), roles: PUBLIC_ACCESS }
         # GET /invitations/{token} (plan Phase 14, aperçu public d'une invitation avant
         # inscription/connexion) - exclusivement la lecture par jeton : jamais
