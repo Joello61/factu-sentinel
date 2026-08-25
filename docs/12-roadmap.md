@@ -530,6 +530,103 @@ Definition of Done : un `PlatformAdministrator` peut consulter/suspendre une org
 Risks : **le risque de sécurité le plus élevé de toute la roadmap post-MVP** - une isolation mal construite entre ce rôle et les rôles tenant-scoped exposerait toutes les organisations simultanément ; mitigé par une identité structurellement séparée (ADR-009) et le pentest ciblé exigé avant activation.
 Exit Criteria : pentest ciblé réalisé sans vulnérabilité critique ouverte ; isolation cross-tenant/tenant-scoped testée et vérifiée dans les deux sens ; audit trail complet vérifié sur un scénario de bout en bout.
 
+**Bilan à l'implémentation** : livré à un niveau explicitement scindé en deux (revue utilisateur
+du 24/08/2026, avant même le début de l'implémentation) - voir "Definition of Done à deux
+niveaux" ci-dessous, jamais une seule notion de "terminé" pour une phase dont le risque est
+qualifié plus haut de "le plus élevé de toute la roadmap post-MVP".
+
+Module `App\PlatformAdmin\` complet : entité `PlatformAdministrator` (globale, hors modèle
+tenant, `revoked_at` ajouté en cours d'implémentation - voir plus bas), `PlatformAdminMfaChallenge`
+(ticket MFA à usage unique, non prévu par la documentation initiale, ajouté pour fermer
+explicitement l'exigence "l'état intermédiaire mfa_required n'est jamais lui-même un moyen de
+contournement"), `AiCallLogEntry` (`App\AI\Entity\`), `Organization.suspended_at`. MFA : TOTP via
+`spomky-labs/otphp` 11.5.0 (vérifié activement maintenu, compatible PHP 8.4 - `../CLAUDE.md`
+section 21), secret chiffré au repos par `sodium_crypto_secretbox` (libsodium natif, aucune
+dépendance ajoutée). Les 7 endpoints de `08-api-specification.md` section 38.2 sont implémentés,
+plus `GET /platform-admin/me` (écart de spécification comblé à l'implémentation, même patron que
+les gaps fermés en revue de complétude Phase 14 - nécessaire à la restauration de session côté
+frontend, jamais documenté explicitement en section 38.2).
+
+**Authentification structurellement séparée (ADR-009), deux découvertes réelles en cours
+d'implémentation, aucune supposée résolue sans vérification** :
+1. `lexik/jwt-authentication-bundle` 3.2 ne permet pas de configurer une seconde paire de clés
+   via `lexik_jwt_authentication.yaml` (`secret_key`/`public_key` sont globaux au bundle) - un
+   second trousseau JWT complet (`RawKeyLoader`, `LcobucciJWSProvider`, `LcobucciJWTEncoder`,
+   `JWTManager`, `JWTAuthenticator`, `AuthenticationSuccessHandler`) est câblé manuellement dans
+   `backend/config/services.yaml` (`platform_admin_jwt.*`), en réutilisant les classes du bundle
+   plutôt qu'en les réimplémentant - vérifié contre le code source réellement installé avant
+   d'écrire cette configuration (revue utilisateur du 24/08/2026, qui l'exigeait explicitement).
+2. Un bug de compilation du conteneur Symfony (`InlineServiceDefinitionsPass`) videait
+   silencieusement le contenu d'un service référencé uniquement à l'intérieur d'un argument de
+   tableau imbriqué : le claim obligatoire `typ: platform_admin`
+   (`App\Shared\Security\PlatformAdminTypeClaimEnrichment`) n'était en pratique jamais embarqué
+   dans les jetons émis, découvert par un test fonctionnel qui échouait sur l'appel authentifié
+   suivant plutôt que sur l'émission du jeton elle-même. Corrigé en marquant le service
+   `platform_admin_jwt.payload_enrichment` `public: true` (l'exempte de l'optimisation
+   d'inlining défectueuse) - jamais contourné en devinant une autre cause.
+
+`App\Shared\Security\TenantFilterActivationListener` (Phase 2) étendu avec un garde explicite :
+`lexik_jwt_authentication.on_jwt_authenticated` est un événement global, partagé par les deux
+firewalls - ce listener ignore désormais proprement (early return, jamais une exception) tout
+principal qui n'est pas un `App\Identity\Entity\User`, condition nécessaire pour qu'un
+`PlatformAdministrator` authentifié n'y déclenche jamais `AuthenticatedIdentityWithoutOrganizationException`
+à tort. C'est aussi ce qui garantit que `tenant_filter` n'est **jamais** activé pour ce rôle : pas
+par un mécanisme dédié, simplement parce que ce listener (seul point d'activation du filtre) ne
+s'exécute jamais pour ce principal - vérifié par un test Doctrine direct (TC-TENANT-009,
+`App\Tests\Integration\MultiTenant\TenantIsolationTest`), pas seulement au niveau HTTP.
+
+**Révision de modèle de données, tranchée explicitement plutôt que glissée en cours de route**
+(`07-data-model.md` section 21, mis à jour en conséquence) : une notification `PLATFORM_ADMIN`
+porte `organization_id = null` par construction (portée cross-tenant), ce qui est incompatible
+avec `App\Shared\Doctrine\TenantScopedInterface` (retour `Uuid` non nullable) qu'`App\Notification\
+Entity\Notification` implémentait depuis la Phase 14. `Notification` cesse donc d'implémenter
+cette interface (même choix qu'`AuditLogEntry`, jamais tenant-scoped pour la même raison) ; la
+protection automatique de `TenantFilter` est remplacée par une règle de lecture explicite dans
+`App\Notification\Repository\NotificationRepository` (`recipient_user_id = :user AND
+(organization_id = :currentOrg OR organization_id IS NULL)`), centralisée au même endroit qu'avant
+- un audit explicite de tous les chemins de lecture de cette entité (mené avant la modification,
+exigé par le plan) a confirmé qu'aucun autre `QueryBuilder`/`find*`/accès direct n'existe.
+
+**Definition of Done à deux niveaux (décision explicite de l'utilisateur, jamais une seule
+notion de "terminé" pour cette phase)** :
+- **Niveau 1, implémentation complète - atteint** : les 7 endpoints + `GET /platform-admin/me`
+  sont implémentés, testés (51 tests fonctionnels/unitaires dédiés `App\Tests\Functional\
+  PlatformAdmin\*`, `App\Tests\Unit\PlatformAdmin\PlatformAdminMfaServiceTest`, plus les
+  extensions de `TenantIsolationTest` et `NotificationIsolationTest` existants), suite complète du
+  projet revérifiée verte (273 tests backend, 86 tests frontend), documentation mise à jour. Côté
+  frontend : route isolée `/platform-admin/*` (nouveau groupe de routes distinct, jamais
+  l'App Shell tenant), `PlatformAdminAuthProvider` séparé, cookie de refresh dédié
+  (`platform_admin_refresh_token`, jamais `refresh_token`).
+- **Niveau 2, porte d'activation - explicitement non atteint** : aucun test d'intrusion réel n'a
+  été réalisé (hors de portée d'un agent IA). La surface reste implémentée et testée mais son
+  activation en environnement de production réel reste interdite tant que ce test n'a pas eu
+  lieu et produit une preuve documentée - jamais présentée comme un risque accepté par défaut. La
+  revue de sécurité manuelle approfondie menée en fin de phase (`skill security-review`, détail
+  ci-dessous) est un filet complémentaire, jamais un substitut à ce pentest.
+
+**Revue de sécurité manuelle de fin de phase (`skill security-review`)** : une analyse ciblée du
+diff complet de la phase a identifié un écart réel, jamais un faux positif - sévérité moyenne,
+CSRF : `App\Shared\Security\RefreshOriginCheckListener` (Phase 8, vérification Origin/Referer sur
+`/auth/refresh`) n'avait jamais été étendu au second firewall introduit par cette phase,
+laissant `POST /api/v1/platform-admin/auth/refresh` sans cette protection alors qu'il partage
+exactement la même exposition (cookie `platform_admin_refresh_token`, `SameSite=Lax`) sur
+l'identité la plus sensible du produit. Corrigé dans le même passage : le listener couvre
+désormais les deux chemins de refresh (`REFRESH_PATHS`) ; deux tests de régression ajoutés
+(`testRefreshWithoutMatchingOriginIsRejected`, `testRefreshWithMatchingOriginRotatesTheToken`,
+`App\Tests\Functional\PlatformAdmin\PlatformAdminAuthenticationTest`). Effet de bord découvert en
+écrivant ces tests, corrigé dans la foulée : `/api/v1/platform-admin/auth/refresh` n'avait pas de
+route Symfony enregistrée (même mécanisme que celui déjà documenté pour `/auth/login`/`/auth/refresh`
+tenant - un `check_path` d'authenticator sur firewall stateless nécessite une route réelle, sans
+quoi le `RouterListener` lève "No route found" avant que l'authenticator n'intercepte la requête) -
+fermé en ajoutant ce chemin à `App\Shared\Controller\UnreachableAuthController`, patron déjà
+établi, jamais une nouvelle approche. Aucune autre vulnérabilité de sévérité haute ou moyenne
+retenue par cette revue (seuil de confiance >80 %, faux positifs filtrés explicitement).
+
+**Différé explicitement** : Phase 16 (Stats & Analytics), qui réutilise cette même autorisation ;
+un mécanisme de configuration formalisant la porte d'activation (ex. un indicateur d'environnement
+dédié) n'a pas été construit par anticipation - resterait à trancher au moment de lever cette
+porte, jamais avant.
+
 **Phase 16 - Stats & Analytics métier**
 Objective : donner à l'opérateur de la plateforme une vue agrégée de l'usage réel du produit.
 Business Value : éclaire les décisions produit post-MVP (adoption, taux de conformité, volume) sans attendre un besoin business formalisé.
