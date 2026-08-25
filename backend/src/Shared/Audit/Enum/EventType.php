@@ -72,4 +72,20 @@ enum EventType: string
     case MEMBER_ROLE_CHANGED = 'MEMBER_ROLE_CHANGED';
     case MEMBER_REMOVED = 'MEMBER_REMOVED';
     case TEAM_NOTIFICATION_SENT = 'TEAM_NOTIFICATION_SENT';
+
+    /**
+     * Ajoutés en Phase 15 (Administration plateforme, docs/12-roadmap.md ; ADR-009,
+     * docs/10-security-privacy.md section 17 bis : "chaque lecture ou écriture cross-tenant
+     * est journalisée, sans exception"). PLATFORM_AUDIT_TRAIL_VIEWED couvre la consultation
+     * elle-même, pas seulement les écritures - explicitement exigé par cette section.
+     * PLATFORM_NOTIFICATION_SENT ne porte jamais le contenu du message ni les critères de
+     * segmentation bruts au-delà d'un décompte de destinataires (même discipline que
+     * TEAM_NOTIFICATION_SENT ci-dessus).
+     */
+    case PLATFORM_ADMIN_LOGIN = 'PLATFORM_ADMIN_LOGIN';
+    case PLATFORM_ORGANIZATION_SUSPENDED = 'PLATFORM_ORGANIZATION_SUSPENDED';
+    case PLATFORM_ORGANIZATION_REACTIVATED = 'PLATFORM_ORGANIZATION_REACTIVATED';
+    case PLATFORM_AUDIT_TRAIL_VIEWED = 'PLATFORM_AUDIT_TRAIL_VIEWED';
+    case PLATFORM_NOTIFICATION_SENT = 'PLATFORM_NOTIFICATION_SENT';
+    case PLATFORM_ORGANIZATIONS_VIEWED = 'PLATFORM_ORGANIZATIONS_VIEWED';
 }
