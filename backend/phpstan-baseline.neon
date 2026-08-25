@@ -67,6 +67,12 @@ parameters:
 			path: src/Identity/Repository/UserRepository.php
 
 		-
+			message: '#^Class App\\PlatformAdmin\\Repository\\PlatformAdministratorRepository implements generic interface Symfony\\Component\\Security\\Core\\User\\UserProviderInterface but does not specify its types\: TUser$#'
+			identifier: missingType.generics
+			count: 1
+			path: src/PlatformAdmin/Repository/PlatformAdministratorRepository.php
+
+		-
 			message: '#^Property App\\Invoicing\\Entity\\InvoiceLine\:\:\$invoice is never read, only written\.$#'
 			identifier: property.onlyWritten
 			count: 1
