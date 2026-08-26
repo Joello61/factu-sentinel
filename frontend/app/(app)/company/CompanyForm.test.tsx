@@ -36,7 +36,7 @@ describe("CompanyForm", () => {
 
   it("submits the three raw fiscal values and displays the returned diagnostic", async () => {
     const user = userEvent.setup();
-    let sentBody: { fiscal_context?: Record<string, unknown> } | null = null;
+    let sentBody: { fiscal_context?: Record<string, unknown> } | undefined;
     vi.mocked(fetch).mockImplementation(async (input, init) => {
       const method = init?.method ?? "GET";
       if (method === "GET") return jsonResponse(200, NOT_CONFIGURED);
