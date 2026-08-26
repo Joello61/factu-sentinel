@@ -48,6 +48,37 @@ final class RefreshControllerTest extends ApiTestCase
         self::assertResponseStatusCodeSame(401);
     }
 
+    /**
+     * reuse_detection (config/packages/gesdinet_jwt_refresh_token.yaml, activé Phase 17
+     * après correction d'un défaut de câblage DI du bundle -
+     * App\Shared\DependencyInjection\GesdinetReuseDetectionCachePass) : au-delà du simple
+     * rejet du token rejoué déjà couvert par testReusingAnAlreadyConsumedRefreshTokenIsRejected,
+     * la garantie propre à reuse_detection est que la FAMILLE ENTIÈRE est révoquée - y
+     * compris le jeton de rotation légitime B, jamais lui-même rejoué, émis par l'unique
+     * utilisation valide du jeton A.
+     */
+    public function testReplayingASpentTokenRevokesTheWholeFamily(): void
+    {
+        $client = $this->createAuthenticatedClient('refresh-family-revocation@example.test');
+        $originalCookie = $this->firstCookie($client);
+
+        // Rotation légitime : A est consommé, B est émis dans la même famille.
+        $client->jsonRequest('POST', '/api/v1/auth/refresh', [], ['HTTP_ORIGIN' => self::ORIGIN]);
+        self::assertResponseStatusCodeSame(200);
+        $rotatedCookie = $this->firstCookie($client);
+
+        // Rejeu de A (déjà consommé) : détecté comme réutilisation, révoque toute la famille.
+        $client->getCookieJar()->set($originalCookie);
+        $client->jsonRequest('POST', '/api/v1/auth/refresh', [], ['HTTP_ORIGIN' => self::ORIGIN]);
+        self::assertResponseStatusCodeSame(401);
+
+        // B, pourtant jamais rejoué lui-même, doit désormais être rejeté : sa famille a été
+        // révoquée par la détection de réutilisation ci-dessus.
+        $client->getCookieJar()->set($rotatedCookie);
+        $client->jsonRequest('POST', '/api/v1/auth/refresh', [], ['HTTP_ORIGIN' => self::ORIGIN]);
+        self::assertResponseStatusCodeSame(401);
+    }
+
     public function testRefreshWithoutMatchingOriginIsRejected(): void
     {
         $client = $this->createAuthenticatedClient('refresh-origin@example.test');
