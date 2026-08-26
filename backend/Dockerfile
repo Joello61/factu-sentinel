@@ -102,6 +102,16 @@ RUN addgroup -g 1000 app \
 
 COPY --from=build --chown=app:app /app /app
 
+# "COPY --chown" ne s'applique qu'au contenu copié, jamais au répertoire de destination
+# pré-existant lui-même ("/app", créé root:root par "WORKDIR /app" dans le stage "base",
+# en amont de la création de l'utilisateur "app" ci-dessus) - constaté à l'implémentation :
+# sans ce répertoire "var/" créé et possédé explicitement par "app" avant le "USER app"
+# ci-dessous, Symfony ne peut créer aucun sous-répertoire ("var/cache/prod", "var/log")
+# au runtime ("Unable to create the cache directory"), le répertoire parent restant
+# root:root et non accessible en écriture à un utilisateur non-root.
+RUN mkdir -p var/cache var/log \
+    && chown -R app:app var
+
 USER app
 
 EXPOSE 9000
