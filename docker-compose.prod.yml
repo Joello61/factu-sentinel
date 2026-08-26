@@ -12,14 +12,21 @@
 # docker-compose.yml sans effet en pratique (compose ne reconstruit que si l'image
 # référencée est absente localement).
 #
+# TLS/edge public : géré par Traefik (infrastructure de niveau serveur, hors de ce
+# dépôt - voir le runbook Phase 17, section Nginx/Traefik). "nginx" ci-dessous n'est
+# plus qu'un pont HTTP -> FastCGI interne, jamais exposé directement au réseau hôte -
+# "ACME_EMAIL"/le service "certbot" n'existent donc plus ici (déplacés vers la stack
+# Traefik partagée).
+#
 # Variables attendues - voir .env.prod.example (jamais commité en valeurs réelles) :
-#   PUBLIC_DOMAIN      - nom de domaine public (ex. app.factusentinel.fr)
+#   PUBLIC_DOMAIN      - nom de domaine public (ex. app.factusentinel.fr) - utilisé à la
+#                        fois par Nginx (server_name) et par la règle Host() du label
+#                        Traefik ci-dessous
 #   BACKEND_IMAGE      - image GHCR taguée par SHA (ex. ghcr.io/.../backend:<sha>)
 #   FRONTEND_IMAGE     - image GHCR taguée par SHA
 #   MUSTANG_IMAGE      - image GHCR taguée par SHA
 #   CORS_ALLOW_ORIGIN  - regex d'origine correspondant à PUBLIC_DOMAIN, jamais un wildcard
 #   FRONTEND_URL       - https://PUBLIC_DOMAIN
-#   ACME_EMAIL         - contact Let's Encrypt (voir docker/nginx/README.md)
 #   HSTS_ENABLED       - "true" uniquement une fois le certificat réel actif (Bloc B) -
 #                        DIFFERE tant que ce n'est pas confirmé (10-security-privacy.md §68)
 #   POSTGRES_USER / POSTGRES_PASSWORD / POSTGRES_DB - valeurs réelles, jamais celles de dev
@@ -102,37 +109,39 @@ services:
       timeout: 3s
       retries: 5
 
+  # N'est plus l'edge public depuis l'introduction de Traefik (plan Phase 17, section
+  # Nginx/Traefik) : ne publie plus de port hôte, ne termine plus le TLS. Traefik route
+  # vers ce service en HTTP interne sur le réseau externe partagé "traefik-public" -
+  # Nginx reste uniquement le pont HTTP -> FastCGI vers "backend" (PHP-FPM), que Traefik
+  # ne sait pas parler nativement.
   nginx:
     restart: unless-stopped
     volumes: !override
       - ./docker/nginx/prod.conf.template:/etc/nginx/templates/default.conf.template:ro
-      - certbot_conf:/etc/letsencrypt:ro
-      - certbot_webroot:/var/www/certbot:ro
+    # Le fichier de base (docker-compose.yml, dev/beta) publie "8080:80" sur l'hôte - une
+    # liste vide en fusion par défaut n'aurait fait qu'AJOUTER à cette valeur (jamais la
+    # retirer, cf. rappel en tête de ce fichier) : "!override" la remplace explicitement
+    # par aucun port publié, Traefik étant seul point d'entrée réseau vers ce service
+    # (Fail Secure) - constaté avec "docker compose config" avant correction.
+    ports: !override []
     environment:
       PUBLIC_DOMAIN: '${PUBLIC_DOMAIN}'
-    ports: !override
-      - '80:80'
-      - '443:443'
     healthcheck:
-      # --no-check-certificate : le certificat est celui émis par Let's Encrypt pour
-      # PUBLIC_DOMAIN, jamais valide pour l'hôte interne "localhost" utilisé ici -
-      # vérifie seulement que Nginx répond, pas l'identité du certificat (déjà garantie
-      # côté navigateur par le vrai nom de domaine).
-      test: ['CMD', 'wget', '--no-check-certificate', '-q', '--spider', 'https://localhost/api/health']
+      test: ['CMD', 'wget', '-q', '--spider', 'http://localhost/api/health']
       interval: 30s
       timeout: 5s
       retries: 3
       start_period: 10s
-
-  # Outil, jamais démarré par "up -d" (profil dédié, voir docker/nginx/README.md pour
-  # l'émission initiale et le renouvellement) - jamais un démon persistant supplémentaire,
-  # cohérent avec docker/backup/backup.sh (cron/systemd côté hôte, pas un conteneur dédié).
-  certbot:
-    image: certbot/certbot:v5.7.0
-    profiles: ['certbot']
-    volumes:
-      - certbot_conf:/etc/letsencrypt
-      - certbot_webroot:/var/www/certbot
+    networks:
+      - default
+      - traefik-public
+    labels:
+      traefik.enable: 'true'
+      traefik.docker.network: 'traefik-public'
+      traefik.http.routers.factusentinel.rule: 'Host(`${PUBLIC_DOMAIN}`)'
+      traefik.http.routers.factusentinel.entrypoints: 'websecure'
+      traefik.http.routers.factusentinel.tls.certresolver: 'letsencrypt'
+      traefik.http.services.factusentinel.loadbalancer.server.port: '80'
 
   # Monitoring auto-hébergé (Phase 17, docs/12-roadmap.md §41) - OVHcloud n'a pas
   # d'équivalent natif à Scaleway Cockpit (comparaison hébergeur, plan Phase 17). Interface
@@ -153,5 +162,10 @@ services:
 volumes:
   storage_documents:
   uptime_kuma_data:
-  certbot_conf:
-  certbot_webroot:
+
+# Réseau partagé avec la stack Traefik (infrastructure de niveau serveur, hors de ce
+# dépôt - voir le runbook Phase 17) - créé une seule fois sur le serveur
+# ("docker network create traefik-public"), jamais par ce fichier lui-même.
+networks:
+  traefik-public:
+    external: true
