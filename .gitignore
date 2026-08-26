@@ -36,6 +36,11 @@ desktop.ini
 /.env.staging
 /.env.production
 
+# Labels Traefik réels (nom de routeur par environnement, Phase 17, runbook serveur) -
+# propre à chaque environnement/serveur, jamais partagé ; seul
+# docker-compose.prod.traefik.yml.example est versionné.
+/docker-compose.prod.traefik.yml
+
 # Docker (volumes/données locales, overrides personnels)
 docker-compose.override.yml
 docker/**/data/

@@ -135,13 +135,15 @@ services:
     networks:
       - default
       - traefik-public
-    labels:
-      traefik.enable: 'true'
-      traefik.docker.network: 'traefik-public'
-      traefik.http.routers.factusentinel.rule: 'Host(`${PUBLIC_DOMAIN}`)'
-      traefik.http.routers.factusentinel.entrypoints: 'websecure'
-      traefik.http.routers.factusentinel.tls.certresolver: 'letsencrypt'
-      traefik.http.services.factusentinel.loadbalancer.server.port: '80'
+    # Les labels Traefik (nom du routeur) ne sont PAS ici : Compose interpole les
+    # variables d'environnement dans les valeurs de labels, jamais dans leurs clés
+    # (vérifié avec "docker compose config" le 26/08/2026) - or Traefik traite les noms
+    # de routeurs comme des identifiants globaux sur tout le serveur, pas par projet ni
+    # par environnement. Deux stacks (staging/production) sur le même VPS qui
+    # déclareraient toutes les deux un routeur nommé "factusentinel" entreraient donc en
+    # conflit. Les labels réels vivent dans docker-compose.prod.traefik.yml, propre à
+    # chaque environnement (voir docker-compose.prod.traefik.yml.example), jamais dans ce
+    # fichier générique partagé.
 
   # Monitoring auto-hébergé (Phase 17, docs/12-roadmap.md §41) - OVHcloud n'a pas
   # d'équivalent natif à Scaleway Cockpit (comparaison hébergeur, plan Phase 17). Interface
