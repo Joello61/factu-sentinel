@@ -65,3 +65,26 @@ export interface PlatformHealth {
   ai_estimated_cost_24h: string;
   api_health: "ok" | "degraded";
 }
+
+// docs/08-api-specification.md, section 38.3 (Phase 16). Résumé cumulé sur toute
+// l'historique de la plateforme - sémantique volontairement distincte de
+// PlatformAnalyticsTrendPoint ci-dessous (activité par jour) : ne jamais les confondre en
+// affichage.
+export interface PlatformAnalyticsSummary {
+  organizations_count: number;
+  users_count: number;
+  compliance_analyses_count: number;
+  compliance_rate: string;
+}
+
+export interface PlatformAnalyticsTrendPoint {
+  date: string;
+  organizations_created: number;
+  users_created: number;
+  compliance_analyses_count: number;
+  compliance_rate: string;
+}
+
+export interface PlatformAnalyticsTrends {
+  points: PlatformAnalyticsTrendPoint[];
+}
