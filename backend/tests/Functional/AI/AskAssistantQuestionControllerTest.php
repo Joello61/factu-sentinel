@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Functional\AI;
 
+use App\Identity\Entity\User;
 use App\Shared\Audit\Entity\AuditLogEntry;
 use App\Shared\Audit\Enum\EventType;
 use App\Tests\Support\ApiTestCase;
@@ -79,12 +80,23 @@ final class AskAssistantQuestionControllerTest extends ApiTestCase
 
         /** @var EntityManagerInterface $em */
         $em = static::getContainer()->get(EntityManagerInterface::class);
-        // Filtré par eventType uniquement (contrairement au test équivalent de
+        // Filtré par eventType ET actorId (contrairement au test équivalent de
         // ExplainComplianceFindingControllerTest, aucun entityId stable n'existe ici pour un
         // ASSISTANT_QUESTION_ASKED - App\AI\Service\AnswerAssistantQuestionService en génère
-        // un synthétique par appel) : on prend donc la plus récente entrée de ce type, les
-        // autres tests de cette classe pouvant en avoir déjà écrit d'autres avant celui-ci.
-        $entries = $em->getRepository(AuditLogEntry::class)->findBy(['eventType' => EventType::ASSISTANT_QUESTION_ASKED], ['occurredAt' => 'DESC'], 1);
+        // un synthétique par appel). Le seul actorId filtre déjà cette requête à ce test (un
+        // utilisateur distinct par test de cette classe) - nécessaire, pas seulement une
+        // précaution : "occurred_at" est un TIMESTAMP(0) (précision à la seconde), donc
+        // "ORDER BY occurredAt DESC LIMIT 1" seul peut renvoyer l'entrée d'un AUTRE test de
+        // cette classe en cas d'égalité sur un environnement d'exécution rapide (constaté en
+        // CI : un autre test de cette classe s'exécutant dans la même seconde faisait échouer
+        // celui-ci de façon non déterministe).
+        $user = $em->getRepository(User::class)->findOneBy(['email' => 'ai-question-005@example.test']);
+        self::assertNotNull($user);
+        $entries = $em->getRepository(AuditLogEntry::class)->findBy(
+            ['eventType' => EventType::ASSISTANT_QUESTION_ASKED, 'actorId' => $user->getId()],
+            ['occurredAt' => 'DESC'],
+            1,
+        );
 
         self::assertCount(1, $entries);
         $newState = $entries[0]->getNewState();

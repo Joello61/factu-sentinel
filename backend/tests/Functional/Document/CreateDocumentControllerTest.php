@@ -282,7 +282,13 @@ final class CreateDocumentControllerTest extends ApiTestCase
             }
         });
 
-        $storageDir = getenv('STORAGE_LOCAL_PATH');
+        // getenv() ne lit que la table d'environnement réelle du process OS - vraie en
+        // développement (docker-compose.yml définit STORAGE_LOCAL_PATH comme variable de
+        // conteneur) mais jamais peuplée par Symfony\Dotenv (tests/bootstrap.php), qui
+        // écrit uniquement dans $_ENV/$_SERVER, jamais putenv() par défaut (vérifié le
+        // 26/08/2026) - getenv() renvoyait donc silencieusement "false" en CI, où PHPUnit
+        // s'exécute nu sur le runner sans docker-compose.
+        $storageDir = $_SERVER['STORAGE_LOCAL_PATH'] ?? $_ENV['STORAGE_LOCAL_PATH'] ?? null;
         self::assertIsString($storageDir);
         $filesBefore = scandir($storageDir);
         self::assertIsArray($filesBefore);
