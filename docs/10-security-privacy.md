@@ -945,7 +945,7 @@ une garantie).
 
 **API**
 
-- [ ] HTTPS forcé sur l'ensemble des endpoints (section 25) - `DIFFÉRÉ - Phase 17 - nécessite une infrastructure hébergée` (préparation faite : `App\Shared\Http\HstsHeaderListener`, désactivé par défaut - `HSTS_ENABLED=false`, `backend/.env`)
+- [ ] HTTPS forcé sur l'ensemble des endpoints (section 25) - `DIFFÉRÉ - Bloc B - nécessite un domaine et un certificat réels`. Préparation Phase 17 complète : `App\Shared\Http\HstsHeaderListener` (`HSTS_ENABLED=false` par défaut, `backend/.env`), configuration Nginx TLS complète (`docker/nginx/prod.conf.template`, validée par un vrai `nginx -t`), émission/renouvellement Let's Encrypt scriptés (`docker/nginx/bootstrap-cert.sh`/`renew-cert.sh`, `docker/nginx/README.md`) - il ne manque que l'exécution réelle (domaine, DNS, premier certificat)
 - [x] Politique CORS restrictive appliquée (section 21) - `backend/config/packages/nelmio_cors.yaml` (`CORS_ALLOW_ORIGIN` par environnement, jamais de wildcard), en-têtes métier complétés Phase 10 (`Idempotency-Key`, `If-Match`, `X-Request-ID`)
 - [x] Rate limiting actif sur l'authentification et les opérations coûteuses (section 18) - `login_throttling`, `password_reset_request`, `ai_assistant` (Phases 2/8) + `compliance_analysis_trigger`, `document_upload` (Phase 10) - `backend/config/packages/rate_limiter.yaml`, tests `testRateLimitReturns429AfterExhaustingLimiter` par endpoint
 - [x] Contrat d'erreur ne révélant aucun détail technique interne (section 18) - `App\Shared\Http\ApiExceptionListener`, revu Phase 10, aucune régression trouvée
@@ -960,8 +960,8 @@ une garantie).
 
 **Données**
 
-- [ ] Chiffrement en transit systématique (section 25) - `DIFFÉRÉ - Phase 17 - nécessite une infrastructure hébergée` (TLS dépend de l'hébergeur retenu)
-- [ ] Chiffrement au repos activé (base de données, stockage) (section 25) - `DIFFÉRÉ - Phase 17 - nécessite une infrastructure hébergée`
+- [ ] Chiffrement en transit systématique (section 25) - `DIFFÉRÉ - Bloc B - nécessite un domaine et un certificat réels` (mécanisme prêt, voir HTTPS forcé ci-dessus - OVHcloud confirmé comme hébergeur, plan Phase 17)
+- [ ] Chiffrement au repos activé (base de données, stockage) (section 25) - `DIFFÉRÉ - Bloc B - dépend de l'option de chiffrement disque de l'offre OVHcloud retenue, à vérifier au moment du provisionnement`
 - [x] Politique de rétention documentée, même si certaines durées restent « à confirmer juridiquement » (section 38) - déjà documentée section 38, incertitudes juridiques explicitement signalées, pas un point bloquant pour cette case
 - [x] Sauvegardes chiffrées et testées (sections 37, 54) - `docker/backup/backup.sh`/`restore.sh` (gpg AES256, clé jamais stockée avec l'archive) - Phase 10, restauration testée manuellement avec vérification de cohérence croisée `Document` ↔ fichier ↔ `DocumentProcessingRecord` (voir `docker/backup/README.md`). **Phase 17** : automatisation périodique ajoutée (`docker/backup/automated-backup.sh` - cron/systemd, envoi vers un stockage objet distant compatible S3, rétention), et un défaut corrigé au passage - les deux scripts lisaient/écrivaient directement `backend/var/storage/documents` sur l'hôte, ce qui ne fonctionne plus tel quel en production (`docker-compose.prod.yml` porte ce chemin via un volume Docker nommé) ; passent désormais par `docker compose exec backend`, valable dans les deux environnements.
 
@@ -976,20 +976,20 @@ une garantie).
 
 - [x] Aucun secret dans le code source ou les images de conteneur (sections 26-27) - `backend/.env` committé sans valeur réelle, secrets via `.env.local`/variables CI ; scan automatisé ajouté Phase 10 (`gitleaks/gitleaks-action`, `.github/workflows/lint.yml`)
 - [x] Réseau interne non exposé directement à Internet (section 52) - `docker-compose.yml` : PostgreSQL/Redis liés à `127.0.0.1`, Mustang sans port publié, Nginx seul point d'entrée ; déjà vrai depuis la Phase 0-1
-- [ ] Environnements strictement isolés (section 53) - `DIFFÉRÉ - Phase 17 - nécessite une infrastructure hébergée` (local/CI seulement à ce stade, aucun staging/production distinct)
+- [ ] Environnements strictement isolés (section 53) - `DIFFÉRÉ - Bloc B - nécessite le provisionnement réel`. Préparation Phase 17 complète : `docker-compose.prod.yml` générique (staging et production utilisent le même overlay, séparés uniquement par `.env.staging`/`.env.production`, jamais partagés), secrets GitHub Environments distincts par environnement (`docker/deploy/README.md`) - reste à provisionner deux serveurs réellement distincts (OVHcloud confirmé, offre exacte à vérifier au moment du provisionnement)
 - [ ] Monitoring et alerting actifs sur les événements critiques (sections 36-37) - préparation faite en Phase 17 (`docker-compose.prod.yml` service `monitoring`, Uptime Kuma auto-hébergé, `docker/monitoring/README.md` ; connectivité Redis/Mustang ajoutée à `GET /platform-admin/health` ; moniteur push pour les sauvegardes) - reste `DIFFÉRÉ - Bloc B - nécessite le domaine et le déploiement réels` pour l'activation effective : les moniteurs et le canal de notification se configurent une fois manuellement via l'interface Uptime Kuma, jamais par ce dépôt
 
 **RGPD**
 
 Hors périmètre de la Phase 10 (points juridiques, non techniques - voir section 69) :
 
-- [ ] Cartographie des données personnelles tenue à jour (section 9)
-- [ ] Bases légales validées juridiquement (section 41)
-- [ ] Registre des traitements initié (section 42)
-- [ ] Qualification responsable/sous-traitant validée juridiquement (section 43)
-- [ ] DPA en place avec chaque fournisseur externe traitant des données personnelles (section 44)
-- [ ] Analyse des transferts internationaux effectuée si applicable (section 45)
-- [ ] Screening de nécessité d'AIPD réalisé ; AIPD complète menée si le screening la requiert (section 46)
+- [x] Cartographie des données personnelles tenue à jour (section 9) - à jour, complétée par le registre détaillé de `docs/16-rgpd-compliance-dossier.md` (Phase 17)
+- [ ] Bases légales validées juridiquement (section 41) - orientations indicatives préparées (`docs/16-rgpd-compliance-dossier.md` §1), **validation juridique restant entièrement à faire**
+- [x] Registre des traitements initié (section 42) - `docs/16-rgpd-compliance-dossier.md` §1 (Phase 17), sept traitements détaillés (finalité, données, sous-traitants, transferts, durée, mesures, base légale à valider) - "initié" au sens littéral de cette case, jamais présenté comme validé juridiquement
+- [ ] Qualification responsable/sous-traitant validée juridiquement (section 43) - orientation préparée (`docs/16-rgpd-compliance-dossier.md` §3), **validation juridique restant entièrement à faire**
+- [ ] DPA en place avec chaque fournisseur externe traitant des données personnelles (section 44) - dossier Mistral préparé avec les points précis à vérifier contractuellement (`docs/16-rgpd-compliance-dossier.md` §2, DPA public déjà lu, écarts identifiés) ; fournisseurs email/vérification d'entreprise toujours non choisis
+- [ ] Analyse des transferts internationaux effectuée si applicable (section 45) - le DPA public de Mistral autorise des transferts sous conditions (`docs/16-rgpd-compliance-dossier.md` §2.3) - **contrairement à l'hypothèse précédente de cette section, ce n'est pas une absence de transfert acquise** ; vérification contractuelle réelle restant à faire
+- [ ] Screening de nécessité d'AIPD réalisé ; AIPD complète menée si le screening la requiert (section 46) - grille des 9 critères officiels CNIL/G29 appliquée (`docs/16-rgpd-compliance-dossier.md` §4), conclusion **provisoire** (AIPD complète non clairement requise en l'état) explicitement marquée comme non officielle - **validation par toi et/ou un juriste restant à faire avant mise en production**, cette case reste décochée tant qu'elle ne l'est pas
 - [ ] Processus de traitement des demandes de droits des personnes opérationnel, y compris la procédure de vérification manuelle sécurisée pour les demandes de tiers non-utilisateurs (section 40)
 
 ## 69. Questions ouvertes

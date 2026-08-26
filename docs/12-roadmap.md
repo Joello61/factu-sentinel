@@ -712,6 +712,20 @@ Definition of Done : checklist de la section 43 intégralement complétée.
 Risks : questions juridiques non tranchées avant cette phase (section 51) bloqueraient un lancement commercial serein.
 Exit Criteria : validation juridique obtenue sur les points critiques (bases légales, conservation) ; checklist de production complète.
 
+**État réel (Bloc A de cette phase, réalisé)** : hébergeur comparé et confirmé (OVHcloud,
+sous réserve de vérification finale de l'offre au provisionnement) ; une vulnérabilité
+critique Next.js trouvée et corrigée en cours d'audit (`hotfix/nextjs-16.3.3-avif-rce`,
+fusionnée dans `main`) ; build de production frontend réparé (deux bugs indépendants,
+dont un jusque-là invisible faute de Release Gate `next build`, désormais ajouté) ; audit
+de sécurité interne avec un correctif réel (`reuse_detection` du refresh token, bug amont
+du bundle identifié et contourné par un compilateur pass projet) ; antivirus sur upload
+implémenté et testé contre le vrai service ; sauvegarde automatisée (un défaut de
+persistance découvert et corrigé au passage) ; monitoring auto-hébergé préparé ; pipeline
+CI/CD complet (`deploy.yml`, GHCR, staging automatique, production sur validation
+manuelle). Documents `docs/15` à `docs/17` produits. **Rien de tout cela ne constitue le
+Bloc B** (provisionnement réel, validation juridique, pentest réel) - voir le plan Phase
+17 complet pour le détail, jamais une case de la section 43 cochée sur cette seule base.
+
 ## 11. Dependency Graph
 
 ```mermaid
@@ -1176,6 +1190,29 @@ Legal validation                       - AIPD evaluee, DPA signes avec les fourn
 ```
 
 **Aucune case n'est cochée par anticipation** - chacune nécessite une preuve issue du développement réel, pas une supposition.
+
+**État réel après le Bloc A de la Phase 17** (préparation réalisée, détail précis dans
+chaque document source - jamais dupliqué ici) :
+
+- **Security** (`10-security-privacy.md` §68) : plusieurs cases genuinement cochées cette
+  phase (antivirus, sauvegardes automatisées) ; celles qui dépendent d'un serveur réel
+  (HTTPS forcé, chiffrement en transit/repos, environnements isolés, monitoring actif)
+  ont leur préparation technique complète et vérifiée (Nginx TLS, Certbot,
+  `docker-compose.prod.yml`, Uptime Kuma) mais restent explicitement `DIFFÉRÉ - Bloc B` -
+  l'exécution réelle (domaine, provisionnement OVHcloud confirmé) n'a pas eu lieu.
+- **Privacy** : documents de travail produits (`docs/16-rgpd-compliance-dossier.md`) -
+  bases légales, qualification responsable/sous-traitant et conclusion AIPD restent
+  **non validées juridiquement**, comme avant cette phase.
+- **Infrastructure/Monitoring/Backup** : voir Security ci-dessus - même statut de
+  préparation Bloc A complète, activation Bloc B.
+- **Legal validation** : dossier de scope pentest produit (`docs/17-pentest-scope.md`,
+  deux périmètres distincts, Platform Admin et produit complet) - **aucun pentest réel
+  n'a été exécuté**, revue de sécurité interne documentée séparément
+  (`docs/15-internal-security-review.md`) comme non substituable à ce pentest.
+
+Le produit n'est pas "Production Ready" simplement parce que le Bloc A est terminé - voir
+le plan Phase 17 pour le détail complet Bloc A (fait) / Bloc B (validation externe et mise
+en production réelle, restant à faire).
 
 ## 44. Roadmap Visualization
 
