@@ -63,7 +63,13 @@ export MUSTANG_IMAGE="$MUSTANG_IMAGE"
 # "monitoring" rendu paramétrable) n'atteignait jamais le serveur sans cette étape, "pull"
 # ne mettant à jour que les images, jamais le code.
 echo "=== Synchronisation du code au commit testé (${IMAGE_TAG}) ==="
-git fetch origin "$IMAGE_TAG"
+# GitHub n'autorise pas de récupérer un SHA arbitraire en tant que référence distante
+# directe ("git fetch origin <sha>") - constaté en usage réel :
+# "fatal: couldn't find remote ref <sha>". Ce déploiement n'est déclenché que depuis un
+# commit déjà présent sur "main" (.github/workflows/deploy.yml, workflow_run sur le
+# succès de la CI sur main) : récupérer la branche suffit à rendre ce commit disponible
+# localement, avant de s'y positionner précisément.
+git fetch origin main
 git checkout --quiet "$IMAGE_TAG"
 
 echo "=== Récupération des images ==="
