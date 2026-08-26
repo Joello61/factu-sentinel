@@ -1048,13 +1048,17 @@ Response: 200 OK
     "async_jobs_dead_letter_count": "integer",
     "ai_calls_volume_24h": "integer",
     "ai_estimated_cost_24h": "string (decimal)",
-    "api_health": "ok" | "degraded"
+    "api_health": "ok" | "degraded",
+    "redis_reachable": "boolean",
+    "mustang_reachable": "boolean"
   }
 }
 ```
-Explicitement limité au niveau applicatif (`04-product-requirements.md`, FR-PLATFORMADMIN-005) -
-aucun indicateur d'infrastructure réelle (uptime, ressources serveur) tant qu'aucun hébergeur
-n'est retenu (Phase 17).
+Limité au niveau applicatif (`04-product-requirements.md`, FR-PLATFORMADMIN-005) - jamais de
+métrique d'infrastructure hôte (CPU, disque, mémoire), qui relève du monitoring auto-hébergé
+externe (Phase 17, `12-roadmap.md` §41), pas de cette surface authentifiée.
+`redis_reachable`/`mustang_reachable` (Phase 17) : connexion TCP brute, prouve la joignabilité
+réseau, pas la santé fonctionnelle complète du service distant.
 
 **Isolation** : ces endpoints lisent/écrivent à travers toutes les organisations - **jamais**
 via le mécanisme `TenantFilter` utilisé par le reste de l'API (section 9), toujours via des

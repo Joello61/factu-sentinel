@@ -19,6 +19,7 @@ services:
             string $storageLocalBasePath: '%env(STORAGE_LOCAL_PATH)%'
             int $documentMaxSizeBytes: '%env(int:DOCUMENT_MAX_SIZE_BYTES)%'
             string $mustangBaseUrl: '%env(MUSTANG_BASE_URL)%'
+            string $redisUrl: '%env(REDIS_URL)%'
             bool $hstsEnabled: '%env(bool:HSTS_ENABLED)%'
             string $platformAdminTotpEncryptionKeyHex: '%env(PLATFORM_ADMIN_TOTP_ENCRYPTION_KEY)%'
 
