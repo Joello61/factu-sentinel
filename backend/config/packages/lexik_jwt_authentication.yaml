@@ -2,3 +2,11 @@ lexik_jwt_authentication:
     secret_key: '%env(resolve:JWT_SECRET_KEY)%'
     public_key: '%env(resolve:JWT_PUBLIC_KEY)%'
     pass_phrase: '%env(JWT_PASSPHRASE)%'
+
+    # Explicite (Phase 17, revue de sécurité) : la valeur par défaut du bundle (3600) était
+    # utilisée implicitement jusqu'ici, jamais lue ni actée comme décision - même principe
+    # que gesdinet_jwt_refresh_token.yaml ci-contre (ttl/single_use explicites). 1h reste
+    # cohérent avec un access token conservé en mémoire côté frontend, jamais persisté
+    # (docs/10-security-privacy.md section 12) : à réévaluer si le produit venait à
+    # manipuler des opérations plus sensibles justifiant une durée plus courte.
+    token_ttl: 3600
