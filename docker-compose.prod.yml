@@ -39,10 +39,18 @@
 # installée, v2.38.1, le 26/08/2026).
 
 services:
+  # "storage_documents" (volume nommé, persistant, déclaré en bas de ce fichier) remplace
+  # le bind-mount de dev sur STORAGE_LOCAL_PATH (/app/var/storage/documents,
+  # backend/.env) : sans lui, un document uploadé serait écrit dans la couche
+  # inscriptible éphémère du conteneur et perdu au prochain déploiement (l'image est
+  # retirée puis recréée à chaque "docker compose pull" + "up -d", jamais réutilisée en
+  # place) - même volume partagé avec "worker" ci-dessous, qui lit les mêmes fichiers via
+  # StorageInterface::retrieve() (App\Document\MessageHandler\ExtractDocumentContentHandler).
   backend:
     image: '${BACKEND_IMAGE}'
     build: !reset null
-    volumes: !override []
+    volumes: !override
+      - storage_documents:/app/var/storage/documents
     environment:
       APP_ENV: prod
       APP_DEBUG: '0'
@@ -51,15 +59,15 @@ services:
       HSTS_ENABLED: '${HSTS_ENABLED:-false}'
     restart: unless-stopped
 
-  # "entrypoint" et "volumes" de base (docker-compose.yml) sont spécifiques au dev :
-  # entrypoint-worker-dev.sh attend un bind-mount partagé avec "backend" qui n'existe pas
-  # ici (image déjà construite, rien à attendre) - !override vide rend à l'entrypoint par
-  # défaut de l'image ("command" ci-dessous, hérité du fichier de base, s'exécute alors
-  # directement).
+  # "entrypoint" de base (docker-compose.yml) est spécifique au dev : entrypoint-worker-dev.sh
+  # attend un bind-mount partagé avec "backend" qui n'existe pas ici (image déjà construite,
+  # rien à attendre) - !override vide rend à l'entrypoint par défaut de l'image ("command"
+  # ci-dessous, hérité du fichier de base, s'exécute alors directement).
   worker:
     image: '${BACKEND_IMAGE}'
     build: !reset null
-    volumes: !override []
+    volumes: !override
+      - storage_documents:/app/var/storage/documents
     entrypoint: !override []
     environment:
       APP_ENV: prod
@@ -127,5 +135,6 @@ services:
       - certbot_webroot:/var/www/certbot
 
 volumes:
+  storage_documents:
   certbot_conf:
   certbot_webroot:
