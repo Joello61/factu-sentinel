@@ -10,7 +10,7 @@ use Symfony\Component\Security\Core\Authorization\Voter\Vote;
 use Symfony\Component\Security\Core\Authorization\Voter\Voter;
 
 /**
- * Autorisation du rôle plateforme (docs/08-api-specification.md, section 38.2 ;
+ * Autorisation du rôle plateforme (docs/08-api-specification.md, sections 38.2 et 38.3 ;
  * docs/10-security-privacy.md, section 17 bis : "liste explicite des actions permises, jamais
  * un accès complet implicite du seul fait d'être PlatformAdministrator"). Même patron que
  * App\Shared\Security\OrganizationPermissionVoter - Voter unique, matrice codée en dur
@@ -33,6 +33,7 @@ final class PlatformAdminPermissionVoter extends Voter
     public const string AUDIT_READ = 'platform:audit:read';
     public const string NOTIFICATIONS_SEND = 'platform:notifications:send';
     public const string HEALTH_READ = 'platform:health:read';
+    public const string ANALYTICS_READ = 'platform:analytics:read';
 
     private const array ATTRIBUTES = [
         self::ORGANIZATIONS_READ,
@@ -40,6 +41,7 @@ final class PlatformAdminPermissionVoter extends Voter
         self::AUDIT_READ,
         self::NOTIFICATIONS_SEND,
         self::HEALTH_READ,
+        self::ANALYTICS_READ,
     ];
 
     protected function supports(string $attribute, mixed $subject): bool
