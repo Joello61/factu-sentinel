@@ -61,6 +61,21 @@ BACKUP_DIR="$ROOT_DIR/backups"
 if [ -n "${COMPOSE_ENV_FILE:-}" ]; then
   export COMPOSE_FILE="docker-compose.yml:docker-compose.prod.yml"
   export COMPOSE_ENV_FILES="$COMPOSE_ENV_FILE"
+
+  # COMPOSE_ENV_FILES ci-dessus ne fait que dire à "docker compose" quel fichier lire pour
+  # SES PROPRES commandes (exec, up, ...) - il n'exporte rien dans CE process shell.
+  # backup.sh lit pourtant $POSTGRES_USER/$POSTGRES_DB directement (pas via Docker Compose)
+  # pour sa commande "pg_dump -U ...", avec un repli sur les valeurs de dev
+  # ("factusentinel") si absentes - jamais rencontré avant le premier essai réel en
+  # production, où le rôle "factusentinel" n'existe pas (POSTGRES_USER réel :
+  # "factusentinel_prod"). Charger explicitement le fichier dans ce process pour que ces
+  # variables soient également visibles ici, POSTGRES_PASSWORD y compris (déjà lu par
+  # "docker compose exec" de toute façon via COMPOSE_ENV_FILES - aucune frontière de
+  # confiance supplémentaire franchie en l'exportant aussi dans ce process).
+  set -a
+  # shellcheck disable=SC1090
+  source "$COMPOSE_ENV_FILE"
+  set +a
 fi
 
 echo "=== Sauvegarde ==="
