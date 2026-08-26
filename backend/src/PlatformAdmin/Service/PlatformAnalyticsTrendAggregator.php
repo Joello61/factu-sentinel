@@ -76,7 +76,7 @@ final class PlatformAnalyticsTrendAggregator
             }
         }
 
-        return array_values(array_map(
+        return array_map(
             static fn (string $date, array $bucket): array => [
                 'date' => $date,
                 'organizations_created' => $bucket['organizations_created'],
@@ -86,7 +86,7 @@ final class PlatformAnalyticsTrendAggregator
             ],
             array_keys($buckets),
             $buckets,
-        ));
+        );
     }
 
     /**
