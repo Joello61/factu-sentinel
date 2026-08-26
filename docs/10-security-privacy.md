@@ -956,7 +956,7 @@ une garantie).
 - [x] Validation par contenu réel (magic bytes), pas seulement extension/MIME (section 22) - `App\Document\Service\UploadedDocumentValidator` ; Phase 7
 - [x] Parseurs XML configurés contre XXE (section 23) - Validator Container Mustang isolé (ADR-008) ; Phase 7
 - [x] URLs de téléchargement temporaires et non prévisibles (section 24) - `GET /documents/{id}/content` authentifié à chaque appel, jamais d'URL publique (stockage local du MVP) ; Phase 7
-- [ ] Antivirus/sandboxing activé sur les fichiers uploadés - `DIFFÉRÉ - Phase 17 - nécessite une infrastructure hébergée` (non indispensable au MVP local/dev par décision produit déjà actée, section 22/69 ; requis avant une mise en production réelle)
+- [x] Antivirus activé sur les fichiers uploadés (Phase 17) - `App\Document\Service\ClamAvScanner`, scan avant toute écriture sur `StorageInterface`, conteneur ClamAV isolé (`06-technical-architecture.md` section 30) ; contrairement à l'attente initiale (`DIFFÉRÉ - nécessite une infrastructure hébergée`), ne dépendait pas réellement d'un hébergeur - fonctionne en local/CI comme en production. Détection réelle vérifiée contre le vrai service (`backend/tests/Integration/Document/ClamAvScannerTest.php`, signature EICAR) et non-persistance d'un contenu signalé vérifiée au niveau du pipeline (`backend/tests/Functional/Document/CreateDocumentControllerTest.php::testInfectedUploadIsRejectedAndNeverPersisted`)
 
 **Données**
 
