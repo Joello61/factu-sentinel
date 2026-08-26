@@ -40,6 +40,10 @@ services:
     # tables internes d'un autre module).
     App\Compliance\Engine\Service\ComplianceHealthReaderInterface: '@App\Compliance\Engine\Service\ComplianceHealthReader'
     App\AI\Service\AiUsageReaderInterface: '@App\AI\Service\AiUsageReader'
+    # Phase 16 - interface cross-module exposée à App\PlatformAdmin\Service\
+    # PlatformAnalyticsAggregator/App\PlatformAdmin\Controller\GetPlatformAnalyticsTrendsController,
+    # même raisonnement que les deux entrées Phase 15 ci-dessus.
+    App\Compliance\Engine\Service\ComplianceAnalyticsReaderInterface: '@App\Compliance\Engine\Service\ComplianceAnalyticsReader'
 
     # Constaté à l'implémentation : contrairement à $mustangBaseUrl ci-dessus, ajouter ces
     # trois valeurs à _defaults.bind ne suffisait pas à les faire résoudre pour
