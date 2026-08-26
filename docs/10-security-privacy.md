@@ -832,6 +832,11 @@ l'ensemble du produit.
 
 **Un pentest ne rend jamais l'application « sécurisée » de façon définitive** - il valide un état à un instant donné, sur un périmètre donné, et doit être renouvelé à mesure que le produit évolue.
 
+**Dossier de scope (Phase 17)** : `docs/17-pentest-scope.md` détaille les deux périmètres
+ci-dessus (Scope A ciblé Platform Admin, Scope B produit complet) pour un prestataire
+externe, et `docs/15-internal-security-review.md` documente la revue de sécurité interne
+menée en préparation - explicitement non substituable à ce pentest.
+
 ## 62. Security Release Gates
 
 ```text
@@ -1002,6 +1007,12 @@ Les points suivants, précédemment signalés comme questions ouvertes dans une 
 | Durée de conservation de la facture originale (section 38)                                                     | **10 ans**, reprise de la décision produit déjà actée dans `02-regulatory-study.md` (section 23, mis à jour).                                                                                                                  | Résolu - décision produit ; durées fines des données dérivées et délai de purge exact restent ouverts (voir ci-dessous)                                      |
 
 ### Restent explicitement ouvertes (points juridiques et fournisseurs non tranchés)
+
+**Voir `docs/16-rgpd-compliance-dossier.md` (Phase 17)** pour le registre des traitements
+détaillé, le dossier fournisseur Mistral (points précis vérifiés dans son DPA public au
+26/08/2026, notamment sur les transferts internationaux et l'entraînement de modèles) et
+le screening AIPD appliqué aux 9 critères CNIL/G29 - ce document en prépare la matière,
+il ne tranche aucune des questions listées ci-dessous.
 
 | Question                                                                                                                                                                            | Pourquoi elle est importante                                                                                                                                                            | Où la trancher                                                                       |
 | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
