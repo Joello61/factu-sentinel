@@ -27,6 +27,12 @@
 #   BACKUP_RCLONE_REMOTE    (obligatoire, ex. "ovh-backup:factusentinel-backups")
 #   BACKUP_RETENTION_DAYS   (optionnel, défaut 14)
 #   COMPOSE_ENV_FILE        (optionnel, ex. ".env.production" - passé à --env-file)
+#   BACKUP_MONITORING_PUSH_URL (optionnel) - URL d'un moniteur "push" Uptime Kuma
+#     (docker/monitoring/README.md) : appelée en cas de succès uniquement, pour qu'une
+#     absence de sauvegarde silencieuse (cron qui ne se déclenche plus, script qui échoue
+#     avant même de commencer) déclenche une alerte au bout du délai attendu configuré
+#     dans Uptime Kuma - jamais l'inverse (ce script ne signale jamais explicitement
+#     l'échec, l'absence de signal EST le signal).
 #
 # Usage : docker/backup/automated-backup.sh
 
@@ -74,5 +80,10 @@ find "$BACKUP_DIR" -maxdepth 1 -name 'factusentinel-backup-*.tar.gpg' -mtime "+$
 
 echo "=== Rétention distante (> ${RETENTION_DAYS}j) ==="
 rclone delete "$BACKUP_RCLONE_REMOTE" --min-age "${RETENTION_DAYS}d"
+
+if [ -n "${BACKUP_MONITORING_PUSH_URL:-}" ]; then
+  echo "=== Signal de succès (monitoring push) ==="
+  curl -fsS -m 10 "$BACKUP_MONITORING_PUSH_URL" > /dev/null || echo "Avertissement : signal de succès non envoyé (sauvegarde elle-même réussie)." >&2
+fi
 
 echo "Terminé : $LATEST_BACKUP"

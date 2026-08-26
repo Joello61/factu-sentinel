@@ -1145,6 +1145,7 @@ Phase 5 : métriques de latence et de taux d'échec du Compliance Engine (06-tec
 Phase 7 : monitoring des jobs asynchrones (échecs, dead-letter)
 Phase 8 : métriques de coût et de volume d'appels IA
 Phase 10 : alerting sur les événements de sécurité (10-security-privacy.md, section 36-37)
+Phase 17 : monitoring auto-hébergé (Uptime Kuma, docker/monitoring/README.md) - disponibilité (HTTP/TCP, expiration TLS) et sauvegardes (moniteur push) ; connectivité Redis/Mustang ajoutée à GET /platform-admin/health
 ```
 
 **Pas de stack d'observabilité disproportionnée au MVP** - logs et métriques de base suffisent pour un développeur solo, cohérent avec `06-technical-architecture.md` (section 23).

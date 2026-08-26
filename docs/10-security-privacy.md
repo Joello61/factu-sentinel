@@ -977,7 +977,7 @@ une garantie).
 - [x] Aucun secret dans le code source ou les images de conteneur (sections 26-27) - `backend/.env` committé sans valeur réelle, secrets via `.env.local`/variables CI ; scan automatisé ajouté Phase 10 (`gitleaks/gitleaks-action`, `.github/workflows/lint.yml`)
 - [x] Réseau interne non exposé directement à Internet (section 52) - `docker-compose.yml` : PostgreSQL/Redis liés à `127.0.0.1`, Mustang sans port publié, Nginx seul point d'entrée ; déjà vrai depuis la Phase 0-1
 - [ ] Environnements strictement isolés (section 53) - `DIFFÉRÉ - Phase 17 - nécessite une infrastructure hébergée` (local/CI seulement à ce stade, aucun staging/production distinct)
-- [ ] Monitoring et alerting actifs sur les événements critiques (sections 36-37) - `DIFFÉRÉ - Phase 17 - nécessite une infrastructure hébergée`
+- [ ] Monitoring et alerting actifs sur les événements critiques (sections 36-37) - préparation faite en Phase 17 (`docker-compose.prod.yml` service `monitoring`, Uptime Kuma auto-hébergé, `docker/monitoring/README.md` ; connectivité Redis/Mustang ajoutée à `GET /platform-admin/health` ; moniteur push pour les sauvegardes) - reste `DIFFÉRÉ - Bloc B - nécessite le domaine et le déploiement réels` pour l'activation effective : les moniteurs et le canal de notification se configurent une fois manuellement via l'interface Uptime Kuma, jamais par ce dépôt
 
 **RGPD**
 

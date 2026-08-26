@@ -97,6 +97,9 @@ BACKUP_GPG_PASSPHRASE='...'
 BACKUP_RCLONE_REMOTE='ovh-backup:factusentinel-backups'
 BACKUP_RETENTION_DAYS='14'
 COMPOSE_ENV_FILE='.env.production'
+# Optionnel - voir docker/monitoring/README.md (moniteur "push" Uptime Kuma) : détecte une
+# sauvegarde silencieusement absente, jamais un échec explicite signalé par ce script.
+BACKUP_MONITORING_PUSH_URL='https://monitoring.exemple/api/push/...'
 ```
 
 ## Test de restaurabilité (à exécuter, pas seulement documenter)
