@@ -52,10 +52,10 @@ export FRONTEND_IMAGE="$FRONTEND_IMAGE"
 export MUSTANG_IMAGE="$MUSTANG_IMAGE"
 
 echo "=== Récupération des images ==="
-docker compose --env-file "$ENV_FILE" -f docker-compose.yml -f docker-compose.prod.yml pull
+docker compose --env-file "$ENV_FILE" -f docker-compose.yml -f docker-compose.prod.yml -f docker-compose.prod.traefik.yml pull
 
 echo "=== Démarrage des nouveaux conteneurs ==="
-docker compose --env-file "$ENV_FILE" -f docker-compose.yml -f docker-compose.prod.yml up -d
+docker compose --env-file "$ENV_FILE" -f docker-compose.yml -f docker-compose.prod.yml -f docker-compose.prod.traefik.yml up -d
 
 echo "=== Migrations de base de données ==="
 # Étape distincte et explicite, après le démarrage des nouveaux conteneurs (plan

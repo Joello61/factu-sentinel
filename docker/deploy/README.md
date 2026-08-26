@@ -14,16 +14,29 @@ bloque donc aussi bien la CI que tout déploiement qui en dépendrait.
 
 ### 1. Serveur(s) provisionnés
 
-Un serveur pour `staging`, un pour `production` (recommandé - jamais la même base de
-données), chacun avec :
+Recommandation d'origine : un serveur pour `staging`, un pour `production` (jamais la
+même base de données). **Décision retenue au provisionnement réel (runbook serveur
+Phase 17, section 3.5)** : un seul VPS pour les deux, faute d'un second serveur
+disponible - deux stacks Compose indépendantes sur ce VPS (répertoires, bases de
+données, volumes de stockage et sous-domaines distincts), routées par la même instance
+Traefik partagée. Toujours vrai dans les deux cas :
 
 - Docker + Docker Compose installés.
-- Le dépôt cloné à un chemin connu (`DEPLOY_PATH` ci-dessous), avec
+- Le dépôt cloné à un chemin connu (`DEPLOY_PATH` ci-dessous - un chemin distinct par
+  environnement si les deux partagent le même serveur, ex. `/opt/apps/factusentinel` et
+  `/opt/apps/factusentinel-staging`), avec
   `docker-compose.yml`/`docker-compose.prod.yml`/`docker/nginx/prod.conf.template` à jour
   (`git pull` avant le premier déploiement, puis maintenu à jour indépendamment - ce
   workflow ne met à jour que les images, jamais le code source sur le serveur lui-même à
   ce stade).
 - `.env.staging`/`.env.production` renseignés (voir `.env.prod.example`), jamais committés.
+- `docker-compose.prod.traefik.yml` créé une fois par environnement (voir
+  `docker-compose.prod.traefik.yml.example`) avec un nom de routeur Traefik **unique sur
+  tout le serveur** (ex. `factusentinel` en production, `factusentinel-staging` en
+  staging) - jamais committé, jamais le même nom entre deux stacks (Compose n'interpole
+  les variables d'environnement que dans les valeurs de labels, jamais dans leurs clés,
+  vérifié le 26/08/2026 ; Traefik traite les noms de routeurs comme des identifiants
+  globaux, pas par projet Compose).
 - **Authentification GHCR configurée une fois** : les images poussées par ce workflow sont
   **privées par défaut** (héritent de la visibilité du dépôt) - le serveur doit
   s'authentifier pour les tirer :
@@ -32,9 +45,13 @@ données), chacun avec :
   ```
   Persisté dans `~/.docker/config.json` de l'utilisateur qui exécute les déploiements -
   jamais refait à chaque déploiement, jamais transmis par ce workflow.
-- Certificat TLS déjà émis (`docker/nginx/README.md`, `bootstrap-cert.sh`) avant le tout
-  premier déploiement réel - `docker-compose.prod.yml` (service `nginx`) ne démarre pas
-  sans lui.
+- Traefik (infrastructure de niveau serveur, partagée entre projets, hors de ce dépôt)
+  déjà installé et démarré sur le serveur, avec le réseau externe `traefik-public` créé
+  et le domaine de cet environnement pointant réellement vers le serveur (DNS) - le
+  certificat TLS est alors émis automatiquement par Traefik au premier appel HTTPS
+  routé, jamais un préalable manuel côté FactuSentinel (voir `docker/nginx/README.md` et
+  le runbook serveur Phase 17). `docker-compose.prod.yml` (service `nginx`) ne dépend
+  plus d'aucun certificat pour démarrer - il ne sert qu'en HTTP interne.
 
 ### 2. Clé SSH de déploiement
 
@@ -86,8 +103,8 @@ de chaque nouvelle migration avant fusion, additive vs destructive.
 
 ## Vérification avant le tout premier déploiement réel
 
-- [ ] `docker compose --env-file .env.staging -f docker-compose.yml -f docker-compose.prod.yml config` valide sans erreur sur le serveur lui-même.
-- [ ] Certificat TLS déjà émis (`docker/nginx/README.md`).
+- [ ] `docker compose --env-file .env.staging -f docker-compose.yml -f docker-compose.prod.yml -f docker-compose.prod.traefik.yml config` valide sans erreur sur le serveur lui-même.
+- [ ] Traefik installé, démarré, et réseau `traefik-public` créé sur le serveur ; DNS du domaine de cet environnement déjà propagé (`docker/nginx/README.md`, runbook serveur Phase 17).
 - [ ] `docker login ghcr.io` déjà fait sur le serveur.
 - [ ] Secrets des deux environnements GitHub renseignés, "Required reviewers" actif sur `production`.
 - [ ] Migrations existantes revues une dernière fois (additives uniquement).

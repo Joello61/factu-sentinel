@@ -1,0 +1,26 @@
+# Labels Traefik du service "nginx" - propre à CHAQUE environnement (jamais partagé
+# entre staging et production, ni entre projets), contrairement à docker-compose.prod.yml
+# qui reste générique. Copier en "docker-compose.prod.traefik.yml" (jamais committé, voir
+# .gitignore) à côté de .env.production/.env.staging, et adapter le nom de routeur pour
+# qu'il soit UNIQUE sur tout le VPS - Traefik traite les noms de routeurs comme des
+# identifiants globaux, pas par projet Compose (constaté avec "docker compose config" le
+# 26/08/2026 : Compose n'interpole jamais les variables d'environnement dans les CLÉS de
+# labels, seulement dans leurs valeurs - un nom de routeur ne peut donc pas être dérivé de
+# ${PUBLIC_DOMAIN} directement dans docker-compose.prod.yml).
+#
+# Exemple ci-dessous pour la production - le fichier réel de staging doit utiliser un nom
+# de routeur différent (ex. "factusentinel-staging" plutôt que "factusentinel").
+#
+# Usage :
+#   docker compose --env-file .env.production \
+#     -f docker-compose.yml -f docker-compose.prod.yml -f docker-compose.prod.traefik.yml up -d
+
+services:
+  nginx:
+    labels:
+      traefik.enable: 'true'
+      traefik.docker.network: 'traefik-public'
+      traefik.http.routers.factusentinel.rule: 'Host(`${PUBLIC_DOMAIN}`)'
+      traefik.http.routers.factusentinel.entrypoints: 'websecure'
+      traefik.http.routers.factusentinel.tls.certresolver: 'letsencrypt'
+      traefik.http.services.factusentinel.loadbalancer.server.port: '80'

@@ -25,6 +25,13 @@ jobs:
       # container reachable at localhost on the runner (same network as the job).
       CLAMAV_HOST: localhost
       CLAMAV_PORT: "3310"
+      # Phase 17 - App\PlatformAdmin\Service\PlatformHealthAggregator. REDIS_URL has no
+      # default binding (config/services.yaml) and was missing here entirely, causing an
+      # uncaught EnvNotFoundException (500) on GET /platform-admin/health - never caught
+      # before because this endpoint was only ever exercised inside the Docker Compose dev
+      # stack, where docker-compose.yml sets these as real container environment variables.
+      REDIS_URL: "redis://localhost:6379"
+      MUSTANG_BASE_URL: "http://localhost:8080"
     services:
       postgres:
         image: postgres:18-alpine
@@ -48,6 +55,27 @@ jobs:
         image: clamav/clamav:1.5.2
         ports:
           - 3310:3310
+      # Phase 17 - real Redis, same image as docker-compose.yml, exercised only for the
+      # raw TCP reachability check in App\PlatformAdmin\Service\PlatformHealthAggregator
+      # (never a source of truth read/written by this job).
+      redis:
+        image: redis:8-alpine
+        ports:
+          - 6379:6379
+      # Stand-in for the Mustang Validator Container (docker/mustang), never the real
+      # image here: Mustang is built locally from a Dockerfile, never published to a
+      # registry, and GitHub Actions "services:" only accepts a pre-existing image, never
+      # a build context. PlatformHealthAggregator::isTcpReachable() performs a bare TCP
+      # connect with zero Mustang-specific protocol awareness, so any service whose
+      # default entrypoint listens on a port is behaviorally equivalent for this specific
+      # check - building the real Java/Mustang-CLI image on every CI run to prove a
+      # socket accepts connections would be disproportionate. Never used to validate
+      # anything about Mustang's actual document-validation behavior - that stays fully
+      # isolated in the Mustang container itself (ADR-008).
+      mustang:
+        image: nginx:alpine
+        ports:
+          - 8080:80
     steps:
       - name: Checkout
         uses: actions/checkout@v7
