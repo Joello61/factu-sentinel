@@ -34,6 +34,7 @@ services:
     # interface.
     App\Shared\Storage\StorageInterface: '@App\Shared\Storage\LocalFilesystemStorage'
     App\Document\Service\StructuredDocumentValidatorInterface: '@App\Document\Service\MustangValidatorClient'
+    App\Document\Service\AntivirusScannerInterface: '@App\Document\Service\ClamAvScanner'
     App\AI\Service\AIProviderInterface: '@App\AI\Service\MistralProvider'
     # Phase 15 - interfaces cross-module exposées à App\PlatformAdmin\Service\
     # PlatformHealthAggregator (backend/CLAUDE.md, section 3 : jamais de lecture directe des
@@ -56,6 +57,14 @@ services:
             $mistralApiKey: '%env(MISTRAL_API_KEY)%'
             $mistralBaseUrl: '%env(MISTRAL_BASE_URL)%'
             $mistralModel: '%env(MISTRAL_MODEL)%'
+
+    # Mêmes arguments explicites que MistralProvider ci-dessus plutôt que _defaults.bind
+    # (cause du problème constaté là-bas non élucidée avec certitude - seule l'approche
+    # explicite est vérifiée fonctionner de façon fiable dans ce projet).
+    App\Document\Service\ClamAvScanner:
+        arguments:
+            $clamAvHost: '%env(CLAMAV_HOST)%'
+            $clamAvPort: '%env(int:CLAMAV_PORT)%'
 
     # Deuxième trousseau JWT, structurellement séparé de celui du firewall `api`
     # (docs/06-technical-architecture.md, ADR-009 : "jamais le même émetteur de jeton").
