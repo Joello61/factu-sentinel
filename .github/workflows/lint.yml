@@ -121,6 +121,15 @@ jobs:
       - name: Run tests
         run: npm run test
 
+      # Phase 17 (docs/12-roadmap.md) - Release Gate ajouté après avoir constaté qu'un
+      # build de production cassé (erreur TypeScript pré-existante dans
+      # app/(app)/company/CompanyForm.test.tsx, masquant un bug amont Next.js déjà
+      # documenté) restait invisible en CI tant que "next build" n'y était jamais exécuté :
+      # lint et tests passaient sans qu'aucune image de production ne soit jamais
+      # constructible. Bloquant, sans exception, avant tout travail de déploiement.
+      - name: Build (next build)
+        run: npm run build
+
   secret-scan:
     name: Secret scanning (gitleaks)
     runs-on: ubuntu-latest

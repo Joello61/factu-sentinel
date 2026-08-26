@@ -41,15 +41,15 @@ ENV NODE_ENV=production
 
 COPY . .
 
-# LIMITATION CONNUE (Next.js 16.0.x à 16.3.1, dernière stable au moment de l'écriture) :
-# "next build" échoue de façon déterministe lors de la pré-génération de la page interne
-# "/_global-error" ("Cannot read properties of null (reading 'useContext')"), y compris sur
-# une application sans providers ni composants custom (bug du framework, pas de ce projet
-# - vérifié en isolant le code applicatif et en testant --webpack, tous deux affectés
-# identiquement). Bug amont non résolu au 19/08/2026 : vercel/next.js#86178, #84994,
-# #95741. "next dev" (utilisé par docker-compose.yml) n'est pas affecté. Cette image ne
-# doit pas être considérée prête pour un déploiement de production tant que ce correctif
-# n'est pas publié en amont ou qu'une décision de stack explicite (ADR) n'est prise.
+# Limitation historique résolue (Phase 17, vérifié le 26/08/2026) : "next build" échouait
+# de façon déterministe sur Next.js 16.0.x-16.3.1 lors de la pré-génération de
+# "/_global-error" (vercel/next.js#86178, #84994, #95741), masqué par une erreur
+# TypeScript indépendante et pré-existante dans app/(app)/company/CompanyForm.test.tsx qui
+# faisait échouer le build encore plus tôt. Les deux sont corrigés : le bug amont ne se
+# reproduit plus sur 16.3.3 (vérifié par un "next build" et une image Docker complets,
+# conteneur démarré et testé), et l'erreur TypeScript était une inférence de contrôle de
+# flux TypeScript sur "let x: T | null = null" réassigné dans une closure - corrigée en
+# remplaçant l'initialisation par "| undefined" non initialisé.
 RUN npm run build
 
 # ---------------------------------------------------------------------------
