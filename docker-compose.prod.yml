@@ -1,0 +1,131 @@
+# Overlay de production - staging ET production l'utilisent identiquement, la séparation
+# se fait uniquement via le fichier .env chargé (jamais via ce fichier), même principe que
+# docker-compose.beta.yml. Jamais fusionné dans docker-compose.yml.
+#
+# Usage :
+#   docker compose --env-file .env.staging    -f docker-compose.yml -f docker-compose.prod.yml up -d
+#   docker compose --env-file .env.production -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# Modèle de déploiement (plan Phase 17) : les images sont construites et poussées vers
+# GHCR par la CI (.github/workflows/deploy.yml), jamais reconstruites sur le serveur -
+# "docker compose pull" avant tout "up -d" rend la clause "build" encore présente dans
+# docker-compose.yml sans effet en pratique (compose ne reconstruit que si l'image
+# référencée est absente localement).
+#
+# Variables attendues - voir .env.prod.example (jamais commité en valeurs réelles) :
+#   PUBLIC_DOMAIN      - nom de domaine public (ex. app.factusentinel.fr)
+#   BACKEND_IMAGE      - image GHCR taguée par SHA (ex. ghcr.io/.../backend:<sha>)
+#   FRONTEND_IMAGE     - image GHCR taguée par SHA
+#   MUSTANG_IMAGE      - image GHCR taguée par SHA
+#   CORS_ALLOW_ORIGIN  - regex d'origine correspondant à PUBLIC_DOMAIN, jamais un wildcard
+#   FRONTEND_URL       - https://PUBLIC_DOMAIN
+#   ACME_EMAIL         - contact Let's Encrypt (voir docker/nginx/README.md)
+#   HSTS_ENABLED       - "true" uniquement une fois le certificat réel actif (Bloc B) -
+#                        DIFFERE tant que ce n'est pas confirmé (10-security-privacy.md §68)
+#   POSTGRES_USER / POSTGRES_PASSWORD / POSTGRES_DB - valeurs réelles, jamais celles de dev
+
+# Rappels importants (vérifiés avec "docker compose config" au moment d'écrire ce fichier,
+# jamais supposés) :
+# - Le comportement de fusion par défaut de Compose pour les listes ("ports", "volumes")
+#   est un AJOUT (fusion par clé unique), jamais un remplacement - une liste vide dans un
+#   override ne retire donc rien du fichier de base.
+# - "build" (docker-compose.yml, cibles "dev") reste sinon présent dans la config fusionnée
+#   même quand "image" est défini ici - sans effet tant que l'image existe déjà localement
+#   ("docker compose pull" avant tout "up -d"), mais explicitement supprimé ci-dessous
+#   plutôt que de reposer sur cette seule discipline opérationnelle (Fail Secure).
+# Chaque endroit ci-dessous qui doit réellement remplacer/supprimer (jamais ajouter à) une
+# clé du fichier de base utilise explicitement les tags "!override"/"!reset" (Compose
+# Specification, supportés depuis Compose v2.24/v2.24.4 - vérifié sur la version
+# installée, v2.38.1, le 26/08/2026).
+
+services:
+  backend:
+    image: '${BACKEND_IMAGE}'
+    build: !reset null
+    volumes: !override []
+    environment:
+      APP_ENV: prod
+      APP_DEBUG: '0'
+      CORS_ALLOW_ORIGIN: '${CORS_ALLOW_ORIGIN}'
+      FRONTEND_URL: '${FRONTEND_URL}'
+      HSTS_ENABLED: '${HSTS_ENABLED:-false}'
+    restart: unless-stopped
+
+  # "entrypoint" et "volumes" de base (docker-compose.yml) sont spécifiques au dev :
+  # entrypoint-worker-dev.sh attend un bind-mount partagé avec "backend" qui n'existe pas
+  # ici (image déjà construite, rien à attendre) - !override vide rend à l'entrypoint par
+  # défaut de l'image ("command" ci-dessous, hérité du fichier de base, s'exécute alors
+  # directement).
+  worker:
+    image: '${BACKEND_IMAGE}'
+    build: !reset null
+    volumes: !override []
+    entrypoint: !override []
+    environment:
+      APP_ENV: prod
+      APP_DEBUG: '0'
+
+  mustang:
+    image: '${MUSTANG_IMAGE}'
+    build: !reset null
+    restart: unless-stopped
+
+  frontend:
+    image: '${FRONTEND_IMAGE}'
+    build: !reset null
+    volumes: !override []
+    environment:
+      NODE_ENV: production
+    restart: unless-stopped
+
+  postgres:
+    restart: unless-stopped
+    # Jamais publié sur l'hôte en production, contrairement au 127.0.0.1:5432 du dev -
+    # l'accès (backup, debug) passe par "docker compose exec", jamais par le réseau hôte
+    # (docs/10-security-privacy.md section 52).
+    ports: !override []
+
+  redis:
+    restart: unless-stopped
+    ports: !override []
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  nginx:
+    restart: unless-stopped
+    volumes: !override
+      - ./docker/nginx/prod.conf.template:/etc/nginx/templates/default.conf.template:ro
+      - certbot_conf:/etc/letsencrypt:ro
+      - certbot_webroot:/var/www/certbot:ro
+    environment:
+      PUBLIC_DOMAIN: '${PUBLIC_DOMAIN}'
+    ports: !override
+      - '80:80'
+      - '443:443'
+    healthcheck:
+      # --no-check-certificate : le certificat est celui émis par Let's Encrypt pour
+      # PUBLIC_DOMAIN, jamais valide pour l'hôte interne "localhost" utilisé ici -
+      # vérifie seulement que Nginx répond, pas l'identité du certificat (déjà garantie
+      # côté navigateur par le vrai nom de domaine).
+      test: ['CMD', 'wget', '--no-check-certificate', '-q', '--spider', 'https://localhost/api/health']
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # Outil, jamais démarré par "up -d" (profil dédié, voir docker/nginx/README.md pour
+  # l'émission initiale et le renouvellement) - jamais un démon persistant supplémentaire,
+  # cohérent avec docker/backup/backup.sh (cron/systemd côté hôte, pas un conteneur dédié).
+  certbot:
+    image: certbot/certbot:v5.7.0
+    profiles: ['certbot']
+    volumes:
+      - certbot_conf:/etc/letsencrypt
+      - certbot_webroot:/var/www/certbot
+
+volumes:
+  certbot_conf:
+  certbot_webroot:

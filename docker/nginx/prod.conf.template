@@ -1,0 +1,74 @@
+# Configuration Nginx de production - overlay docker-compose.prod.yml uniquement, jamais
+# fusionnée avec docker/nginx/default.conf (dev/beta, tunnel Cloudflare). Templée via
+# envsubst (mécanisme officiel de l'image "nginx", /etc/nginx/templates/*.template ->
+# /etc/nginx/conf.d/*, vérifié sur la documentation officielle Docker Hub le 26/08/2026) -
+# seule ${PUBLIC_DOMAIN} y est substituée, jamais une valeur en dur.
+#
+# TLS : certificats Let's Encrypt (méthode webroot, service "certbot" de
+# docker-compose.prod.yml), jamais générés ni renouvelés par ce fichier lui-même - voir
+# docker/nginx/README.md pour la procédure d'émission initiale et de renouvellement.
+# Protocoles/chiffres : profil "Intermediate" connu au moment de l'écriture (26/08/2026,
+# TLSv1.2/TLSv1.3) - à revérifier sur https://configurator.tlsref.org/ (ex-Mozilla SSL
+# Configuration Generator) au moment du premier déploiement réel (Bloc B), jamais supposé
+# figé indéfiniment.
+
+client_max_body_size 20m;
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name ${PUBLIC_DOMAIN};
+
+    # Défi ACME HTTP-01 (émission/renouvellement Certbot) - doit rester accessible en
+    # clair sans redirection, sous peine d'échec silencieux du renouvellement (port 80
+    # jamais bloqué, vérifié sur la documentation officielle Certbot).
+    location /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+    }
+
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}
+
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    http2 on;
+    server_name ${PUBLIC_DOMAIN};
+
+    ssl_certificate     /etc/letsencrypt/live/${PUBLIC_DOMAIN}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/${PUBLIC_DOMAIN}/privkey.pem;
+
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:DHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384;
+    ssl_prefer_server_ciphers off;
+    ssl_session_timeout 1d;
+    ssl_session_cache shared:SSL:10m;
+    ssl_session_tickets off;
+
+    # Nginx est ici l'edge public direct (VPS nu, pas de load balancer/CDN devant) :
+    # $remote_addr est la véritable IP du visiteur, contrairement à
+    # docker/nginx/default.conf (tunnel Cloudflare, en-tête CF-Connecting-IP) - à revoir
+    # explicitement si un CDN/LB est ajouté un jour devant cette instance (jamais faire
+    # confiance à un X-Forwarded-For fourni par un client direct, section 15 de
+    # ../../CLAUDE.md).
+    location /api/ {
+        fastcgi_pass backend:9000;
+        fastcgi_index index.php;
+        include fastcgi_params;
+        fastcgi_param SCRIPT_FILENAME /app/public/index.php;
+        fastcgi_param DOCUMENT_ROOT /app/public;
+        fastcgi_param HTTP_X_FORWARDED_FOR $remote_addr;
+        fastcgi_param HTTP_X_FORWARDED_PROTO https;
+    }
+
+    location / {
+        proxy_pass http://frontend:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_set_header X-Forwarded-Proto https;
+    }
+}
