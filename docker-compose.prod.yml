@@ -153,13 +153,22 @@ services:
   # eux-mêmes (HTTP, TCP, push) se configurent une fois via son interface, pas par ce
   # fichier - Uptime Kuma ne propose pas de provisioning déclaratif par YAML au moment de
   # l'écriture (vérifié le 26/08/2026).
+  #
+  # Port hôte paramétrable (MONITORING_PORT, défaut 3001) - constaté au premier
+  # déploiement production réel : un port fixe entre en collision dès qu'une seconde stack
+  # (staging) tourne sur le même VPS ("Bind for 127.0.0.1:3001 failed: port is already
+  # allocated"), même mécanisme que le nom de routeur Traefik (docker-compose.prod.traefik.yml) -
+  # une ressource au niveau du serveur, jamais partageable telle quelle entre deux
+  # environnements sur le même hôte. Contrairement au nom de routeur Traefik, une simple
+  # valeur (pas une clé de label) suffit ici - interpolée directement dans ce fichier
+  # partagé, chaque environnement fixant sa propre valeur dans son .env.
   monitoring:
     image: louislam/uptime-kuma:2.3.2
     restart: unless-stopped
     volumes:
       - uptime_kuma_data:/app/data
     ports:
-      - '127.0.0.1:3001:3001'
+      - '127.0.0.1:${MONITORING_PORT:-3001}:3001'
 
 volumes:
   storage_documents:
