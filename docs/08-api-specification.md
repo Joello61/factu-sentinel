@@ -1074,6 +1074,57 @@ strict (`06-technical-architecture.md`, ADR-009, conséquences). Lecture seule, 
 construite sur le même patron que `DashboardAggregator` (Phase 9), jamais un nouveau mécanisme
 d'agrégation inventé.
 
+**Deux sémantiques volontairement distinctes, jamais interchangeables** : `summary` est un
+cumul sur toute l'historique de la plateforme (jamais restreint à une fenêtre temporelle) ;
+`trends` est une activité par jour de déclenchement, restreinte à une fenêtre fixe. Un futur
+développeur ne doit jamais aligner l'une sur la logique de l'autre, ni sur le patron "dernière
+analyse par facture" du Dashboard (Phase 9, hors de propos ici).
+
+```text
+GET /platform-admin/analytics/summary
+Response: 200 OK
+{
+  "data": {
+    "organizations_count": "integer",
+    "users_count": "integer",
+    "compliance_analyses_count": "integer",
+    "compliance_rate": "string (decimal)"
+  }
+}
+```
+`compliance_analyses_count` = nombre de `ComplianceAnalysis` avec `status = COMPLETED`, toute
+l'historique, tous tenants confondus. `compliance_rate` = `conforme / completed` où `conforme`
+compte uniquement `globalResult = CONFORME` parmi ces mêmes analyses COMPLETED - `FAILED`
+n'entre ni dans le numérateur ni dans le dénominateur (jamais un statut technique compté comme
+un résultat métier). `"0"` si `compliance_analyses_count` est nul, jamais une division par
+zéro. `users_count` exclut les comptes soft-deleted (`07-data-model.md`, section 30).
+
+```text
+GET /platform-admin/analytics/trends
+Response: 200 OK
+{
+  "data": { "points": [
+    {
+      "date": "YYYY-MM-DD",
+      "organizations_created": "integer",
+      "users_created": "integer",
+      "compliance_analyses_count": "integer",
+      "compliance_rate": "string (decimal)"
+    }
+  ] },
+  "meta": { "window_days": 90 }
+}
+```
+Fenêtre fixe de 90 jours glissants, un point par jour, pas de `?since`/`?until` au MVP de cette
+phase - décision produit assumée pour rester au plus simple (`06-technical-architecture.md`,
+section 3). Bornes en UTC (`../CLAUDE.md`, section 11 : "horodatages ISO 8601 UTC", aucune
+autre convention de fuseau horaire n'existe dans ce projet) : `from` = aujourd'hui à 00:00:00
+UTC moins 89 jours, `until` (exclusif) = demain à 00:00:00 UTC - exactement 90 points, toujours
+présents même sans aucune donnée ce jour-là (`compliance_analyses_count: 0`,
+`compliance_rate: "0"`), jamais un jour absent. `compliance_analyses_count`/`compliance_rate`
+d'un point donné portent uniquement sur les `ComplianceAnalysis` COMPLETED dont `triggeredAt`
+tombe ce jour-là (même formule que `summary` ci-dessus, appliquée au sous-ensemble du jour).
+
 ## 39. Audit API
 
 **GET /audit-events**

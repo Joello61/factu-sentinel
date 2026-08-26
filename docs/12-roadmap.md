@@ -639,6 +639,67 @@ Definition of Done : un `PlatformAdministrator` visualise les statistiques d'usa
 Risks : faible techniquement (lecture seule) ; risque produit résiduel si les statistiques exposées s'avéraient trop grossières pour être réellement actionnables - non bloquant, itérable après coup.
 Exit Criteria : `US-ANALYTICS-001/002` couvertes par des tests fonctionnels passants.
 
+**Bilan à l'implémentation** : livré à deux niveaux, comme la Phase 15 (revue utilisateur avant
+implémentation) - jamais une seule notion de "terminé" pour une extension de la surface
+Platform Admin.
+
+**Niveau 1, implémentation complète - atteint** : `GET /platform-admin/analytics/summary` et
+`GET /platform-admin/analytics/trends` livrés (`08-api-specification.md`, section 38.3, schémas
+complétés à l'implémentation - la section ne portait initialement qu'un tableau d'endpoints
+sans contrat). Aucune nouvelle entité : agrégation en lecture seule sur `Organization`/`User`
+(entités globales, lues directement - même précédent que `ListOrganizationsController`/
+`GetOrganizationController`, Phase 15) et `ComplianceAnalysis` (tenant-scoped, lu via une
+nouvelle interface `ComplianceAnalyticsReaderInterface` dédiée, séparée de
+`ComplianceHealthReaderInterface` - même patron de suspension explicite de `tenant_filter` que
+`ComplianceHealthReader`/`AiUsageReader`, Phase 15). Décisions actées avant l'implémentation
+(revue utilisateur) : taux de conformité = `conforme / completed` (analyses `FAILED` exclues du
+numérateur et du dénominateur, jamais comptées comme un résultat métier) ; fenêtre `trends`
+fixe de 90 jours glissants en UTC (pas de `?since`/`?until` au MVP de cette phase), calcul
+délégué à un agrégateur pur `PlatformAnalyticsTrendAggregator` (sans dépendance DB, même esprit
+que `DashboardAggregator`) testé unitairement sur le contrat exact de fenêtre (90 buckets,
+zéros explicites, ordre chronologique) sans jamais toucher la base de données. Tests fonctionnels
+vérifiant explicitement l'agrégation cross-tenant elle-même (deux organisations distinctes dont
+les utilisateurs/analyses s'additionnent bien dans une même réponse), pas seulement
+l'autorisation - point soulevé en revue utilisateur, jamais tenu pour acquis du seul fait que
+l'accès est refusé à un jeton tenant-scoped. 286 tests backend (273 + 13 dédiés à cette phase,
+dont le correctif décrit ci-dessous), 90 tests frontend (86 + 4), tous verts.
+
+**Correctif d'audit, décidé en revue utilisateur plutôt que laissé en dette** :
+`GET /platform-admin/health` (US-PLATFORMADMIN-005, Phase 15) relisait des indicateurs
+cross-tenant sans jamais l'auditer, en violation de `10-security-privacy.md` section 17 bis
+("chaque lecture ou écriture cross-tenant est journalisée, sans exception") - écart découvert
+en préparant les endpoints Analytics de cette phase. Corrigé ici plutôt que documenté comme
+dette : nouvel `EventType::PLATFORM_HEALTH_VIEWED` dédié (jamais une réutilisation de
+`PLATFORM_AUDIT_TRAIL_VIEWED`, réservé à la consultation de l'audit trail lui-même), test de
+régression fonctionnel dédié qui interroge une `AuditLogEntry` réellement persistée.
+
+**Premiers graphiques du produit** (`11-frontend-design-system.md`, section 48, non requis au
+MVP) : bibliothèque **Recharts** retenue après vérification (peer deps compatibles React 19/
+Next.js 16 App Router, SSR pris en charge, maintenue activement) - installation réelle
+(`npm install recharts`) plutôt qu'une version présupposée, résolue en `3.10.1` au moment de
+l'implémentation, `package.json`/`package-lock.json` commités avec la version effectivement
+installée. Empreinte réelle non minimisée : 37 paquets ajoutés (dépendances internes de
+Recharts v3 - familles `d3-*`, `redux`/`immer`/`reselect` pour son état interne). Aucune couche
+`Chart` générique créée par anticipation - seulement les deux composants concrets nécessaires
+à cette phase, une éventuelle factorisation restant conditionnée à un besoin réel en Phase 17+.
+Alternative textuelle systématique (table de données `sr-only`) pour chaque graphique,
+indépendante des limites d'accessibilité clavier propres à la bibliothèque, plutôt qu'une
+dépendance complète au seul `accessibilityLayer` de Recharts.
+
+**Écart de documentation constaté, signalé plutôt que corrigé silencieusement** :
+`frontend/CLAUDE.md` (section 10) liste encore les valeurs de palette *avant* l'ajustement
+WCAG de la Phase 11 (`Success #2E7D32`, `Warning #ED6C02`, `Error #D32F2F`, `Info #0288D1`),
+alors que `app/globals.css` et la racine `../CLAUDE.md` portent déjà les valeurs assombries
+réellement actives (`#1b5e20`, `#984501`, `#b71c1c`, `#01579b`). Non corrigé dans cette phase
+(hors périmètre Analytics) - à mettre à jour explicitement, pas silencieusement, dans une tâche
+dédiée à la documentation frontend.
+
+**Différé explicitement, hérité de la Phase 15, non rouvert par cette phase** : le **Niveau 2
+(porte d'activation)** de la surface Platform Admin reste non atteint - aucun test d'intrusion
+réel n'a eu lieu. La surface reste interdite en production tant que ce test n'a pas eu lieu et
+produit une preuve documentée, y compris pour les deux endpoints Analytics ajoutés ici, qui
+réutilisent exactement cette même surface (jamais un accès distinct moins strict).
+
 **Phase 17 - Production Readiness & Public Launch**
 Objective : ouvrir le produit plus largement.
 Business Value : mise sur le marché réelle.

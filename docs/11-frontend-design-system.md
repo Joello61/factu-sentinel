@@ -534,6 +534,8 @@ Priorisation de l'information plutôt que simple réduction de taille de texte (
 
 **Aucun graphique n'est identifié comme nécessaire au MVP** dans les documents précédents (`04-product-requirements.md`, section 20, dashboard volontairement simple pour le MVP). Si un graphique devait être introduit en V1 (par exemple, évolution du nombre de problèmes de conformité résolus dans le temps), il devrait respecter : palette cohérente avec la section 5 (jamais une palette de graphique disjointe du reste du système), légendes explicites plutôt qu'une couleur seule, tooltips accessibles au clavier, gestion explicite de l'état « aucune donnée » (section 35), alternative textuelle pour les lecteurs d'écran. **Non créé simplement parce qu'il serait visuellement attractif**, cohérent avec la consigne de la mission.
 
+**Résolu (Phase 16)** : premiers graphiques réels du produit, exclusivement dans la surface d'administration plateforme (US-ANALYTICS-002, `12-roadmap.md`) - le dashboard utilisateur final reste sans graphique (DL-008/DL-015 non rouverts). Bibliothèque retenue : **Recharts** (`3.10.1` au moment de l'implémentation, vérifiée compatible React 19/Next.js 16), après vérification qu'aucune alternative sans dépendance ne couvrait aussi simplement les exigences d'accessibilité ci-dessus. Chaque graphique porte en plus une table de données `sr-only` équivalente, indépendante des limites d'accessibilité clavier propres à la bibliothèque de graphique elle-même.
+
 ## 49. Date & Number Formatting
 
 Conventions françaises (`fr-FR`), cohérentes avec `08-api-specification.md` (section 17-18) :
@@ -642,7 +644,7 @@ Ce document est le **Design System** : règles, tokens, principes, patterns, con
 | Administration - Audit (Phase 15)   | Consulter l'audit trail cross-tenant (US-PLATFORMADMIN-003) | PlatformAdministrator | Filtrer                | Table paginée                                                    |
 | Administration - Notification ciblée (Phase 15) | Composer une notification individuelle/organisation/segment/diffusion globale (US-PLATFORMADMIN-004) | PlatformAdministrator | Envoyer | Form System, sélecteur de ciblage, confirmation renforcée pour `target_type=ALL` |
 | Administration - Santé applicative (Phase 15) | Consulter les indicateurs de santé applicative (US-PLATFORMADMIN-005) | PlatformAdministrator | - | Stat tiles, indicateurs de statut |
-| Administration - Analytics (Phase 16) | Consulter les statistiques agrégées et leur évolution (US-ANALYTICS-001/002) | PlatformAdministrator | Filtrer par période | Stat tiles, graphiques d'évolution temporelle (premiers du produit) |
+| Administration - Analytics (Phase 16) | Consulter les statistiques agrégées et leur évolution (US-ANALYTICS-001/002) | PlatformAdministrator | - (fenêtre fixe de 90 jours au MVP de cette phase, jamais de filtre de période - `08-api-specification.md` section 38.3) | Stat tiles, graphiques d'évolution temporelle (premiers du produit) |
 
 **Aucune page « Émission de facture », « Comptabilité » ou « Paiement »** n'est créée - hors périmètre strict (section 16).
 

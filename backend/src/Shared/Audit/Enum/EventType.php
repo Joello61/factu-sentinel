@@ -88,4 +88,17 @@ enum EventType: string
     case PLATFORM_AUDIT_TRAIL_VIEWED = 'PLATFORM_AUDIT_TRAIL_VIEWED';
     case PLATFORM_NOTIFICATION_SENT = 'PLATFORM_NOTIFICATION_SENT';
     case PLATFORM_ORGANIZATIONS_VIEWED = 'PLATFORM_ORGANIZATIONS_VIEWED';
+
+    /**
+     * Ajoutés en Phase 16 (Stats & Analytics métier, docs/12-roadmap.md). PLATFORM_HEALTH_VIEWED
+     * ferme un écart de la Phase 15 (US-PLATFORMADMIN-005 relisait les indicateurs de santé
+     * applicative cross-tenant sans jamais l'auditer, en violation de docs/10-security-privacy.md
+     * section 17 bis) - événement dédié, jamais une réutilisation de PLATFORM_AUDIT_TRAIL_VIEWED
+     * (qui désigne exclusivement la consultation de l'audit trail lui-même). PLATFORM_ANALYTICS_VIEWED
+     * couvre les deux endpoints Analytics (résumé et tendances, US-ANALYTICS-001/002) - un seul
+     * event type par famille de ressource, même granularité que PLATFORM_ORGANIZATIONS_VIEWED
+     * ci-dessus (qui couvre déjà liste et détail).
+     */
+    case PLATFORM_HEALTH_VIEWED = 'PLATFORM_HEALTH_VIEWED';
+    case PLATFORM_ANALYTICS_VIEWED = 'PLATFORM_ANALYTICS_VIEWED';
 }

@@ -193,4 +193,97 @@ final class ComplianceAnalysisRepository extends ServiceEntityRepository
             }
         }
     }
+
+    /**
+     * Platform Analytics (docs/08-api-specification.md, section 38.3, Phase 16 ;
+     * US-ANALYTICS-001) : résumé cumulé, toute l'historique de la plateforme, tous tenants
+     * confondus - jamais restreint à la dernière analyse par facture (le patron
+     * App\Compliance\Engine\Service\DashboardAggregator, Phase 9, ne s'applique pas ici : ce
+     * résumé mesure l'usage cumulé réel du produit, pas l'état courant du parc de factures
+     * d'une organisation). `failed` n'entre ni dans `completed` ni dans `conforme` -
+     * App\PlatformAdmin\Service\PlatformAnalyticsAggregator ne doit jamais l'ajouter au
+     * dénominateur du taux de conformité.
+     *
+     * Même patron de suspension de `tenant_filter` que countByStatusSince() ci-dessus.
+     *
+     * @return array{completed: int, conforme: int}
+     */
+    public function countCompletedAndConforme(): array
+    {
+        $filters = $this->getEntityManager()->getFilters();
+        $wasEnabled = $filters->isEnabled('tenant_filter');
+
+        if ($wasEnabled) {
+            $filters->suspend('tenant_filter');
+        }
+
+        try {
+            $completed = (int) $this->createQueryBuilder('a')
+                ->select('COUNT(a.id)')
+                ->andWhere('a.status = :completed')
+                ->setParameter('completed', ComplianceAnalysisStatus::COMPLETED)
+                ->getQuery()
+                ->getSingleScalarResult();
+
+            $conforme = (int) $this->createQueryBuilder('a')
+                ->select('COUNT(a.id)')
+                ->andWhere('a.status = :completed')
+                ->andWhere('a.globalResult = :conforme')
+                ->setParameter('completed', ComplianceAnalysisStatus::COMPLETED)
+                ->setParameter('conforme', ComplianceResult::CONFORME)
+                ->getQuery()
+                ->getSingleScalarResult();
+
+            return ['completed' => $completed, 'conforme' => $conforme];
+        } finally {
+            if ($wasEnabled) {
+                $filters->restore('tenant_filter');
+            }
+        }
+    }
+
+    /**
+     * Platform Analytics (docs/08-api-specification.md, section 38.3, Phase 16 ;
+     * US-ANALYTICS-002) : les ComplianceAnalysis COMPLETED dont triggeredAt tombe dans la
+     * fenêtre demandée, un point par jour de déclenchement - sémantique volontairement
+     * différente de countCompletedAndConforme() ci-dessus (activité quotidienne, pas un
+     * cumul historique). Agrégation par jour laissée à App\PlatformAdmin\Service\
+     * PlatformAnalyticsTrendAggregator (classe pure, pas ici) - même séparation
+     * lecture/agrégation que App\Compliance\Engine\Service\DashboardAggregator.
+     *
+     * Même patron de suspension de `tenant_filter` que countByStatusSince() ci-dessus.
+     *
+     * @return list<array{triggeredAt: \DateTimeImmutable, globalResult: ?ComplianceResult}>
+     */
+    public function findTriggeredAtAndResultSince(\DateTimeImmutable $since): array
+    {
+        $filters = $this->getEntityManager()->getFilters();
+        $wasEnabled = $filters->isEnabled('tenant_filter');
+
+        if ($wasEnabled) {
+            $filters->suspend('tenant_filter');
+        }
+
+        try {
+            $analyses = $this->createQueryBuilder('a')
+                ->andWhere('a.status = :completed')
+                ->andWhere('a.triggeredAt >= :since')
+                ->setParameter('completed', ComplianceAnalysisStatus::COMPLETED)
+                ->setParameter('since', $since)
+                ->getQuery()
+                ->getResult();
+
+            return array_map(
+                static fn (ComplianceAnalysis $analysis): array => [
+                    'triggeredAt' => $analysis->getTriggeredAt(),
+                    'globalResult' => $analysis->getGlobalResult(),
+                ],
+                $analyses,
+            );
+        } finally {
+            if ($wasEnabled) {
+                $filters->restore('tenant_filter');
+            }
+        }
+    }
 }

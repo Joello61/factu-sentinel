@@ -3,21 +3,23 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Activity, Building2, LogOut, ScrollText, Send, ShieldAlert } from "lucide-react";
+import { Activity, BarChart3, Building2, LogOut, ScrollText, Send, ShieldAlert } from "lucide-react";
 import { usePlatformAdminAuth } from "@/components/platform-admin/PlatformAdminAuthProvider";
 
 /**
  * Coquille visuelle de la surface Platform Administration - volontairement distincte du
  * reste de l'application (docs/11-frontend-design-system.md, ligne 650 : "visuellement et
  * structurellement distincte du reste de l'inventaire"), jamais AppShell/Header/Sidebar
- * (components/app-shell/*, réservés à l'espace tenant). Barre de navigation minimale : quatre
- * écrans seulement (US-PLATFORMADMIN-001 à 005).
+ * (components/app-shell/*, réservés à l'espace tenant). Barre de navigation minimale : cinq
+ * écrans (US-PLATFORMADMIN-001 à 005, US-ANALYTICS-001/002 - Phase 16, même autorisation,
+ * même surface).
  */
 const NAV_ITEMS = [
   { href: "/platform-admin/organizations", label: "Organisations", icon: Building2 },
   { href: "/platform-admin/audit", label: "Audit", icon: ScrollText },
   { href: "/platform-admin/notifications", label: "Notifications", icon: Send },
   { href: "/platform-admin/health", label: "Santé", icon: Activity },
+  { href: "/platform-admin/analytics", label: "Analytics", icon: BarChart3 },
 ] as const;
 
 export function PlatformAdminShell({ children }: { children: ReactNode }) {

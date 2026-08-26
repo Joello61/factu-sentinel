@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { AlertTriangle, Bot, CheckCircle2, Mailbox } from "lucide-react";
 import { platformAdminApiRequest } from "@/lib/api/platformAdminClient";
 import type { PlatformHealth } from "@/lib/api/platformAdminTypes";
+import { StatTile } from "@/components/platform-admin/StatTile";
 
 type ViewState =
   | { status: "loading" }
@@ -83,33 +84,6 @@ export function HealthDashboard() {
           />
         </div>
       ) : null}
-    </div>
-  );
-}
-
-const TONE_CLASSES: Record<"success" | "warning" | "error" | "info", string> = {
-  success: "border-success/40 bg-success/10 text-success",
-  warning: "border-warning/40 bg-warning/10 text-warning",
-  error: "border-error/40 bg-error/10 text-error",
-  info: "border-info/40 bg-info/10 text-info",
-};
-
-function StatTile({
-  icon: Icon,
-  tone,
-  label,
-  value,
-}: {
-  icon: typeof CheckCircle2;
-  tone: "success" | "warning" | "error" | "info";
-  label: string;
-  value: string;
-}) {
-  return (
-    <div className={`flex flex-col gap-2 rounded-md border p-4 ${TONE_CLASSES[tone]}`}>
-      <Icon aria-hidden="true" size={20} strokeWidth={1.75} />
-      <span className="text-2xl font-semibold tabular-nums">{value}</span>
-      <span className="text-xs font-medium">{label}</span>
     </div>
   );
 }
