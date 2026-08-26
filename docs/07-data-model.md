@@ -364,6 +364,16 @@ modélisé au MVP, une notification composée par un humain (`OWNER`/`ADMIN` d'o
 utilisables seulement à partir de la Phase 15), pour éviter une migration de schéma cassante
 entre les deux phases.
 
+**Révision Phase 15** : cette entité **cesse d'implémenter `App\Shared\Doctrine\
+TenantScopedInterface`** (qu'elle portait depuis la Phase 14) - `organization_id` nullable
+(ligne ci-dessous) est incompatible avec cette interface, qui exige un `organization_id` non nul
+(même choix qu'`AuditLogEntry`, section 25). La protection automatique de `TenantFilter` est
+remplacée par une règle de lecture explicite dans `App\Notification\Repository\
+NotificationRepository` : `recipient_user_id = utilisateur courant AND (organization_id =
+organisation courante OU organization_id IS NULL)` - centralisée au même endroit, jamais
+déléguée à un mécanisme implicite. Un audit de tous les chemins de lecture de cette entité,
+mené avant cette révision, a confirmé qu'aucun autre point d'accès n'existe dans le backend.
+
 | Attribut | Type conceptuel | Description |
 |---|---|---|
 | id | UUID | |
@@ -371,7 +381,8 @@ entre les deux phases.
 | recipient_user_id | Reference, nullable | Rempli uniquement quand `target_type = USER` ou lors de l'éclatement d'une notification à portée `ORGANIZATION_MEMBERS`/`SEGMENT`/`ALL` en une ligne par destinataire effectif (choix d'implémentation à confirmer : éclatement immédiat vs résolution différée à l'envoi) |
 | notification_type | Enum (`echeance_obligation`, `message_organisation`, `message_plateforme`, ...) | Étendu en Phase 14 (`message_organisation`) et Phase 15 (`message_plateforme`) - les types Future de la section 19 du PRD restent non engagés |
 | sender_type | Enum (`SYSTEM`, `ORGANIZATION_OWNER`, `PLATFORM_ADMIN`) | **Nouveau (Phase 14)**. `SYSTEM` pour les rappels automatiques déjà existants ; `ORGANIZATION_OWNER` pour un `OWNER`/`ADMIN` notifiant son équipe (Phase 14) ; `PLATFORM_ADMIN` réservé à la Phase 15 |
-| sender_id | Reference, nullable | `User.id` ou `PlatformAdministrator.id` selon `sender_type` ; null si `sender_type = SYSTEM` |
+| sender_id | Reference vers `User.id`, nullable | Rempli uniquement si `sender_type = ORGANIZATION_OWNER` ; null sinon |
+| platform_admin_sender_id | Reference opaque (UUID nu, jamais une relation Doctrine), nullable | **Nouveau (Phase 15)** - rempli uniquement si `sender_type = PLATFORM_ADMIN`. Colonne distincte de `sender_id` plutôt qu'une référence polymorphe unique : `Notification` (module métier) ne partage jamais directement ses relations avec `PlatformAdministrator` (module `PlatformAdmin`), même patron que `source_diagnostic_id` ci-dessous et `AuditLogEntry.actor_id` |
 | target_type | Enum (`USER`, `ORGANIZATION_MEMBERS`, `SEGMENT`, `ALL`) | **Nouveau (Phase 14 : `USER`/`ORGANIZATION_MEMBERS` utilisables ; Phase 15 : `SEGMENT`/`ALL` utilisables)** - énumération complète posée dès la Phase 14 pour éviter une migration ultérieure |
 | target_criteria | JSON structuré, nullable | Rempli uniquement si `target_type = SEGMENT` (Phase 15) - critères réutilisant les champs déjà modélisés sur `FiscalContext` (statut TVA, catégorie de taille), jamais un champ dupliqué |
 | channel | Enum (`email`, `in_app`) | `in_app` ajouté en Phase 14 - une notification composée par un humain n'a pas nécessairement besoin d'un envoi email pour être utile |
@@ -458,7 +469,7 @@ Ne contient **jamais** le contenu du prompt ni la réponse générée (cohérent
 | ContextSnapshot          | Tenant-scoped (via `ComplianceAnalysis`)                     |                                                                                              |
 | EligibilityDiagnostic    | Tenant-scoped                                                |                                                                                              |
 | AuditLogEntry            | Tenant-scoped, nullable pour événements globaux (section 20) |                                                                                              |
-| Notification             | Tenant-scoped, `organization_id` **nullable** (section 21)   | Null pour une notification `PLATFORM_ADMIN` (portée cross-tenant)                            |
+| Notification             | Ni tenant-scoped ni globale au sens strict (section 21, révision Phase 15) | `organization_id` nullable, n'implémente pas `TenantScopedInterface` (même statut qu'`AuditLogEntry`) - filtrage explicite par `NotificationRepository`, jamais par `TenantFilter` |
 | IntegrationConfig        | Globale ou tenant-scoped selon le type (section 22)          |                                                                                              |
 | ExternalReference        | Suit l'entité référencée                                     | Non utilisée au MVP (section 23)                                                             |
 | Invitation               | Tenant-scoped                                                | **Nouveau (Phase 14)** - appartient à une `Organization`                                     |

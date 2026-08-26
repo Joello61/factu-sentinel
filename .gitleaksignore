@@ -1,0 +1,7 @@
+# Faux positif confirmé (revue CI, PR #15) : PLATFORM_ADMIN_TOTP_ENCRYPTION_KEY est une
+# valeur de développement/CI placeholder, jamais un secret de production - même convention
+# déjà établie pour JWT_PASSPHRASE dans backend/.env (non signalée par gitleaks uniquement
+# parce que son nom de variable ne contient pas "KEY"). backend/.env porte déjà
+# l'avertissement "DO NOT DEFINE PRODUCTION SECRETS IN THIS FILE" - la production surcharge
+# cette variable via un vrai mécanisme d'environnement, jamais cette valeur commitée.
+d63da1168231c8d143d4ea49eedd34612d62ba43:backend/.env:generic-api-key:66

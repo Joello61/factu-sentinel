@@ -55,6 +55,17 @@ class Organization
     #[ORM\Column(type: Types::DATETIME_IMMUTABLE)]
     private \DateTimeImmutable $createdAt;
 
+    /**
+     * Nouveau (Phase 15, US-PLATFORMADMIN-002) - renseigné exclusivement par une action
+     * App\PlatformAdmin\Entity\PlatformAdministrator (jamais par un OWNER/ADMIN de
+     * l'organisation elle-même, aucun setter exposé en dehors de suspend()/reactivate()
+     * ci-dessous). Une organisation suspendue conserve toutes ses données (jamais une
+     * suppression) mais perd l'accès applicatif pour l'ensemble de ses membres tant que ce
+     * champ est renseigné (App\Shared\Security\TenantFilterActivationListener).
+     */
+    #[ORM\Column(name: 'suspended_at', type: Types::DATETIME_IMMUTABLE, nullable: true)]
+    private ?\DateTimeImmutable $suspendedAt = null;
+
     public function __construct()
     {
         $this->id = Uuid::v7();
@@ -116,5 +127,27 @@ class Organization
     public function getCreatedAt(): \DateTimeImmutable
     {
         return $this->createdAt;
+    }
+
+    public function getSuspendedAt(): ?\DateTimeImmutable
+    {
+        return $this->suspendedAt;
+    }
+
+    public function isSuspended(): bool
+    {
+        return null !== $this->suspendedAt;
+    }
+
+    /** App\PlatformAdmin\Service\SuspendOrganizationService uniquement. */
+    public function suspend(): void
+    {
+        $this->suspendedAt = new \DateTimeImmutable();
+    }
+
+    /** App\PlatformAdmin\Service\SuspendOrganizationService uniquement. */
+    public function reactivate(): void
+    {
+        $this->suspendedAt = null;
     }
 }

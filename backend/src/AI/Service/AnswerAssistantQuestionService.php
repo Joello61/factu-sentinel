@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\AI\Service;
 
+use App\AI\Entity\AiCallLogEntry;
+use App\AI\Enum\AiCallEndpoint;
 use App\AI\Exception\AiProviderUnavailableException;
 use App\AI\Http\AssistantAnswerView;
 use App\Identity\Entity\User;
@@ -66,8 +68,10 @@ final class AnswerAssistantQuestionService
 
     private function audit(int $questionLength, bool $success): void
     {
+        $organizationId = $this->currentOrganizationResolver->getOrganizationId();
+
         $this->auditLogger->record(
-            $this->currentOrganizationResolver->getOrganizationId(),
+            $organizationId,
             ActorType::USER,
             $this->currentActorId(),
             EventType::ASSISTANT_QUESTION_ASKED,
@@ -76,6 +80,12 @@ final class AnswerAssistantQuestionService
             null,
             ['success' => $success, 'question_length' => $questionLength],
         );
+
+        // Plan Phase 15 (US-PLATFORMADMIN-005, US-ANALYTICS-001) - volume/coût des appels IA
+        // désormais persisté. estimated_cost reste null : aucun calcul de coût réel n'existe
+        // encore côté App\AI\Service\MistralProvider, jamais une valeur inventée ici.
+        $this->entityManager->persist(new AiCallLogEntry($organizationId, AiCallEndpoint::ASSISTANT_QUESTION, $success, null));
+
         $this->entityManager->flush();
     }
 

@@ -29,3 +29,9 @@
 ###> lexik/jwt-authentication-bundle ###
 /config/jwt/*.pem
 ###< lexik/jwt-authentication-bundle ###
+
+###> platform-admin (Phase 15) ###
+# Second keypair, structurellement séparé de celui ci-dessus (ADR-009 : jamais le même
+# émetteur de jeton) - voir config/services.yaml. Déjà couvert par le pattern
+# /config/jwt/*.pem ci-dessus, section ajoutée pour la documentation seulement.
+###< platform-admin (Phase 15) ###

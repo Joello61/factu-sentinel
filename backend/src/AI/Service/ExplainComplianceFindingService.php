@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\AI\Service;
 
+use App\AI\Entity\AiCallLogEntry;
+use App\AI\Enum\AiCallEndpoint;
 use App\AI\Exception\AiProviderUnavailableException;
 use App\AI\Http\ExplanationView;
 use App\Compliance\Engine\Entity\ComplianceFinding;
@@ -111,8 +113,10 @@ final class ExplainComplianceFindingService
 
     private function audit(ComplianceFinding $finding, bool $success): void
     {
+        $organizationId = $this->currentOrganizationResolver->getOrganizationId();
+
         $this->auditLogger->record(
-            $this->currentOrganizationResolver->getOrganizationId(),
+            $organizationId,
             ActorType::USER,
             $this->currentActorId(),
             EventType::COMPLIANCE_FINDING_EXPLAINED,
@@ -121,6 +125,12 @@ final class ExplainComplianceFindingService
             null,
             ['success' => $success],
         );
+
+        // Plan Phase 15 (US-PLATFORMADMIN-005, US-ANALYTICS-001) - volume/coût des appels IA
+        // désormais persisté. estimated_cost reste null : aucun calcul de coût réel n'existe
+        // encore côté App\AI\Service\MistralProvider, jamais une valeur inventée ici.
+        $this->entityManager->persist(new AiCallLogEntry($organizationId, AiCallEndpoint::EXPLANATION, $success, null));
+
         $this->entityManager->flush();
     }
 

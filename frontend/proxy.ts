@@ -25,12 +25,36 @@ const PUBLIC_PATHS = ['/login', '/register'];
 // GET /invitations/{token} lui-même n'étant jamais en cause).
 const ALWAYS_ACCESSIBLE_PATHS = ['/verify-email', '/invitations'];
 
+// Phase 15 (ADR-009) - surface Platform Administration, garde indépendante de celle du
+// tenant ci-dessus : jamais le même cookie (platform_admin_refresh_token, distinct de
+// refresh_token), jamais mélangée à PUBLIC_PATHS/ALWAYS_ACCESSIBLE_PATHS qui ne concernent
+// que l'espace tenant. Un onglet peut porter les deux sessions simultanément (deux cookies
+// distincts) sans que l'une n'interfère avec la garde de l'autre.
+const PLATFORM_ADMIN_REFRESH_COOKIE_NAME = 'platform_admin_refresh_token';
+const PLATFORM_ADMIN_PREFIX = '/platform-admin';
+const PLATFORM_ADMIN_PUBLIC_PATHS = ['/platform-admin/login'];
+
 function matchesPath(pathname: string, paths: string[]): boolean {
   return paths.some((path) => pathname === path || pathname.startsWith(`${path}/`));
 }
 
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
+  if (matchesPath(pathname, [PLATFORM_ADMIN_PREFIX])) {
+    const hasPlatformAdminSession = request.cookies.has(PLATFORM_ADMIN_REFRESH_COOKIE_NAME);
+    const isPlatformAdminPublicPath = matchesPath(pathname, PLATFORM_ADMIN_PUBLIC_PATHS);
+
+    if (!hasPlatformAdminSession && !isPlatformAdminPublicPath) {
+      return NextResponse.redirect(new URL('/platform-admin/login', request.url));
+    }
+
+    if (hasPlatformAdminSession && isPlatformAdminPublicPath) {
+      return NextResponse.redirect(new URL('/platform-admin/organizations', request.url));
+    }
+
+    return NextResponse.next();
+  }
 
   if (matchesPath(pathname, ALWAYS_ACCESSIBLE_PATHS)) {
     return NextResponse.next();

@@ -8,6 +8,7 @@ use App\Identity\Entity\User;
 use App\Shared\Doctrine\TenantFilter;
 use App\Shared\Exception\AuthenticatedIdentityWithoutOrganizationException;
 use App\Shared\Exception\OrganizationMembershipMismatchException;
+use App\Shared\Exception\OrganizationSuspendedException;
 use Doctrine\ORM\EntityManagerInterface;
 use Lexik\Bundle\JWTAuthenticationBundle\Event\JWTAuthenticatedEvent;
 use Symfony\Component\EventDispatcher\Attribute\AsEventListener;
@@ -32,6 +33,17 @@ use Symfony\Component\Uid\Uuid;
  * l'organisation après l'émission d'un token encore valide (courte durée de vie résiduelle,
  * un JWT signé n'étant pas révocable) est ainsi rejeté dès la requête authentifiée
  * suivante, jamais laissé passer sur la seule foi du claim signé.
+ *
+ * **Phase 15 (ADR-009)** : `lexik_jwt_authentication.on_jwt_authenticated` est un événement
+ * global, dispatché par le même `EventDispatcherInterface` partagé quel que soit le firewall
+ * qui authentifie - y compris `platform_admin_jwt.authenticator` sur le firewall
+ * `platform_admin` (backend/config/services.yaml). Ce listener doit donc explicitement
+ * ignorer tout principal qui n'est pas un App\Identity\Entity\User (early return, jamais une
+ * exception) : un App\PlatformAdmin\Entity\PlatformAdministrator n'a structurellement aucun
+ * `org` à revalider, et App\Shared\Security\PlatformAdminAuthenticationListener est le seul
+ * listener responsable de ce principal. `tenant_filter` reste ainsi **jamais activé** pour
+ * une requête `platform_admin` - pas par un mécanisme dédié, mais simplement parce que ce
+ * listener (seul point d'activation du filtre) ne s'exécute jamais pour ce principal.
  */
 final class TenantFilterActivationListener
 {
@@ -44,6 +56,13 @@ final class TenantFilterActivationListener
     #[AsEventListener(event: 'lexik_jwt_authentication.on_jwt_authenticated')]
     public function onJwtAuthenticated(JWTAuthenticatedEvent $event): void
     {
+        $user = $event->getToken()->getUser();
+        if (!$user instanceof User) {
+            // App\PlatformAdmin\Entity\PlatformAdministrator (Phase 15) ou tout futur
+            // principal non tenant-scoped - jamais cette classe qui en est responsable.
+            return;
+        }
+
         $claim = $event->getPayload()['org'] ?? null;
 
         if (!is_string($claim) || '' === $claim) {
@@ -56,11 +75,6 @@ final class TenantFilterActivationListener
             throw new AuthenticatedIdentityWithoutOrganizationException('Authenticated JWT carries a malformed "org" claim.', previous: $exception);
         }
 
-        $user = $event->getToken()->getUser();
-        if (!$user instanceof User) {
-            throw new AuthenticatedIdentityWithoutOrganizationException('Authenticated token carries no App\Identity\Entity\User.');
-        }
-
         $membership = null;
         foreach ($user->getMemberships() as $candidate) {
             if ($candidate->getOrganizationId()->equals($organizationId)) {
@@ -71,6 +85,10 @@ final class TenantFilterActivationListener
 
         if (null === $membership) {
             throw new OrganizationMembershipMismatchException('No active Membership matches the "org" claim for this user.');
+        }
+
+        if ($membership->getOrganization()->isSuspended()) {
+            throw new OrganizationSuspendedException('This organization has been suspended by a platform administrator.');
         }
 
         $request = $this->requestStack->getCurrentRequest();

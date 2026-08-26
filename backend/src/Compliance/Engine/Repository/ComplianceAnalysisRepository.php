@@ -150,4 +150,47 @@ final class ComplianceAnalysisRepository extends ServiceEntityRepository
 
         return ['items' => $items, 'totalCount' => $totalCount];
     }
+
+    /**
+     * Agrégat cross-tenant explicite (plan Phase 15, App\Compliance\Engine\Service\
+     * ComplianceHealthReader) - `tenant_filter` reste actif par défaut pour cette entité
+     * tenant-scoped, suspendu ici le temps de cette unique requête (même patron que
+     * App\Identity\Repository\InvitationRepository::findOneBySelector()) - défense en
+     * profondeur, le firewall `platform_admin` n'active de toute façon jamais ce filtre.
+     *
+     * @return array{total: int, failed: int}
+     */
+    public function countByStatusSince(\DateTimeImmutable $since): array
+    {
+        $filters = $this->getEntityManager()->getFilters();
+        $wasEnabled = $filters->isEnabled('tenant_filter');
+
+        if ($wasEnabled) {
+            $filters->suspend('tenant_filter');
+        }
+
+        try {
+            $total = (int) $this->createQueryBuilder('a')
+                ->select('COUNT(a.id)')
+                ->andWhere('a.triggeredAt >= :since')
+                ->setParameter('since', $since)
+                ->getQuery()
+                ->getSingleScalarResult();
+
+            $failed = (int) $this->createQueryBuilder('a')
+                ->select('COUNT(a.id)')
+                ->andWhere('a.triggeredAt >= :since')
+                ->andWhere('a.status = :status')
+                ->setParameter('since', $since)
+                ->setParameter('status', ComplianceAnalysisStatus::FAILED)
+                ->getQuery()
+                ->getSingleScalarResult();
+
+            return ['total' => $total, 'failed' => $failed];
+        } finally {
+            if ($wasEnabled) {
+                $filters->restore('tenant_filter');
+            }
+        }
+    }
 }

@@ -13,6 +13,12 @@ composer install --no-interaction --prefer-dist
 # authentifié) - --skip-if-exists la rend idempotente sans écraser une paire déjà générée.
 php bin/console lexik:jwt:generate-keypair --skip-if-exists
 
+# Second trousseau, structurellement séparé (Phase 15, ADR-009, backend/config/services.yaml
+# platform_admin_jwt.*) - trou découvert lors de la revue de sécurité de fin de phase : cette
+# paire n'était générée nulle part avant ce correctif, ce qui faisait échouer silencieusement
+# toute émission de jeton PlatformAdministrator sur un checkout neuf.
+php bin/console app:platform-admin:jwt:generate-keypair --skip-if-exists
+
 # Phase 7 (docs/06-technical-architecture.md, section 30) a introduit le service "worker"
 # (docker-compose.yml), qui partage la même image et le même bind-mount source que ce
 # conteneur - docker/entrypoint-worker-dev.sh attend ce marqueur avant de démarrer, plutôt

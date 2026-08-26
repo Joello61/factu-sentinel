@@ -7,6 +7,7 @@ namespace App\Identity\Repository;
 use App\Identity\Entity\Membership;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
+use Symfony\Component\Uid\Uuid;
 
 /**
  * @extends ServiceEntityRepository<Membership>
@@ -24,6 +25,42 @@ final class MembershipRepository extends ServiceEntityRepository
 
     /** @return list<Membership> */
     public function findAllForCurrentOrganization(): array
+    {
+        return $this->createQueryBuilder('m')
+            ->orderBy('m.createdAt', 'ASC')
+            ->getQuery()
+            ->getResult();
+    }
+
+    /**
+     * Lecture cross-tenant explicite (plan Phase 15, App\PlatformAdmin\Controller\
+     * GetOrganizationController) - `tenant_filter` n'est jamais actif sur le firewall
+     * `platform_admin` (App\Shared\Security\TenantFilterActivationListener), donc jamais
+     * besoin de le suspendre ici ; le filtrage par organisation est explicite par
+     * construction de la requête, jamais délégué au filtre automatique.
+     *
+     * @return list<Membership>
+     */
+    public function findAllForOrganization(Uuid $organizationId): array
+    {
+        return $this->createQueryBuilder('m')
+            ->andWhere('m.organization = :organizationId')
+            ->setParameter('organizationId', $organizationId->toRfc4122())
+            ->orderBy('m.createdAt', 'ASC')
+            ->getQuery()
+            ->getResult();
+    }
+
+    /**
+     * `target_type = ALL` (plan Phase 15, App\PlatformAdmin\Service\
+     * PlatformNotificationRecipientResolver) - toutes les organisations, sans filtre. Jamais
+     * appelée depuis un contexte tenant (`tenant_filter` n'est de toute façon jamais actif
+     * sur le firewall `platform_admin`, donc rien à suspendre ici contrairement à
+     * findAllForOrganization() qui filtre explicitement une seule organisation).
+     *
+     * @return list<Membership>
+     */
+    public function findAllAcrossOrganizations(): array
     {
         return $this->createQueryBuilder('m')
             ->orderBy('m.createdAt', 'ASC')

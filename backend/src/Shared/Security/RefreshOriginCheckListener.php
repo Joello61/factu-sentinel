@@ -13,10 +13,19 @@ use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
  * (docs/10-security-privacy.md, section 20) : seul endpoint où un cookie est transmis
  * automatiquement par le navigateur, donc le seul qui reste exposé au CSRF malgré
  * l'authentification par en-tête Authorization pour le reste de l'API.
+ *
+ * Phase 15 (ADR-009) : /platform-admin/auth/refresh porte exactement la même exposition
+ * (cookie platform_admin_refresh_token, SameSite=Lax, backend/config/packages/security.yaml)
+ * sur l'identité la plus sensible du produit - écart trouvé et fermé lors de la revue de
+ * sécurité manuelle de fin de phase (skill security-review, 12-roadmap.md bilan Phase 15) :
+ * ce listener n'avait jamais été étendu au second firewall.
  */
 final class RefreshOriginCheckListener
 {
-    private const string REFRESH_PATH = '/api/v1/auth/refresh';
+    private const array REFRESH_PATHS = [
+        '/api/v1/auth/refresh',
+        '/api/v1/platform-admin/auth/refresh',
+    ];
 
     public function __construct(
         private readonly string $frontendUrl,
@@ -31,7 +40,7 @@ final class RefreshOriginCheckListener
         }
 
         $request = $event->getRequest();
-        if (self::REFRESH_PATH !== $request->getPathInfo()) {
+        if (!\in_array($request->getPathInfo(), self::REFRESH_PATHS, true)) {
             return;
         }
 

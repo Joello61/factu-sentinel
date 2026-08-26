@@ -71,3 +71,21 @@ framework:
             policy: sliding_window
             limit: 20
             interval: "15 minutes"
+        # POST /platform-admin/auth/login (plan Phase 15, revue utilisateur du 21/08/2026) -
+        # clé par IP (App\PlatformAdmin\Controller\PlatformAdminLoginController), même
+        # raisonnement que password_reset_request : aucun organization_id disponible avant
+        # authentification, et ce rôle n'appartient à aucune organisation par construction
+        # (ADR-009). Volontairement strict (surface la plus sensible du produit,
+        # docs/10-security-privacy.md section 17 bis).
+        platform_admin_login:
+            policy: sliding_window
+            limit: 5
+            interval: "15 minutes"
+        # POST /platform-admin/auth/mfa/verify - limiteur indépendant de platform_admin_login
+        # ci-dessus (plan Phase 15 : "un attaquant ayant épuisé l'un ne doit pas pouvoir
+        # contourner l'autre"), clé par IP également. Fenêtre plus stricte que le login lui-même :
+        # protège spécifiquement contre le brute-force d'un code TOTP à 6 chiffres.
+        platform_admin_mfa_verify:
+            policy: sliding_window
+            limit: 5
+            interval: "5 minutes"
