@@ -1,0 +1,13 @@
+# Même constat que backend/.dockerignore (Phase 17) : "COPY . ." (Dockerfile) copiait tout
+# le contexte de build local sans exclusion - inoffensif pour un build CI (checkout Git
+# propre) mais un vrai risque pour tout build local (secrets dans un .env* non commité,
+# node_modules/.next potentiellement volumineux ou incompatibles avec l'architecture cible
+# de l'image) - Secure Defaults, ../CLAUDE.md section 15.
+.git
+.idea
+.vscode
+
+.env*
+
+node_modules
+.next

@@ -1,0 +1,28 @@
+# Absent jusqu'ici (Phase 17) : "COPY . ." (Dockerfile, cibles "dev"/"build") copiait tout
+# le contexte de build local sans exclusion - inoffensif pour un build CI (checkout Git
+# propre, jamais ces fichiers), mais un vrai risque pour tout build local ou futur runner
+# self-hosted persistant (constaté à l'implémentation : un build local a copié
+# .env.local, contenant une vraie clé Mistral, et config/jwt/*.pem, des clés de signature
+# JWT réelles, directement dans l'image - jamais acceptable, quelle que soit la probabilité
+# réelle qu'un build local finisse un jour poussé quelque part - Secure Defaults,
+# ../CLAUDE.md section 15).
+.git
+.idea
+.vscode
+
+# Secrets locaux - jamais dans une image, quel que soit l'environnement cible (une image
+# "prod" comme "dev" partage ce Dockerfile).
+.env.local
+.env.local.php
+.env.*.local
+config/jwt/*.pem
+
+# Artefacts reconstruits à chaque build, jamais copiés depuis l'hôte.
+var/
+vendor/
+.phpunit.cache/
+.phpunit.result.cache
+.php-cs-fixer.cache
+.phpstan.cache/
+
+docker-compose.override.yml
