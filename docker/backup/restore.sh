@@ -55,8 +55,11 @@ docker compose exec -T postgres createdb -U "$POSTGRES_USER" "$POSTGRES_DB"
 docker compose exec -T postgres psql -U "$POSTGRES_USER" "$POSTGRES_DB" < "$WORKDIR/database.sql"
 
 echo "Restauration du stockage documentaire..."
-rm -rf "${ROOT_DIR:?}/backend/var/storage/documents"
-mkdir -p "$ROOT_DIR/backend/var/storage"
-tar -xzf "$WORKDIR/storage.tar.gz" -C "$ROOT_DIR/backend/var/storage"
+# Même raisonnement que backup.sh : passe par le conteneur "backend" plutôt que par un
+# chemin hôte, qui n'est un bind-mount du dépôt qu'en développement (Phase 17,
+# docs/12-roadmap.md) - en production, seul le conteneur voit le volume Docker nommé
+# ("storage_documents").
+docker compose exec -T backend sh -c 'rm -rf /app/var/storage/documents && mkdir -p /app/var/storage/documents'
+docker compose exec -T backend tar -xzf - -C /app/var/storage < "$WORKDIR/storage.tar.gz"
 
 echo "Restauration terminée depuis $ARCHIVE_PATH"

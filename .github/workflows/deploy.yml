@@ -1,0 +1,148 @@
+name: Deploy
+
+# Décision de modèle de déploiement actée (plan Phase 17, docs/12-roadmap.md) : les images
+# sont construites et testées une seule fois, en CI, jamais reconstruites sur un serveur -
+# "l'image testée doit être exactement l'image déployée". Ce workflow ne s'exécute
+# qu'après le succès complet du workflow "CI" (.github/workflows/lint.yml) sur "main" -
+# jamais sur une Pull Request, jamais indépendamment des Release Gates existants (y
+# compris "next build", ajouté Phase 17 précisément pour ce genre de pipeline).
+#
+# Séparé de lint.yml plutôt que d'y ajouter des jobs avec "needs" : sépare clairement les
+# deux préoccupations (intégration continue vs déploiement), au prix d'un déclenchement
+# par "workflow_run" (vérifié sur la documentation officielle GitHub Actions le
+# 26/08/2026) plutôt qu'une dépendance directe entre jobs d'un même fichier.
+on:
+  workflow_run:
+    workflows: ['CI']
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: read
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  build-and-push:
+    name: Build and push images (GHCR)
+    runs-on: ubuntu-latest
+    if: github.event.workflow_run.conclusion == 'success'
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image_tag: ${{ steps.meta.outputs.image_tag }}
+      image_base: ${{ steps.meta.outputs.image_base }}
+    steps:
+      # ref explicite sur le commit réellement testé par le workflow "CI" déclencheur -
+      # jamais "main" (qui a pu avancer depuis) ni le SHA implicite de cet événement.
+      - name: Checkout tested commit
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Compute image metadata
+        id: meta
+        run: |
+          echo "image_base=${REGISTRY}/$(echo "${GITHUB_REPOSITORY}" | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
+          echo "image_tag=${SHA:0:12}" >> "$GITHUB_OUTPUT"
+        env:
+          SHA: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Build and push backend
+        uses: docker/build-push-action@v7
+        with:
+          context: ./backend
+          target: prod
+          push: true
+          tags: ${{ steps.meta.outputs.image_base }}-backend:${{ steps.meta.outputs.image_tag }}
+          cache-from: type=gha,scope=backend
+          cache-to: type=gha,scope=backend,mode=max
+
+      - name: Build and push frontend
+        uses: docker/build-push-action@v7
+        with:
+          context: ./frontend
+          target: prod
+          push: true
+          tags: ${{ steps.meta.outputs.image_base }}-frontend:${{ steps.meta.outputs.image_tag }}
+          cache-from: type=gha,scope=frontend
+          cache-to: type=gha,scope=frontend,mode=max
+
+      - name: Build and push mustang
+        uses: docker/build-push-action@v7
+        with:
+          context: ./docker/mustang
+          push: true
+          tags: ${{ steps.meta.outputs.image_base }}-mustang:${{ steps.meta.outputs.image_tag }}
+          cache-from: type=gha,scope=mustang
+          cache-to: type=gha,scope=mustang,mode=max
+
+  # Automatique après le build (plan Phase 17) - pas de validation manuelle à cette étape,
+  # cohérent avec le pipeline cible déjà documenté (docs/09-test-strategy.md section 46).
+  deploy-staging:
+    name: Deploy to staging
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      # Chaque job démarre sur un runner neuf (docker/deploy/ssh-deploy.sh n'existe pas
+      # encore ici sans ce checkout) - même ref exacte que le job de build ci-dessus.
+      - name: Checkout tested commit
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      # Secrets d'environnement GitHub "staging" (Settings > Environments), jamais des
+      # secrets de dépôt partagés - mêmes noms que le job "production" ci-dessous, résolus
+      # différemment selon l'environnement déclaré par ce job (comportement natif de
+      # GitHub Actions, vérifié le 26/08/2026) - voir docker/deploy/README.md pour la
+      # liste complète à créer.
+      - name: Deploy over SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+          IMAGE_BASE: ${{ needs.build-and-push.outputs.image_base }}
+          IMAGE_TAG: ${{ needs.build-and-push.outputs.image_tag }}
+        run: docker/deploy/ssh-deploy.sh staging
+
+  # environment: production sans "needs: deploy-staging" ne suffirait pas à empêcher un
+  # déploiement production accidentel - la protection réelle vient de la règle "Required
+  # reviewers" configurée sur l'environnement GitHub "production" (Settings > Environments,
+  # jamais configurable depuis ce fichier YAML seul - voir docker/deploy/README.md). Ce
+  # job reste ici en attente jusqu'à validation manuelle par un reviewer désigné.
+  deploy-production:
+    name: Deploy to production
+    needs: [build-and-push, deploy-staging]
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Checkout tested commit
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      # Secrets d'environnement GitHub "production" - mêmes noms que le job "staging"
+      # ci-dessus, résolus vers les valeurs propres à cet environnement.
+      - name: Deploy over SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+          IMAGE_BASE: ${{ needs.build-and-push.outputs.image_base }}
+          IMAGE_TAG: ${{ needs.build-and-push.outputs.image_tag }}
+        run: docker/deploy/ssh-deploy.sh production

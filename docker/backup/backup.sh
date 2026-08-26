@@ -47,8 +47,14 @@ mkdir -p "$BACKUP_DIR"
 echo "Sauvegarde PostgreSQL (${POSTGRES_DB})..."
 docker compose exec -T postgres pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB" > "$WORKDIR/database.sql"
 
-echo "Sauvegarde du stockage documentaire (backend/var/storage/documents)..."
-tar -czf "$WORKDIR/storage.tar.gz" -C "$ROOT_DIR/backend/var/storage" documents
+echo "Sauvegarde du stockage documentaire..."
+# Passe par "docker compose exec" plutôt que de lire directement
+# "$ROOT_DIR/backend/var/storage" sur l'hôte (Phase 17, docs/12-roadmap.md) : ce chemin
+# n'est un bind-mount du dépôt qu'en développement (docker-compose.yml) - en production
+# (docker-compose.prod.yml), STORAGE_LOCAL_PATH est porté par un volume Docker nommé
+# ("storage_documents"), jamais accessible directement depuis le système de fichiers de
+# l'hôte. Passer par le conteneur fonctionne identiquement dans les deux cas.
+docker compose exec -T backend tar -czf - -C /app/var/storage documents > "$WORKDIR/storage.tar.gz"
 
 echo "Assemblage de l'archive..."
 tar -cf "$WORKDIR/backup.tar" -C "$WORKDIR" database.sql storage.tar.gz

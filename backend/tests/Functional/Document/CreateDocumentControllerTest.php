@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace App\Tests\Functional\Document;
 
+use App\Document\Service\AntivirusScannerInterface;
 use App\Tests\Support\ApiTestCase;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
+use Symfony\Component\HttpKernel\Exception\UnprocessableEntityHttpException;
 
 /**
  * POST /documents (docs/08-api-specification.md, section 31 ; US-INVOICE-001 ; plan Phase 7).
@@ -243,6 +245,58 @@ final class CreateDocumentControllerTest extends ApiTestCase
         self::assertResponseStatusCodeSame(422);
 
         unlink($spoofedPath);
+    }
+
+    /**
+     * Phase 17 (docs/12-roadmap.md) - App\Document\Service\ClamAvScanner. Que le vrai
+     * ClamAV détecte réellement un contenu infecté est vérifié séparément, contre le vrai
+     * service, par App\Tests\Integration\Document\ClamAvScannerTest - constat qui y est
+     * documenté en détail : la signature de test EICAR ne se déclenche que sur un contenu
+     * (quasi) strictement égal à elle-même, jamais noyée dans un PDF/XML par ailleurs
+     * valide, donc pas un vecteur utilisable ici pour passer la vérification de format
+     * (UploadedDocumentValidator) tout en restant détectable. Ce test-ci vérifie une
+     * question différente et complémentaire : quand le scanner (réel ou non) signale une
+     * infection, le pipeline d'upload respecte-t-il bien l'ordre "scan avant stockage" -
+     * un double contrôlable isole cette question de la précision de détection de ClamAV
+     * lui-même. L'invariant vérifié n'est pas seulement le code HTTP : le contenu ne doit
+     * **jamais** être écrit sur le stockage applicatif (StorageInterface), pas seulement
+     * rejeté en apparence.
+     */
+    public function testInfectedUploadIsRejectedAndNeverPersisted(): void
+    {
+        $client = $this->createAuthenticatedClient('doc-create-eicar@example.test');
+        $this->markEmailVerified('doc-create-eicar@example.test');
+        $this->configureFiscalContext($client);
+        $customerId = $this->createCustomer($client);
+        $invoiceId = $this->createInvoice($client, $customerId, $this->readyInvoiceLines());
+
+        // KernelBrowser reboote le kernel (donc recompile le conteneur) avant chaque
+        // requête par défaut - un getContainer()->set() fait avant l'appel suivant serait
+        // sinon silencieusement perdu (documentation Symfony officielle sur les tests,
+        // vérifiée le 26/08/2026).
+        $client->disableReboot();
+        self::getContainer()->set(AntivirusScannerInterface::class, new class implements AntivirusScannerInterface {
+            public function scan(string $content): void
+            {
+                throw new UnprocessableEntityHttpException('Le fichier importé a été refusé par le scan antivirus.');
+            }
+        });
+
+        $storageDir = getenv('STORAGE_LOCAL_PATH');
+        self::assertIsString($storageDir);
+        $filesBefore = scandir($storageDir);
+        self::assertIsArray($filesBefore);
+
+        $this->upload($client, $invoiceId, 'pdf-simple.pdf', 'doc-key-eicar-001');
+
+        self::assertResponseStatusCodeSame(422);
+
+        $filesAfter = scandir($storageDir);
+        self::assertSame(
+            $filesBefore,
+            $filesAfter,
+            'Un contenu signalé par le scan antivirus ne doit jamais être écrit sur le stockage applicatif.',
+        );
     }
 
     public function testIdempotencyKeyReplayReturnsSameDocumentOnce(): void

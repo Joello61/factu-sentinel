@@ -14,10 +14,10 @@ gesdinet_jwt_refresh_token:
     # en amont plutôt qu'à contourner indéfiniment. single_use seul satisfait déjà
     # l'exigence documentée (docs/09-test-strategy.md section 24 : un refresh token déjà
     # consommé, représenté, est rejeté).
-    # reuse_detection:
-    #     enabled: true
-    #     cache: cache.app
-    #     ttl: 2592000
+    reuse_detection:
+        enabled: true
+        cache: cache.app
+        ttl: 2592000
 
     cookie:
         enabled: true

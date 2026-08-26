@@ -29,6 +29,10 @@ final class GetPlatformHealthControllerTest extends PlatformAdminApiTestCase
         self::assertArrayHasKey('ai_calls_volume_24h', $data);
         self::assertArrayHasKey('ai_estimated_cost_24h', $data);
         self::assertSame('ok', $data['api_health']);
+        // Phase 17 (docs/12-roadmap.md) : Redis/Mustang sont tous deux réellement démarrés
+        // dans la stack de test (docker-compose.yml) - vraie connexion TCP, pas un double.
+        self::assertTrue($data['redis_reachable']);
+        self::assertTrue($data['mustang_reachable']);
     }
 
     /**

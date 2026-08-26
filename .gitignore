@@ -31,6 +31,11 @@ desktop.ini
 # .env.beta.example (placeholders) est versionné.
 /.env.beta
 
+# Valeurs réelles de staging/production (Phase 17, docs/12-roadmap.md) - domaine, images
+# GHCR, secrets PostgreSQL ; seul .env.prod.example (placeholders) est versionné.
+/.env.staging
+/.env.production
+
 # Docker (volumes/données locales, overrides personnels)
 docker-compose.override.yml
 docker/**/data/

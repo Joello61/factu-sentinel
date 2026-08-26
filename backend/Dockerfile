@@ -105,4 +105,13 @@ COPY --from=build --chown=app:app /app /app
 USER app
 
 EXPOSE 9000
+
+# Liveness faible mais sans dépendance supplémentaire (pas de cgi-fcgi/curl dans cette
+# image) : prouve seulement que php-fpm accepte des connexions TCP sur son port FastCGI,
+# pas qu'il répond correctement à une vraie requête. Le signal de santé de bout en bout
+# (Nginx -> ce conteneur -> PostgreSQL) reste porté par le HEALTHCHECK du service "nginx"
+# sur /api/health (backend/src/Shared/Controller/HealthController.php), pas celui-ci.
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
+    CMD php -r '$fp=@fsockopen("127.0.0.1",9000,$errno,$errstr,2);if(!$fp){exit(1);}fclose($fp);exit(0);'
+
 CMD ["php-fpm"]

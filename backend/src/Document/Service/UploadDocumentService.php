@@ -43,6 +43,7 @@ final class UploadDocumentService
     public function __construct(
         private readonly EntityManagerInterface $entityManager,
         private readonly UploadedDocumentValidator $validator,
+        private readonly AntivirusScannerInterface $antivirusScanner,
         private readonly StorageInterface $storage,
         private readonly MessageBusInterface $messageBus,
         private readonly AuditLogger $auditLogger,
@@ -117,6 +118,15 @@ final class UploadDocumentService
 
         $content = file_get_contents($file->getRealPath());
         \assert(false !== $content);
+
+        // Scan avant toute persistance (Phase 17, docs/12-roadmap.md) : un contenu infecté
+        // ne doit jamais atteindre StorageInterface::store(), cohérent avec le principe déjà
+        // appliqué par UploadedDocumentValidator ("ne jamais persister un fichier non
+        // validé"). Lève une HttpException (422 infecté, 503 scanner indisponible) qui
+        // annule toute la transaction englobante, y compris la réservation d'idempotence -
+        // la clé reste rejouable (App\Shared\Idempotency\Service\IdempotencyStore).
+        $this->antivirusScanner->scan($content);
+
         $storageReference = $this->storage->store($content);
 
         $document = new Document(

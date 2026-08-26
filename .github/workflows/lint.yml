@@ -21,6 +21,10 @@ jobs:
       # "factusentinel_test" for the actual connection used by the test suite.
       DATABASE_URL: "postgresql://app:app@localhost:5432/factusentinel?serverVersion=18&charset=utf8"
       APP_ENV: test
+      # Phase 17 (docs/12-roadmap.md) - App\Document\Service\ClamAvScanner. Service
+      # container reachable at localhost on the runner (same network as the job).
+      CLAMAV_HOST: localhost
+      CLAMAV_PORT: "3310"
     services:
       postgres:
         image: postgres:18-alpine
@@ -35,6 +39,15 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
+      # "clamav/clamav" (pas la variante "_base") embarque déjà son propre HEALTHCHECK
+      # (ping/pong clamd, vérifié sur la documentation officielle le 26/08/2026) - GitHub
+      # Actions attend qu'un service devienne "healthy" avant de démarrer les steps dès
+      # qu'un healthcheck existe, image ou "options" explicite, donc aucun "options:"
+      # supplémentaire n'est nécessaire ici.
+      clamav:
+        image: clamav/clamav:1.5.2
+        ports:
+          - 3310:3310
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -120,6 +133,15 @@ jobs:
 
       - name: Run tests
         run: npm run test
+
+      # Phase 17 (docs/12-roadmap.md) - Release Gate ajouté après avoir constaté qu'un
+      # build de production cassé (erreur TypeScript pré-existante dans
+      # app/(app)/company/CompanyForm.test.tsx, masquant un bug amont Next.js déjà
+      # documenté) restait invisible en CI tant que "next build" n'y était jamais exécuté :
+      # lint et tests passaient sans qu'aucune image de production ne soit jamais
+      # constructible. Bloquant, sans exception, avant tout travail de déploiement.
+      - name: Build (next build)
+        run: npm run build
 
   secret-scan:
     name: Secret scanning (gitleaks)

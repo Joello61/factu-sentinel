@@ -832,6 +832,11 @@ l'ensemble du produit.
 
 **Un pentest ne rend jamais l'application « sécurisée » de façon définitive** - il valide un état à un instant donné, sur un périmètre donné, et doit être renouvelé à mesure que le produit évolue.
 
+**Dossier de scope (Phase 17)** : `docs/17-pentest-scope.md` détaille les deux périmètres
+ci-dessus (Scope A ciblé Platform Admin, Scope B produit complet) pour un prestataire
+externe, et `docs/15-internal-security-review.md` documente la revue de sécurité interne
+menée en préparation - explicitement non substituable à ce pentest.
+
 ## 62. Security Release Gates
 
 ```text
@@ -940,7 +945,7 @@ une garantie).
 
 **API**
 
-- [ ] HTTPS forcé sur l'ensemble des endpoints (section 25) - `DIFFÉRÉ - Phase 17 - nécessite une infrastructure hébergée` (préparation faite : `App\Shared\Http\HstsHeaderListener`, désactivé par défaut - `HSTS_ENABLED=false`, `backend/.env`)
+- [ ] HTTPS forcé sur l'ensemble des endpoints (section 25) - `DIFFÉRÉ - Bloc B - nécessite un domaine et un certificat réels`. Préparation Phase 17 complète : `App\Shared\Http\HstsHeaderListener` (`HSTS_ENABLED=false` par défaut, `backend/.env`), configuration Nginx TLS complète (`docker/nginx/prod.conf.template`, validée par un vrai `nginx -t`), émission/renouvellement Let's Encrypt scriptés (`docker/nginx/bootstrap-cert.sh`/`renew-cert.sh`, `docker/nginx/README.md`) - il ne manque que l'exécution réelle (domaine, DNS, premier certificat)
 - [x] Politique CORS restrictive appliquée (section 21) - `backend/config/packages/nelmio_cors.yaml` (`CORS_ALLOW_ORIGIN` par environnement, jamais de wildcard), en-têtes métier complétés Phase 10 (`Idempotency-Key`, `If-Match`, `X-Request-ID`)
 - [x] Rate limiting actif sur l'authentification et les opérations coûteuses (section 18) - `login_throttling`, `password_reset_request`, `ai_assistant` (Phases 2/8) + `compliance_analysis_trigger`, `document_upload` (Phase 10) - `backend/config/packages/rate_limiter.yaml`, tests `testRateLimitReturns429AfterExhaustingLimiter` par endpoint
 - [x] Contrat d'erreur ne révélant aucun détail technique interne (section 18) - `App\Shared\Http\ApiExceptionListener`, revu Phase 10, aucune régression trouvée
@@ -951,14 +956,14 @@ une garantie).
 - [x] Validation par contenu réel (magic bytes), pas seulement extension/MIME (section 22) - `App\Document\Service\UploadedDocumentValidator` ; Phase 7
 - [x] Parseurs XML configurés contre XXE (section 23) - Validator Container Mustang isolé (ADR-008) ; Phase 7
 - [x] URLs de téléchargement temporaires et non prévisibles (section 24) - `GET /documents/{id}/content` authentifié à chaque appel, jamais d'URL publique (stockage local du MVP) ; Phase 7
-- [ ] Antivirus/sandboxing activé sur les fichiers uploadés - `DIFFÉRÉ - Phase 17 - nécessite une infrastructure hébergée` (non indispensable au MVP local/dev par décision produit déjà actée, section 22/69 ; requis avant une mise en production réelle)
+- [x] Antivirus activé sur les fichiers uploadés (Phase 17) - `App\Document\Service\ClamAvScanner`, scan avant toute écriture sur `StorageInterface`, conteneur ClamAV isolé (`06-technical-architecture.md` section 30) ; contrairement à l'attente initiale (`DIFFÉRÉ - nécessite une infrastructure hébergée`), ne dépendait pas réellement d'un hébergeur - fonctionne en local/CI comme en production. Détection réelle vérifiée contre le vrai service (`backend/tests/Integration/Document/ClamAvScannerTest.php`, signature EICAR) et non-persistance d'un contenu signalé vérifiée au niveau du pipeline (`backend/tests/Functional/Document/CreateDocumentControllerTest.php::testInfectedUploadIsRejectedAndNeverPersisted`)
 
 **Données**
 
-- [ ] Chiffrement en transit systématique (section 25) - `DIFFÉRÉ - Phase 17 - nécessite une infrastructure hébergée` (TLS dépend de l'hébergeur retenu)
-- [ ] Chiffrement au repos activé (base de données, stockage) (section 25) - `DIFFÉRÉ - Phase 17 - nécessite une infrastructure hébergée`
+- [ ] Chiffrement en transit systématique (section 25) - `DIFFÉRÉ - Bloc B - nécessite un domaine et un certificat réels` (mécanisme prêt, voir HTTPS forcé ci-dessus - OVHcloud confirmé comme hébergeur, plan Phase 17)
+- [ ] Chiffrement au repos activé (base de données, stockage) (section 25) - `DIFFÉRÉ - Bloc B - dépend de l'option de chiffrement disque de l'offre OVHcloud retenue, à vérifier au moment du provisionnement`
 - [x] Politique de rétention documentée, même si certaines durées restent « à confirmer juridiquement » (section 38) - déjà documentée section 38, incertitudes juridiques explicitement signalées, pas un point bloquant pour cette case
-- [x] Sauvegardes chiffrées et testées (sections 37, 54) - `docker/backup/backup.sh`/`restore.sh` (gpg AES256, clé jamais stockée avec l'archive) - Phase 10, restauration testée manuellement avec vérification de cohérence croisée `Document` ↔ fichier ↔ `DocumentProcessingRecord` (voir `docker/backup/README.md`)
+- [x] Sauvegardes chiffrées et testées (sections 37, 54) - `docker/backup/backup.sh`/`restore.sh` (gpg AES256, clé jamais stockée avec l'archive) - Phase 10, restauration testée manuellement avec vérification de cohérence croisée `Document` ↔ fichier ↔ `DocumentProcessingRecord` (voir `docker/backup/README.md`). **Phase 17** : automatisation périodique ajoutée (`docker/backup/automated-backup.sh` - cron/systemd, envoi vers un stockage objet distant compatible S3, rétention), et un défaut corrigé au passage - les deux scripts lisaient/écrivaient directement `backend/var/storage/documents` sur l'hôte, ce qui ne fonctionne plus tel quel en production (`docker-compose.prod.yml` porte ce chemin via un volume Docker nommé) ; passent désormais par `docker compose exec backend`, valable dans les deux environnements.
 
 **IA**
 
@@ -971,20 +976,20 @@ une garantie).
 
 - [x] Aucun secret dans le code source ou les images de conteneur (sections 26-27) - `backend/.env` committé sans valeur réelle, secrets via `.env.local`/variables CI ; scan automatisé ajouté Phase 10 (`gitleaks/gitleaks-action`, `.github/workflows/lint.yml`)
 - [x] Réseau interne non exposé directement à Internet (section 52) - `docker-compose.yml` : PostgreSQL/Redis liés à `127.0.0.1`, Mustang sans port publié, Nginx seul point d'entrée ; déjà vrai depuis la Phase 0-1
-- [ ] Environnements strictement isolés (section 53) - `DIFFÉRÉ - Phase 17 - nécessite une infrastructure hébergée` (local/CI seulement à ce stade, aucun staging/production distinct)
-- [ ] Monitoring et alerting actifs sur les événements critiques (sections 36-37) - `DIFFÉRÉ - Phase 17 - nécessite une infrastructure hébergée`
+- [ ] Environnements strictement isolés (section 53) - `DIFFÉRÉ - Bloc B - nécessite le provisionnement réel`. Préparation Phase 17 complète : `docker-compose.prod.yml` générique (staging et production utilisent le même overlay, séparés uniquement par `.env.staging`/`.env.production`, jamais partagés), secrets GitHub Environments distincts par environnement (`docker/deploy/README.md`) - reste à provisionner deux serveurs réellement distincts (OVHcloud confirmé, offre exacte à vérifier au moment du provisionnement)
+- [ ] Monitoring et alerting actifs sur les événements critiques (sections 36-37) - préparation faite en Phase 17 (`docker-compose.prod.yml` service `monitoring`, Uptime Kuma auto-hébergé, `docker/monitoring/README.md` ; connectivité Redis/Mustang ajoutée à `GET /platform-admin/health` ; moniteur push pour les sauvegardes) - reste `DIFFÉRÉ - Bloc B - nécessite le domaine et le déploiement réels` pour l'activation effective : les moniteurs et le canal de notification se configurent une fois manuellement via l'interface Uptime Kuma, jamais par ce dépôt
 
 **RGPD**
 
 Hors périmètre de la Phase 10 (points juridiques, non techniques - voir section 69) :
 
-- [ ] Cartographie des données personnelles tenue à jour (section 9)
-- [ ] Bases légales validées juridiquement (section 41)
-- [ ] Registre des traitements initié (section 42)
-- [ ] Qualification responsable/sous-traitant validée juridiquement (section 43)
-- [ ] DPA en place avec chaque fournisseur externe traitant des données personnelles (section 44)
-- [ ] Analyse des transferts internationaux effectuée si applicable (section 45)
-- [ ] Screening de nécessité d'AIPD réalisé ; AIPD complète menée si le screening la requiert (section 46)
+- [x] Cartographie des données personnelles tenue à jour (section 9) - à jour, complétée par le registre détaillé de `docs/16-rgpd-compliance-dossier.md` (Phase 17)
+- [ ] Bases légales validées juridiquement (section 41) - orientations indicatives préparées (`docs/16-rgpd-compliance-dossier.md` §1), **validation juridique restant entièrement à faire**
+- [x] Registre des traitements initié (section 42) - `docs/16-rgpd-compliance-dossier.md` §1 (Phase 17), sept traitements détaillés (finalité, données, sous-traitants, transferts, durée, mesures, base légale à valider) - "initié" au sens littéral de cette case, jamais présenté comme validé juridiquement
+- [ ] Qualification responsable/sous-traitant validée juridiquement (section 43) - orientation préparée (`docs/16-rgpd-compliance-dossier.md` §3), **validation juridique restant entièrement à faire**
+- [ ] DPA en place avec chaque fournisseur externe traitant des données personnelles (section 44) - dossier Mistral préparé avec les points précis à vérifier contractuellement (`docs/16-rgpd-compliance-dossier.md` §2, DPA public déjà lu, écarts identifiés) ; fournisseurs email/vérification d'entreprise toujours non choisis
+- [ ] Analyse des transferts internationaux effectuée si applicable (section 45) - le DPA public de Mistral autorise des transferts sous conditions (`docs/16-rgpd-compliance-dossier.md` §2.3) - **contrairement à l'hypothèse précédente de cette section, ce n'est pas une absence de transfert acquise** ; vérification contractuelle réelle restant à faire
+- [ ] Screening de nécessité d'AIPD réalisé ; AIPD complète menée si le screening la requiert (section 46) - grille des 9 critères officiels CNIL/G29 appliquée (`docs/16-rgpd-compliance-dossier.md` §4), conclusion **provisoire** (AIPD complète non clairement requise en l'état) explicitement marquée comme non officielle - **validation par toi et/ou un juriste restant à faire avant mise en production**, cette case reste décochée tant qu'elle ne l'est pas
 - [ ] Processus de traitement des demandes de droits des personnes opérationnel, y compris la procédure de vérification manuelle sécurisée pour les demandes de tiers non-utilisateurs (section 40)
 
 ## 69. Questions ouvertes
@@ -1002,6 +1007,12 @@ Les points suivants, précédemment signalés comme questions ouvertes dans une 
 | Durée de conservation de la facture originale (section 38)                                                     | **10 ans**, reprise de la décision produit déjà actée dans `02-regulatory-study.md` (section 23, mis à jour).                                                                                                                  | Résolu - décision produit ; durées fines des données dérivées et délai de purge exact restent ouverts (voir ci-dessous)                                      |
 
 ### Restent explicitement ouvertes (points juridiques et fournisseurs non tranchés)
+
+**Voir `docs/16-rgpd-compliance-dossier.md` (Phase 17)** pour le registre des traitements
+détaillé, le dossier fournisseur Mistral (points précis vérifiés dans son DPA public au
+26/08/2026, notamment sur les transferts internationaux et l'entraînement de modèles) et
+le screening AIPD appliqué aux 9 critères CNIL/G29 - ce document en prépare la matière,
+il ne tranche aucune des questions listées ci-dessous.
 
 | Question                                                                                                                                                                            | Pourquoi elle est importante                                                                                                                                                            | Où la trancher                                                                       |
 | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |

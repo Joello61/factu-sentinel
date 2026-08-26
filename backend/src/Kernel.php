@@ -2,12 +2,24 @@
 
 namespace App;
 
+use App\Shared\DependencyInjection\GesdinetReuseDetectionCachePass;
 use Symfony\Bundle\FrameworkBundle\Kernel\MicroKernelTrait;
+use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\HttpKernel\Kernel as BaseKernel;
 
 class Kernel extends BaseKernel
 {
     use MicroKernelTrait;
+
+    protected function build(ContainerBuilder $container): void
+    {
+        // Voir le docblock de GesdinetReuseDetectionCachePass : corrige un défaut de
+        // câblage DI de gesdinet/jwt-refresh-token-bundle v3.0.0 sur reuse_detection.
+        $container->addCompilerPass(
+            new GesdinetReuseDetectionCachePass(),
+            \Symfony\Component\DependencyInjection\Compiler\PassConfig::TYPE_BEFORE_REMOVING
+        );
+    }
 
     /**
      * @return list<string> An array of allowed values for APP_ENV

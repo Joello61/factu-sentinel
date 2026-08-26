@@ -51,6 +51,12 @@ services:
         condition: service_started
       mustang:
         condition: service_started
+      # service_healthy, pas service_started : le scan (App\Document\Service\ClamAvScanner)
+      # se produit dans le chemin synchrone de "backend" (jamais "worker") - démarrer avant
+      # que clamd ait fini de charger ses signatures produirait une fenêtre où tout upload
+      # échouerait en 503 (fail-closed voulu, mais évitable au démarrage).
+      clamav:
+        condition: service_healthy
     expose:
       - '9000'
 
@@ -101,6 +107,17 @@ services:
       context: ./docker/mustang
     expose:
       - '8080'
+
+  # Scan antivirus (Phase 17, docs/12-roadmap.md) - isolé dans son propre conteneur, même
+  # principe que "mustang" ci-dessus (jamais de bibliothèque antivirus intégrée au runtime
+  # PHP, jamais de "ports:" publiés). Image "clamav/clamav" (pas la variante "_base") :
+  # signatures préchargées, healthcheck déjà défini par l'image elle-même (PING/PONG sur
+  # clamd) - vérifié sur la documentation officielle le 26/08/2026, aucun healthcheck
+  # supplémentaire nécessaire ici.
+  clamav:
+    image: clamav/clamav:1.5.2
+    expose:
+      - '3310'
 
   frontend:
     build:
