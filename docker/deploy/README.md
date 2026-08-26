@@ -22,13 +22,18 @@ données, volumes de stockage et sous-domaines distincts), routées par la même
 Traefik partagée. Toujours vrai dans les deux cas :
 
 - Docker + Docker Compose installés.
-- Le dépôt cloné à un chemin connu (`DEPLOY_PATH` ci-dessous - un chemin distinct par
-  environnement si les deux partagent le même serveur, ex. `/opt/apps/factusentinel` et
-  `/opt/apps/factusentinel-staging`), avec
-  `docker-compose.yml`/`docker-compose.prod.yml`/`docker/nginx/prod.conf.template` à jour
-  (`git pull` avant le premier déploiement, puis maintenu à jour indépendamment - ce
-  workflow ne met à jour que les images, jamais le code source sur le serveur lui-même à
-  ce stade).
+- Le dépôt cloné une seule fois, manuellement, à un chemin connu (`DEPLOY_PATH`
+  ci-dessous - un chemin distinct par environnement si les deux partagent le même
+  serveur, ex. `/opt/apps/factusentinel` et `/opt/apps/factusentinel-staging`). Ensuite,
+  `ssh-deploy.sh` synchronise lui-même le dépôt (`git fetch` + `git checkout` au commit
+  exact dont les images ont été construites, HEAD detached délibérément - ce répertoire
+  n'est jamais un espace de développement) à chaque déploiement, jamais un simple `git
+  pull` qui suivrait la branche indépendamment des images réellement déployées. Constaté
+  au premier déploiement réel (Phase 17) : avant ce correctif, un changement de
+  `docker-compose.prod.yml` (rendre le port du service `monitoring` configurable)
+  n'atteignait jamais le serveur, cette étape n'existant pas encore - seules les images
+  étaient mises à jour. Les fichiers non suivis par Git (`.env.staging`/`.env.production`,
+  `docker-compose.prod.traefik.yml`) ne sont jamais affectés par cette synchronisation.
 - `.env.staging`/`.env.production` renseignés (voir `.env.prod.example`), jamais committés.
 - `docker-compose.prod.traefik.yml` créé une fois par environnement (voir
   `docker-compose.prod.traefik.yml.example`) avec un nom de routeur Traefik **unique sur

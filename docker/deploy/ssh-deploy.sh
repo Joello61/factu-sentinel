@@ -51,6 +51,21 @@ export BACKEND_IMAGE="$BACKEND_IMAGE"
 export FRONTEND_IMAGE="$FRONTEND_IMAGE"
 export MUSTANG_IMAGE="$MUSTANG_IMAGE"
 
+# Synchronise le dépôt (docker-compose.prod.yml, docker/nginx/*.template, etc.) sur le
+# serveur avec l'EXACT commit déjà testé et dont les images ci-dessus ont été construites
+# (\$IMAGE_TAG identifie ce commit sans ambiguïté) - jamais un "git pull" qui suivrait la
+# branche et pourrait diverger de ce qui a réellement été testé, même principe que "l'image
+# testée doit être exactement l'image déployée" (plan Phase 17, section 5) étendu au code de
+# configuration. HEAD detached délibérément : ce répertoire n'est jamais un espace de
+# développement, seulement une cible de déploiement. Ne touche jamais aux fichiers
+# non-suivis par Git (.env.${ENVIRONMENT}, docker-compose.prod.traefik.yml) - constaté au
+# premier déploiement réel : un changement de docker-compose.prod.yml (port du service
+# "monitoring" rendu paramétrable) n'atteignait jamais le serveur sans cette étape, "pull"
+# ne mettant à jour que les images, jamais le code.
+echo "=== Synchronisation du code au commit testé (${IMAGE_TAG}) ==="
+git fetch origin "$IMAGE_TAG"
+git checkout --quiet "$IMAGE_TAG"
+
 echo "=== Récupération des images ==="
 docker compose --env-file "$ENV_FILE" -f docker-compose.yml -f docker-compose.prod.yml -f docker-compose.prod.traefik.yml pull
 
