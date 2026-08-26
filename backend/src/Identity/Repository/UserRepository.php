@@ -74,4 +74,46 @@ final class UserRepository extends ServiceEntityRepository implements UserProvid
         $user->setPassword($newHashedPassword);
         $this->getEntityManager()->flush();
     }
+
+    /**
+     * Platform Analytics (docs/08-api-specification.md, section 38.3, Phase 16 ;
+     * US-ANALYTICS-001). Exclut les comptes soft-deleted, même discipline que
+     * findOneByEmail() ci-dessus - un compte supprimé ne compte pas dans l'usage réel du
+     * produit (docs/07-data-model.md, section 30). `User` n'est jamais tenant-scoped
+     * (rattaché à une Organization via Membership, pas de organization_id direct), aucun
+     * filtre à suspendre.
+     */
+    public function countAll(): int
+    {
+        return (int) $this->createQueryBuilder('u')
+            ->select('COUNT(u.id)')
+            ->andWhere('u.deletedAt IS NULL')
+            ->getQuery()
+            ->getSingleScalarResult();
+    }
+
+    /**
+     * Platform Analytics (docs/08-api-specification.md, section 38.3, Phase 16 ;
+     * US-ANALYTICS-002) : dates de création des comptes créés dans la fenêtre demandée,
+     * agrégées par jour côté PHP par App\PlatformAdmin\Service\PlatformAnalyticsTrendAggregator
+     * (même patron que App\Organization\Repository\OrganizationRepository::findCreatedAtBetween()).
+     *
+     * @return list<\DateTimeImmutable>
+     */
+    public function findCreatedAtBetween(\DateTimeImmutable $from, \DateTimeImmutable $until): array
+    {
+        $users = $this->createQueryBuilder('u')
+            ->andWhere('u.deletedAt IS NULL')
+            ->andWhere('u.createdAt >= :from')
+            ->andWhere('u.createdAt < :until')
+            ->setParameter('from', $from)
+            ->setParameter('until', $until)
+            ->getQuery()
+            ->getResult();
+
+        return array_map(
+            static fn (User $user): \DateTimeImmutable => $user->getCreatedAt(),
+            $users,
+        );
+    }
 }
