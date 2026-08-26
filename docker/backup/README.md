@@ -5,17 +5,27 @@ stockage documentaire local (`backend/var/storage/documents`) - jamais l'un sans
 pour ne jamais laisser un `Document` sans son fichier ou l'inverse
 (`docs/06-technical-architecture.md`, section 32).
 
-**Périmètre de cette phase** : mécanisme de sauvegarde/restauration et preuve qu'il
-fonctionne réellement (local, Docker Compose). L'automatisation périodique (cron/systemd
-timer réel, rétention, stockage hors site) dépend d'un hébergeur non encore choisi et
-relève de la Phase 13 - voir `docs/10-security-privacy.md`, section 68 (checklist), item
-`DEFERRED - Phase 13 - requires hosted infrastructure`.
+**Historique** : le mécanisme de sauvegarde/restauration lui-même (`backup.sh`/
+`restore.sh`) et la preuve qu'il fonctionne réellement datent de la Phase 10 (local,
+Docker Compose). L'automatisation périodique (cron/systemd timer réel, rétention,
+stockage hors site, `automated-backup.sh` ci-dessous) est ajoutée en Phase 17
+(`docs/12-roadmap.md`), une fois l'hébergeur confirmé (OVHcloud) - voir
+`docs/10-security-privacy.md` section 68.
+
+**Correctif Phase 17** : `backup.sh`/`restore.sh` lisaient/écrivaient auparavant
+directement `backend/var/storage/documents` sur l'hôte, ce qui ne fonctionne qu'en
+développement (bind-mount, `docker-compose.yml`). En production
+(`docker-compose.prod.yml`), ce chemin est porté par un volume Docker nommé
+(`storage_documents`), jamais accessible directement depuis l'hôte - les deux scripts
+passent désormais par `docker compose exec backend tar ...` dans les deux cas, jamais un
+chemin hôte supposé.
 
 ## RPO / RTO
 
 24h / 24h (décision produit actée, `docs/10-security-privacy.md` section 59) - une
 fréquence de sauvegarde au moins quotidienne est nécessaire pour tenir cet engagement une
-fois en production ; non automatisée ici (voir ci-dessus).
+fois en production, assurée par `automated-backup.sh` ci-dessous une fois le cron/systemd
+timer en place (Bloc B, provisionnement réel).
 
 ## Gestion de la clé de chiffrement
 
@@ -27,11 +37,12 @@ fois en production ; non automatisée ici (voir ci-dessus).
   `docs/10-security-privacy.md` sections 26-27) ;
 - être réutilisée entre environnements (section 53 du même document).
 
-Au stade actuel (développeur solo, environnement local), la conserver dans un
-gestionnaire de mots de passe personnel ou un coffre-fort de secrets, jamais dans
-`backend/.env`/`backend/.env.local` ni dans `backups/`. La gestion/rotation automatisée
-d'une clé de production reste un sujet Phase 13 (aucun mécanisme de gestion de clé
-d'infrastructure n'existe encore).
+En développement local, la conserver dans un gestionnaire de mots de passe personnel ou
+un coffre-fort de secrets, jamais dans `backend/.env`/`backend/.env.local` ni dans
+`backups/`. En production, l'injecter dans l'environnement d'exécution du cron/systemd
+timer via le mécanisme de secrets de l'hébergeur (jamais en dur dans une crontab
+committée ou un fichier `.env` versionné) - une valeur **distincte** de celle utilisée en
+développement/staging (section 53, jamais de secret réutilisé entre environnements).
 
 ## Sauvegarde
 
@@ -51,6 +62,42 @@ BACKUP_GPG_PASSPHRASE='...' docker/backup/restore.sh <archive.tar.gpg> [--yes]
 
 **Destructif** : recrée la base de données cible et remplace intégralement
 `backend/var/storage/documents`. Confirmation interactive requise sauf `--yes`.
+
+## Automatisation périodique (Phase 17)
+
+`automated-backup.sh` enchaîne : sauvegarde ciblant la stack de production/staging (pas
+la stack de dev par défaut), envoi de l'archive vers un stockage objet distant
+compatible S3 (rclone - fonctionne avec OVHcloud Object Storage comme avec tout autre
+fournisseur compatible S3, jamais un outil propriétaire à un hébergeur précis), puis
+rétention locale et distante.
+
+Prérequis, une seule fois sur le serveur :
+
+```bash
+# Installation (voir la documentation officielle rclone pour la méthode actuelle -
+# https://rclone.org/install/ - vérifier avant d'exécuter un script d'installation
+# tiers).
+rclone config
+# Créer un remote nommé (ex. "ovh-backup") pointant vers le stockage objet retenu -
+# assistant interactif, type "s3", endpoint et identifiants du fournisseur.
+```
+
+Exemple de tâche cron (à adapter - systemd timer équivalent possible, même principe) :
+
+```cron
+# Sauvegarde quotidienne à 3h locales - les secrets sont chargés depuis un fichier non
+# committé (permissions 600), jamais écrits directement dans la crontab.
+0 3 * * * . /etc/factusentinel/backup.env && /opt/factusentinel/docker/backup/automated-backup.sh >> /var/log/factusentinel-backup.log 2>&1
+```
+
+`/etc/factusentinel/backup.env` (jamais committé, permissions restreintes) :
+
+```bash
+BACKUP_GPG_PASSPHRASE='...'
+BACKUP_RCLONE_REMOTE='ovh-backup:factusentinel-backups'
+BACKUP_RETENTION_DAYS='14'
+COMPOSE_ENV_FILE='.env.production'
+```
 
 ## Test de restaurabilité (à exécuter, pas seulement documenter)
 

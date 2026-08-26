@@ -963,7 +963,7 @@ une garantie).
 - [ ] Chiffrement en transit systématique (section 25) - `DIFFÉRÉ - Phase 17 - nécessite une infrastructure hébergée` (TLS dépend de l'hébergeur retenu)
 - [ ] Chiffrement au repos activé (base de données, stockage) (section 25) - `DIFFÉRÉ - Phase 17 - nécessite une infrastructure hébergée`
 - [x] Politique de rétention documentée, même si certaines durées restent « à confirmer juridiquement » (section 38) - déjà documentée section 38, incertitudes juridiques explicitement signalées, pas un point bloquant pour cette case
-- [x] Sauvegardes chiffrées et testées (sections 37, 54) - `docker/backup/backup.sh`/`restore.sh` (gpg AES256, clé jamais stockée avec l'archive) - Phase 10, restauration testée manuellement avec vérification de cohérence croisée `Document` ↔ fichier ↔ `DocumentProcessingRecord` (voir `docker/backup/README.md`)
+- [x] Sauvegardes chiffrées et testées (sections 37, 54) - `docker/backup/backup.sh`/`restore.sh` (gpg AES256, clé jamais stockée avec l'archive) - Phase 10, restauration testée manuellement avec vérification de cohérence croisée `Document` ↔ fichier ↔ `DocumentProcessingRecord` (voir `docker/backup/README.md`). **Phase 17** : automatisation périodique ajoutée (`docker/backup/automated-backup.sh` - cron/systemd, envoi vers un stockage objet distant compatible S3, rétention), et un défaut corrigé au passage - les deux scripts lisaient/écrivaient directement `backend/var/storage/documents` sur l'hôte, ce qui ne fonctionne plus tel quel en production (`docker-compose.prod.yml` porte ce chemin via un volume Docker nommé) ; passent désormais par `docker compose exec backend`, valable dans les deux environnements.
 
 **IA**
 
