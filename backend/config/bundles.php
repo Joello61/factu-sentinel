@@ -11,4 +11,7 @@ return [
     SymfonyCasts\Bundle\ResetPassword\SymfonyCastsResetPasswordBundle::class => ['all' => true],
     SymfonyCasts\Bundle\VerifyEmail\SymfonyCastsVerifyEmailBundle::class => ['all' => true],
     Symfony\Bundle\MonologBundle\MonologBundle::class => ['all' => true],
+    // Recette Flex ignorée (recipes-contrib, "extra.symfony.allow-contrib": false) -
+    // enregistrement manuel, config écrite à la main (config/packages/artprima_prometheus_metrics.yaml).
+    Artprima\PrometheusMetricsBundle\ArtprimaPrometheusMetricsBundle::class => ['all' => true],
 ];

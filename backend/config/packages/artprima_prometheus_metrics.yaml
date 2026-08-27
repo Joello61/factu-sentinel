@@ -1,0 +1,12 @@
+# Phase 18, étape 2 (docs/19-observability-architecture.md). Réutilise le Redis existant du
+# projet (REDIS_URL, déjà utilisé par Messenger sous un stream distinct "messages",
+# config/packages/messenger.yaml) - un préfixe de clé dédié ("metrics") suffit à éviter
+# toute collision, jamais besoin d'une instance Redis séparée.
+artprima_prometheus_metrics:
+    namespace: factusentinel
+    storage:
+        url: '%env(REDIS_URL)%'
+        prefix: 'metrics'
+    # Endpoint /api/metrics jamais scrapé lui-même par ces métriques par défaut (bruit
+    # inutile, un scrape toutes les 15-30s n'apporte rien à observer sur lui-même).
+    ignored_routes: ['metrics_scrape']
