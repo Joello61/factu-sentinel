@@ -100,39 +100,42 @@ services:
       # développement local uniquement (jamais destinées à un environnement réel,
       # `docs/15-internal-security-review.md` section 3) - sans surcharge ici, la paire de
       # clés JWT générée au démarrage (docker/entrypoint-prod.sh) serait chiffrée avec une
-      # passphrase de dev, jamais isolée par environnement. Nécessaire aussi sur "worker" :
-      # les deux services génèrent indépendamment sur le même volume "jwt_keys", la
-      # passphrase doit être identique des deux côtés.
+      # passphrase de dev, jamais isolée par environnement. Jamais nécessaire sur "worker" :
+      # lui seul ne génère jamais les clés (voir son commentaire ci-dessous, "worker" ne
+      # gère aucune route HTTP/JWT et ne doit jamais écrire concurremment sur "jwt_keys").
       JWT_PASSPHRASE: '${JWT_PASSPHRASE}'
       PLATFORM_ADMIN_JWT_PASSPHRASE: '${PLATFORM_ADMIN_JWT_PASSPHRASE}'
     restart: unless-stopped
 
   # "entrypoint" de base (docker-compose.yml) est spécifique au dev : entrypoint-worker-dev.sh
   # attend un bind-mount partagé avec "backend" qui n'existe pas ici (image déjà construite,
-  # rien à attendre). Un "!override []" (vide) désactiverait entièrement l'ENTRYPOINT de
-  # l'image, y compris celui du Dockerfile ("docker-entrypoint-prod.sh") - constaté en
-  # relisant la sémantique Compose "entrypoint: []" (équivaut à "--entrypoint ''" côté
-  # Docker, jamais un simple retour à l'image par défaut) : "worker" a donc besoin de sa
-  # propre entrée explicite ici, jamais une liste vide, pour générer lui aussi les
-  # trousseaux JWT (voir le commentaire sur "backend" ci-dessus - même volume "jwt_keys").
+  # rien à attendre). "!override []" désactive entièrement l'ENTRYPOINT de l'image, y
+  # compris celui du Dockerfile ("docker-entrypoint-prod.sh", génération des clés JWT) -
+  # vérifié sur la documentation officielle Docker Compose ("entrypoint: []" équivaut à
+  # "docker run --entrypoint ''", jamais un simple retour à l'image par défaut). C'est
+  # volontaire ici : "worker" ne gère aucune route HTTP/JWT (même principe déjà établi par
+  # docker/entrypoint-worker-dev.sh : "il ne refait jamais lui-même... génération de clés
+  # JWT, dont il n'a de toute façon pas besoin") et ne doit JAMAIS générer les clés en
+  # parallèle de "backend" sur le même volume "jwt_keys" - les deux entrypoints démarrant en
+  # même temps ("docker compose up -d"), deux écritures concurrentes de la clé privée la
+  # corrompent (incident réel constaté en production, Phase 18, 27/08/2026 :
+  # "InvalidKeyProvided: bad decrypt", login fonctionnel juste après un déploiement puis en
+  # échec intermittent). "command" (fichier de base) s'exécute donc directement comme
+  # PID 1, sans script intermédiaire - jamais un problème ici, contrairement à "backend" qui
+  # a réellement besoin de la génération JWT avant "php-fpm".
   worker:
     image: '${BACKEND_IMAGE}'
     build: !reset null
     pull_policy: always
     volumes: !override
       - storage_documents:/app/var/storage/documents
-      - jwt_keys:/app/config/jwt
-    entrypoint: !override ['docker-entrypoint-prod.sh']
+    entrypoint: !override []
     environment:
       APP_ENV: prod
       APP_DEBUG: '0'
       # Même raison que "backend" ci-dessus (kernel.secret) - jamais MAILER_DSN ici, voir
       # le commentaire correspondant sur "backend".
       APP_SECRET: '${APP_SECRET}'
-      # Même raison que "backend" ci-dessus (génération JWT au démarrage sur le volume
-      # partagé "jwt_keys") - voir le commentaire correspondant sur "backend".
-      JWT_PASSPHRASE: '${JWT_PASSPHRASE}'
-      PLATFORM_ADMIN_JWT_PASSPHRASE: '${PLATFORM_ADMIN_JWT_PASSPHRASE}'
 
   mustang:
     image: '${MUSTANG_IMAGE}'
@@ -330,6 +333,8 @@ volumes:
   # par docker/entrypoint-prod.sh, jamais bakée dans l'image (backend/Dockerfile) ; ce
   # volume nommé est ce qui permet à "--skip-if-exists" de réutiliser la même paire d'un
   # déploiement à l'autre plutôt que d'en régénérer une à chaque redémarrage de conteneur.
+  # Monté uniquement sur "backend", jamais "worker" (voir son commentaire) - un seul
+  # écrivain, jamais deux entrypoints concurrents sur le même fichier.
   jwt_keys:
   uptime_kuma_data:
   loki_data:
