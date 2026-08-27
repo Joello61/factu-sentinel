@@ -169,7 +169,7 @@ routes `dev` (profiler/wdt) - la règle `access_control` devenue redondante a é
     l'étape 2.
   - **"Logs"** : vue Loki avec un sélecteur de service et des requêtes déjà écrites
     (erreurs, rafale de 5xx dérivée des logs).
-- `grafana/provisioning/alerting/rules.yaml` : cinq règles d'alerte réelles, reprenant la
+- `grafana/provisioning/alerting/rules.yaml` : six règles d'alerte réelles, reprenant la
   grille de sévérité de `docs/10-security-privacy.md` section 37 dans la mesure de ce qui
   est réellement détectable depuis des métriques génériques - **le niveau "Critique" de
   cette grille (violation d'isolation multi-tenant, faille d'authentification exploitée,
@@ -177,8 +177,12 @@ routes `dev` (profiler/wdt) - la règle `access_control` devenue redondante a é
   nécessiteraient une instrumentation dédiée, jamais dérivables d'un taux de 4xx/5xx
   générique : rafale de 5xx, taux d'échec de connexion anormal (`action="POST-auth_login_check"`,
   format de label vérifié dans le code du bundle Prometheus), Mustang/Redis injoignables,
-  coût IA anormal sur 24h. Seuils marqués "à ajuster" dans le fichier - valeurs de départ,
-  jamais calibrées sur un usage réel.
+  coût IA anormal sur 24h, messages Messenger en échec définitif
+  (`factusentinel_async_jobs_dead_letter_count`, ajoutée le 27/08/2026 - remplace l'option
+  écartée d'un moniteur Uptime Kuma sur le worker via le socket Docker, un vrai compromis de
+  sécurité pour un besoin déjà couvert autrement, voir `docs/19-observability-architecture.md`).
+  Seuils marqués "à ajuster" dans le fichier - valeurs de départ, jamais calibrées sur un
+  usage réel.
 - Service `grafana` (`docker-compose.prod.yml`) : identifiants admin exclusivement par
   variables d'environnement (`GRAFANA_ADMIN_USER`/`GRAFANA_ADMIN_PASSWORD`,
   `.env.prod.example`), inscription et accès anonyme désactivés explicitement.
@@ -205,7 +209,10 @@ Prometheus) ; le committer en clair dans `rules.yaml` violerait `../CLAUDE.md` s
 - Stack complète (Loki, Alloy, Prometheus, Grafana) démarrée localement : les trois
   sections de provisioning (`datasources`, `dashboards`, `alerting`) se chargent sans
   erreur (`logger=provisioning.* ... finished to provision ...`).
-- API Grafana : les trois dashboards et les cinq règles d'alerte sont bien enregistrés ;
+- API Grafana : les trois dashboards et les cinq premières règles d'alerte sont bien
+  enregistrés (vérification initiale, étape 3) ; la sixième règle (dead-letter, ajoutée le
+  27/08/2026) n'a pas encore été revérifiée de la même façon - à confirmer via l'API ou
+  l'UI Grafana au prochain déploiement ;
   `api/datasources/uid/{prometheus,loki}/health` renvoie `OK` pour les deux ; les règles
   d'alerte évaluent avec `health: ok` (aucune erreur de requête).
 - Requêtes réelles testées directement contre les datasources via le proxy Grafana : la

@@ -1196,9 +1196,13 @@ Loki (logs) → Prometheus (métriques) → Grafana (dashboards) → OpenTelemet
   Métriques hôte via Alloy (`prometheus.exporter.unix` + `remote_write`). Détail complet :
   `docs/19-observability-architecture.md`, `docker/observability/README.md`.
 - Étape 3 (dashboards/alerting) : **fait**. Datasources et trois dashboards Grafana
-  provisionnés en code, cinq règles d'alerte reprenant la grille de sévérité
+  provisionnés en code, six règles d'alerte reprenant la grille de sévérité
   `10-security-privacy.md` §37 (niveau "Critique" explicitement non couvert - pas dérivable
-  de métriques génériques). Point de contact Telegram et politique de notification : à
+  de métriques génériques) - dont une sixième ajoutée le 27/08/2026 sur
+  `factusentinel_async_jobs_dead_letter_count`, retenue à la place d'un moniteur Uptime Kuma
+  sur le worker via le socket Docker (accès root-équivalent au démon Docker, écarté comme
+  compromis de sécurité disproportionné pour ce besoin). Point de contact Telegram et
+  politique de notification : à
   configurer manuellement une fois déployé (même bot que Uptime Kuma), jamais par fichier -
   un secret de bot n'a pas d'équivalent au `credentials_file` de Prometheus côté Grafana ;
   décision explicite de l'éditeur de le faire après la fusion/le déploiement, pas avant.

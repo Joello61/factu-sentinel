@@ -186,11 +186,15 @@ injection de `request_id` par `RequestContextProcessor` vérifiés directement.
 - Datasources Prometheus/Loki et trois dashboards (`API et Compliance Engine`,
   `Infrastructure`, `Logs`) provisionnés en code (`docker/observability/grafana/`) -
   `allowUiUpdates: false`, jamais de configuration perdue au clic.
-- Cinq règles d'alerte réelles (`grafana/provisioning/alerting/rules.yaml`), reprenant la
+- Six règles d'alerte réelles (`grafana/provisioning/alerting/rules.yaml`), reprenant la
   grille de sévérité `docs/10-security-privacy.md` §37 dans la limite de ce qui est
   détectable depuis des métriques génériques - le niveau "Critique" (violation d'isolation
   multi-tenant, faille d'authentification, fuite de secret) reste explicitement non couvert,
-  jamais présenté comme tel.
+  jamais présenté comme tel. Sixième règle ajoutée le 27/08/2026 sur
+  `factusentinel_async_jobs_dead_letter_count`, retenue plutôt qu'un moniteur Uptime Kuma
+  "Docker Container" sur `worker` (aurait exigé de monter `/var/run/docker.sock` dans le
+  conteneur de monitoring - accès root-équivalent au démon Docker, un vrai compromis de
+  sécurité écarté pour ce besoin).
 - Point de contact Telegram et politique de notification : configuration manuelle unique via
   l'UI Grafana, même bot que Uptime Kuma - jamais provisionnable par fichier sans exposer un
   secret dans un fichier versionné.
