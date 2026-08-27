@@ -170,9 +170,41 @@ services:
     ports:
       - '127.0.0.1:${MONITORING_PORT:-3001}:3001'
 
+  # Phase 18 (docs/19-observability-architecture.md), étape 1 - jamais exposé publiquement,
+  # même principe que "monitoring" ci-dessus (aucun port hôte : seul Grafana, étape 3, lira
+  # ce service sur le réseau Docker interne). Actif uniquement en production
+  # (COMPOSE_PROFILES=observability, jamais dans .env.staging - portée décidée pour cette
+  # phase, docs/12-roadmap.md §41).
+  loki:
+    image: grafana/loki:3.7.6
+    restart: unless-stopped
+    profiles: [observability]
+    volumes:
+      - loki_data:/loki
+      - ./docker/observability/loki-config.yaml:/etc/loki/local-config.yaml:ro
+
+  # Remplace Promtail (EOL 2 mars 2026) - découvre et lit les logs des conteneurs de CE
+  # projet Compose uniquement (FACTUSENTINEL_COMPOSE_PROJECT, voir
+  # docker/observability/alloy-config.alloy) : le socket Docker est partagé par tout le VPS,
+  # staging inclus - sans ce filtre, Alloy remonterait aussi les conteneurs de l'autre
+  # environnement.
+  alloy:
+    image: grafana/alloy:v1.19.2
+    restart: unless-stopped
+    profiles: [observability]
+    command: ['run', '--server.http.listen-addr=0.0.0.0:12345', '/etc/alloy/config.alloy']
+    environment:
+      FACTUSENTINEL_COMPOSE_PROJECT: '${COMPOSE_PROJECT_NAME}'
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./docker/observability/alloy-config.alloy:/etc/alloy/config.alloy:ro
+    depends_on:
+      - loki
+
 volumes:
   storage_documents:
   uptime_kuma_data:
+  loki_data:
 
 # Réseau partagé avec la stack Traefik (infrastructure de niveau serveur, hors de ce
 # dépôt - voir le runbook Phase 17) - créé une seule fois sur le serveur
