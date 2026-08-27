@@ -16,6 +16,7 @@ use App\Shared\Audit\AuditLogger;
 use App\Shared\Audit\Enum\ActorType;
 use App\Shared\Audit\Enum\EventType;
 use App\Shared\Idempotency\Service\IdempotencyStore;
+use App\Shared\Metrics\MetricsRecorder;
 use App\Shared\Security\EmailVerificationGuard;
 use App\Shared\Storage\StorageInterface;
 use Doctrine\ORM\EntityManagerInterface;
@@ -48,6 +49,7 @@ final class UploadDocumentService
         private readonly MessageBusInterface $messageBus,
         private readonly AuditLogger $auditLogger,
         private readonly IdempotencyStore $idempotencyStore,
+        private readonly MetricsRecorder $metricsRecorder,
         private readonly Security $security,
         private readonly EmailVerificationGuard $emailVerificationGuard,
         #[Autowire(service: 'limiter.document_upload')]
@@ -82,19 +84,25 @@ final class UploadDocumentService
         // cette correction.
         $dispatch = null;
 
-        $result = $this->entityManager->wrapInTransaction(
-            function () use ($organization, $invoice, $file, $idempotencyKey, &$dispatch): array {
-                return $this->idempotencyStore->execute(
-                    $organization->getId(),
-                    $idempotencyKey,
-                    function () use ($organization, $invoice, $file, &$dispatch): array {
-                        [$body, $dispatch] = $this->doUpload($organization, $invoice, $file);
+        try {
+            $result = $this->entityManager->wrapInTransaction(
+                function () use ($organization, $invoice, $file, $idempotencyKey, &$dispatch): array {
+                    return $this->idempotencyStore->execute(
+                        $organization->getId(),
+                        $idempotencyKey,
+                        function () use ($organization, $invoice, $file, &$dispatch): array {
+                            [$body, $dispatch] = $this->doUpload($organization, $invoice, $file);
 
-                        return $body;
-                    },
-                );
-            },
-        );
+                            return $body;
+                        },
+                    );
+                },
+            );
+        } catch (\Throwable $exception) {
+            $this->metricsRecorder->recordDocumentUpload('rejected');
+
+            throw $exception;
+        }
 
         if (null !== $dispatch) {
             $dispatch();
@@ -157,6 +165,8 @@ final class UploadDocumentService
         $documentId = $document->getId();
         $processingRecordId = $processingRecord->getId();
         $organizationId = $organization->getId();
+
+        $this->metricsRecorder->recordDocumentUpload('success');
 
         return [
             ['status' => 202, 'body' => ['data' => DocumentView::fromEntity($document)]],
