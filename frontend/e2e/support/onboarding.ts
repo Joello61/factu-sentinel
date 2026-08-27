@@ -22,6 +22,7 @@ export async function onboardOrganization(page: Page, emailPrefix: string): Prom
   await page.goto("/register");
   await page.getByLabel("Adresse email").fill(email);
   await page.getByLabel("Mot de passe", { exact: true }).fill(password);
+  await page.getByLabel(/J'accepte les/).check();
   await page.getByRole("button", { name: "Créer mon compte" }).click();
   await expect(page).toHaveURL(/\/login\?registered=1/);
 

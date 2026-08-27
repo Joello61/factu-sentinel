@@ -19,6 +19,7 @@ test.describe("E2E-001 - Onboarding", () => {
     await page.goto("/register");
     await page.getByLabel("Adresse email").fill(email);
     await page.getByLabel("Mot de passe", { exact: true }).fill(TEST_PASSWORD);
+    await page.getByLabel(/J'accepte les/).check();
     await page.getByRole("button", { name: "Créer mon compte" }).click();
 
     await expect(page).toHaveURL(/\/login\?registered=1/);
