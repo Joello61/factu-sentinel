@@ -6,6 +6,7 @@ namespace App\AI\Service;
 
 use App\AI\Exception\AiProviderUnavailableException;
 use App\Shared\Metrics\MetricsRecorder;
+use App\Shared\Observability\Tracer;
 use Symfony\Contracts\HttpClient\Exception\ExceptionInterface as HttpClientExceptionInterface;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 
@@ -24,6 +25,7 @@ final class MistralProvider implements AIProviderInterface
     public function __construct(
         private readonly HttpClientInterface $httpClient,
         private readonly MetricsRecorder $metricsRecorder,
+        private readonly Tracer $tracer,
         private readonly string $mistralApiKey,
         private readonly string $mistralBaseUrl,
         private readonly string $mistralModel,
@@ -31,6 +33,13 @@ final class MistralProvider implements AIProviderInterface
     }
 
     public function complete(string $systemPrompt, string $userPrompt, float $timeoutSeconds): string
+    {
+        return $this->tracer->trace('mistral.chat_completion', function () use ($systemPrompt, $userPrompt, $timeoutSeconds) {
+            return $this->doComplete($systemPrompt, $userPrompt, $timeoutSeconds);
+        }, ['ai.model' => $this->mistralModel]);
+    }
+
+    private function doComplete(string $systemPrompt, string $userPrompt, float $timeoutSeconds): string
     {
         $startedAt = microtime(true);
 

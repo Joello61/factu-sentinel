@@ -8,7 +8,9 @@ use App\AI\Exception\AiProviderUnavailableException;
 use App\AI\Service\MistralProvider;
 use App\PlatformAdmin\Service\PlatformHealthAggregatorInterface;
 use App\Shared\Metrics\MetricsRecorder;
+use App\Shared\Observability\Tracer;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\HttpFoundation\RequestStack;
 use Prometheus\CollectorRegistry;
 use Prometheus\Storage\InMemory;
 use Symfony\Component\HttpClient\MockHttpClient;
@@ -44,7 +46,7 @@ final class MistralProviderTest extends TestCase
             ], \JSON_THROW_ON_ERROR), ['http_code' => 200]);
         });
 
-        $provider = new MistralProvider($httpClient, $this->createMetricsRecorder(), 'test-api-key', 'https://api.mistral.ai', 'mistral-small-latest');
+        $provider = new MistralProvider($httpClient, $this->createMetricsRecorder(), $this->createTracer(), 'test-api-key', 'https://api.mistral.ai', 'mistral-small-latest');
 
         $result = $provider->complete('system prompt', 'user prompt', 5.0);
 
@@ -62,7 +64,7 @@ final class MistralProviderTest extends TestCase
     public function testNon200StatusThrowsAiProviderUnavailableException(): void
     {
         $httpClient = new MockHttpClient(fn (): MockResponse => new MockResponse('Internal error', ['http_code' => 500]));
-        $provider = new MistralProvider($httpClient, $this->createMetricsRecorder(), 'test-api-key', 'https://api.mistral.ai', 'mistral-small-latest');
+        $provider = new MistralProvider($httpClient, $this->createMetricsRecorder(), $this->createTracer(), 'test-api-key', 'https://api.mistral.ai', 'mistral-small-latest');
 
         $this->expectException(AiProviderUnavailableException::class);
 
@@ -74,7 +76,7 @@ final class MistralProviderTest extends TestCase
         $httpClient = new MockHttpClient(function (): MockResponse {
             throw new \Symfony\Component\HttpClient\Exception\TransportException('Connection refused.');
         });
-        $provider = new MistralProvider($httpClient, $this->createMetricsRecorder(), 'test-api-key', 'https://api.mistral.ai', 'mistral-small-latest');
+        $provider = new MistralProvider($httpClient, $this->createMetricsRecorder(), $this->createTracer(), 'test-api-key', 'https://api.mistral.ai', 'mistral-small-latest');
 
         $this->expectException(AiProviderUnavailableException::class);
 
@@ -84,7 +86,7 @@ final class MistralProviderTest extends TestCase
     public function testMissingContentInResponseThrowsAiProviderUnavailableException(): void
     {
         $httpClient = new MockHttpClient(fn (): MockResponse => new MockResponse(json_encode(['choices' => []], \JSON_THROW_ON_ERROR), ['http_code' => 200]));
-        $provider = new MistralProvider($httpClient, $this->createMetricsRecorder(), 'test-api-key', 'https://api.mistral.ai', 'mistral-small-latest');
+        $provider = new MistralProvider($httpClient, $this->createMetricsRecorder(), $this->createTracer(), 'test-api-key', 'https://api.mistral.ai', 'mistral-small-latest');
 
         $this->expectException(AiProviderUnavailableException::class);
 
@@ -101,5 +103,10 @@ final class MistralProviderTest extends TestCase
         };
 
         return new MetricsRecorder(new CollectorRegistry(new InMemory()), $platformHealthAggregator);
+    }
+
+    private function createTracer(): Tracer
+    {
+        return new Tracer(new RequestStack(), 'http://tempo-not-used-in-tests:4318/v1/traces');
     }
 }

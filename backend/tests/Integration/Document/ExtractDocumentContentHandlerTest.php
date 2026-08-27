@@ -298,6 +298,7 @@ final class ExtractDocumentContentHandlerTest extends KernelTestCase
             $validator,
             $container->get(\App\Shared\Storage\StorageInterface::class),
             $container->get(\App\Document\Service\FacturXDataExtractor::class),
+            $container->get(\App\Shared\Observability\Tracer::class),
         );
 
         $handler(new ExtractDocumentContentMessage($document->getId(), $record->getId(), $organizationId));

@@ -14,6 +14,7 @@ use App\Identity\Entity\User;
 use App\Shared\Audit\AuditLogger;
 use App\Shared\Audit\Enum\ActorType;
 use App\Shared\Audit\Enum\EventType;
+use App\Shared\Observability\Tracer;
 use App\Shared\Security\CurrentOrganizationResolver;
 use App\Shared\Security\EmailVerificationGuard;
 use Doctrine\ORM\EntityManagerInterface;
@@ -45,6 +46,7 @@ final class ExplainComplianceFindingService
         private readonly Security $security,
         private readonly CurrentOrganizationResolver $currentOrganizationResolver,
         private readonly EmailVerificationGuard $emailVerificationGuard,
+        private readonly Tracer $tracer,
         #[Autowire(service: 'limiter.ai_assistant')]
         private readonly RateLimiterFactory $rateLimiter,
     ) {
@@ -52,6 +54,14 @@ final class ExplainComplianceFindingService
 
     /** @return array{status: int, body: array<string, mixed>} */
     public function explain(string $findingId): array
+    {
+        return $this->tracer->trace('ai.explain_compliance_finding', function () use ($findingId) {
+            return $this->doExplain($findingId);
+        }, ['finding_id' => $findingId]);
+    }
+
+    /** @return array{status: int, body: array<string, mixed>} */
+    private function doExplain(string $findingId): array
     {
         $finding = $this->resolveFinding($findingId);
 

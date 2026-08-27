@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Document\Service;
 
 use App\Shared\Metrics\MetricsRecorder;
+use App\Shared\Observability\Tracer;
 use Symfony\Contracts\HttpClient\Exception\ExceptionInterface as HttpClientExceptionInterface;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 
@@ -29,11 +30,19 @@ final class MustangValidatorClient implements StructuredDocumentValidatorInterfa
     public function __construct(
         private readonly HttpClientInterface $httpClient,
         private readonly MetricsRecorder $metricsRecorder,
+        private readonly Tracer $tracer,
         private readonly string $mustangBaseUrl,
     ) {
     }
 
     public function extract(string $content): MustangExtractionResult
+    {
+        return $this->tracer->trace('mustang.extract', function () use ($content) {
+            return $this->doExtract($content);
+        });
+    }
+
+    private function doExtract(string $content): MustangExtractionResult
     {
         $startedAt = microtime(true);
 
@@ -68,6 +77,13 @@ final class MustangValidatorClient implements StructuredDocumentValidatorInterfa
     }
 
     public function validate(string $content): string
+    {
+        return $this->tracer->trace('mustang.validate', function () use ($content) {
+            return $this->doValidate($content);
+        });
+    }
+
+    private function doValidate(string $content): string
     {
         $startedAt = microtime(true);
 

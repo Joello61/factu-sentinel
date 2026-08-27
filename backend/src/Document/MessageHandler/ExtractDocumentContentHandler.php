@@ -15,6 +15,7 @@ use App\Document\Service\FacturXDataExtractor;
 use App\Document\Service\MustangExtractionStatus;
 use App\Document\Service\StructuredDocumentValidatorInterface;
 use App\Shared\Doctrine\TenantFilter;
+use App\Shared\Observability\Tracer;
 use App\Shared\Storage\StorageInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Messenger\Attribute\AsMessageHandler;
@@ -50,6 +51,7 @@ final class ExtractDocumentContentHandler
         private readonly StructuredDocumentValidatorInterface $structuredDocumentValidator,
         private readonly StorageInterface $storage,
         private readonly FacturXDataExtractor $facturXDataExtractor,
+        private readonly Tracer $tracer,
     ) {
     }
 
@@ -84,7 +86,18 @@ final class ExtractDocumentContentHandler
             throw new \RuntimeException(\sprintf('Document "%s" not found.', $message->documentId->toRfc4122()));
         }
 
-        [$fileFormat, $extractedDataSummary, $failureReason] = $this->process($document);
+        // Aucun request_id ici : ce traitement se déroule dans un worker Messenger, jamais
+        // dans une requête HTTP (App\Shared\Observability\Tracer ne peut alors pas l'injecter
+        // automatiquement) - organization_id/document_id servent d'attributs de corrélation à
+        // la place, seules informations réellement disponibles à ce niveau.
+        [$fileFormat, $extractedDataSummary, $failureReason] = $this->tracer->trace(
+            'document_processing',
+            fn (): array => $this->process($document),
+            [
+                'organization_id' => $message->organizationId->toRfc4122(),
+                'document_id' => $message->documentId->toRfc4122(),
+            ],
+        );
 
         // Phase C (nouvelle transaction courte) : plus besoin de verrou ici, cette tentative
         // a déjà été exclusivement réclamée en phase A - aucun autre worker ne peut détenir
