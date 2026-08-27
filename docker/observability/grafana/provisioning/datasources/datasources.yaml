@@ -1,0 +1,25 @@
+# Grafana - étape 3 de la Phase 18 (docs/19-observability-architecture.md). Tout en code
+# (provisioning as-code), jamais de clic manuel dans l'UI pour ces deux datasources -
+# cohérent avec le principe "reproductible" déjà appliqué ailleurs dans le projet.
+# uid fixes (jamais générés) : référencés explicitement par les règles d'alerte provisionnées
+# (docker/observability/grafana/provisioning/alerting/rules.yaml).
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    uid: prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: false
+
+  - name: Loki
+    uid: loki
+    type: loki
+    access: proxy
+    url: http://loki:3100
+    isDefault: false
+    editable: false
+    # Champ dérivé request_id -> lien vers une trace Tempo : ajouté à l'étape 4, une fois
+    # Tempo réellement déployé (jamais anticipé ici).
