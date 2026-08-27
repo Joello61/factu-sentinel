@@ -23,8 +23,22 @@ server {
     listen [::]:80;
     server_name ${PUBLIC_DOMAIN};
 
+    # Nginx résout un nom de service Docker ("backend", "frontend") une seule fois, au
+    # chargement de sa configuration, et garde l'IP en cache pour toute la durée de vie de
+    # ses processus worker - un "fastcgi_pass"/"proxy_pass" statique ne se ré-résout
+    # JAMAIS ensuite. Or "backend" change d'IP à chaque redéploiement (nouveau conteneur) -
+    # constaté en usage réel : le premier redéploiement de production après la mise en
+    # place de Traefik a cassé Nginx en silence ("502 Bad Gateway"), Nginx continuant de
+    # cibler l'ancienne IP du conteneur "backend" remplacé, jusqu'à un rechargement manuel
+    # ("nginx -s reload"). "resolver" (DNS interne Docker, présent sur tout réseau
+    # utilisateur) + une variable dans "fastcgi_pass"/"proxy_pass" forcent une résolution
+    # dynamique à chaque expiration du TTL, plutôt qu'une résolution figée au démarrage
+    # (mécanisme documenté officiellement par Nginx pour ce cas précis).
+    resolver 127.0.0.11 valid=10s;
+
     location /api/ {
-        fastcgi_pass backend:9000;
+        set $backend_upstream backend:9000;
+        fastcgi_pass $backend_upstream;
         fastcgi_index index.php;
         include fastcgi_params;
         fastcgi_param SCRIPT_FILENAME /app/public/index.php;
@@ -34,7 +48,8 @@ server {
     }
 
     location / {
-        proxy_pass http://frontend:3000;
+        set $frontend_upstream http://frontend:3000;
+        proxy_pass $frontend_upstream;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
