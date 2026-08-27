@@ -209,12 +209,13 @@ Prometheus) ; le committer en clair dans `rules.yaml` violerait `../CLAUDE.md` s
 - Stack complète (Loki, Alloy, Prometheus, Grafana) démarrée localement : les trois
   sections de provisioning (`datasources`, `dashboards`, `alerting`) se chargent sans
   erreur (`logger=provisioning.* ... finished to provision ...`).
-- API Grafana : les trois dashboards et les cinq premières règles d'alerte sont bien
-  enregistrés (vérification initiale, étape 3) ; la sixième règle (dead-letter, ajoutée le
-  27/08/2026) n'a pas encore été revérifiée de la même façon - à confirmer via l'API ou
-  l'UI Grafana au prochain déploiement ;
-  `api/datasources/uid/{prometheus,loki}/health` renvoie `OK` pour les deux ; les règles
-  d'alerte évaluent avec `health: ok` (aucune erreur de requête).
+- API Grafana : les trois dashboards et les six règles d'alerte sont bien enregistrés
+  (vérification initiale, étape 3 ; sixième règle dead-letter ajoutée et confirmée visible
+  dans l'UI Grafana en production le 27/08/2026 - un redémarrage du conteneur `grafana` a
+  été nécessaire pour que le provisioning recharge le fichier après le déploiement, un
+  simple `docker compose up -d` n'ayant pas recréé ce conteneur puisque son image n'avait
+  pas changé) ; `api/datasources/uid/{prometheus,loki}/health` renvoie `OK` pour les deux ;
+  les règles d'alerte évaluent avec `health: ok` (aucune erreur de requête).
 - Requêtes réelles testées directement contre les datasources via le proxy Grafana : la
   requête CPU hôte renvoie une valeur réelle, la requête LogQL du dashboard "Logs" s'exécute
   sans erreur (0 résultat normal ici - Alloy/Loki/Prometheus/Grafana n'écrivent pas de log
