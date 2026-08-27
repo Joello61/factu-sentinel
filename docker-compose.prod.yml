@@ -80,6 +80,16 @@ services:
       # "worker" : ces trois mailers ne sont appelés que depuis des controllers
       # synchrones de "backend".
       MAILER_DSN: '${MAILER_DSN}'
+      # backend/.env (committé) définit APP_SECRET="" (placeholder vide, jamais une valeur
+      # utilisable) - sans surcharge ici, framework.secret ("kernel.secret") reste vide en
+      # production. symfonycasts/verify-email-bundle en dépend (UriSigner interne) pour
+      # signer le lien de vérification d'email : incident réel constaté en production
+      # (Phase 18, 27/08/2026) - "POST /auth/register" échouait en 500
+      # ("InvalidArgumentException: A non-empty secret is required.",
+      # UriSigner.php:42), avant même que le mailer n'intervienne. Nécessaire aussi sur
+      # "worker" - kernel.secret est une primitive du framework, pas une dépendance
+      # propre à un seul controller comme MAILER_DSN ci-dessus.
+      APP_SECRET: '${APP_SECRET}'
     restart: unless-stopped
 
   # "entrypoint" de base (docker-compose.yml) est spécifique au dev : entrypoint-worker-dev.sh
@@ -96,6 +106,9 @@ services:
     environment:
       APP_ENV: prod
       APP_DEBUG: '0'
+      # Même raison que "backend" ci-dessus (kernel.secret) - jamais MAILER_DSN ici, voir
+      # le commentaire correspondant sur "backend".
+      APP_SECRET: '${APP_SECRET}'
 
   mustang:
     image: '${MUSTANG_IMAGE}'
