@@ -230,6 +230,19 @@ services:
       # exacte dans docker/observability/README.md).
       - ./docker/observability/secrets/metrics_scrape_token:/run/secrets/metrics_scrape_token:ro
 
+  # Étape 4 (traces) - mode monolithique (target "all", le défaut), jamais Kafka (réservé
+  # au mode microservices/scale de Tempo 3.0, vérifié avant de choisir cet outil). Jamais de
+  # port hôte : seuls Grafana (lecture) et backend/worker (écriture OTLP, réseau Docker
+  # interne "default") lui parlent.
+  tempo:
+    image: grafana/tempo:3.0.3
+    restart: unless-stopped
+    profiles: [observability]
+    command: ['-config.file=/etc/tempo/tempo.yaml']
+    volumes:
+      - tempo_data:/var/tempo
+      - ./docker/observability/tempo.yaml:/etc/tempo/tempo.yaml:ro
+
   # Étape 3 (dashboards/alerting) - seul service de ce volet réellement accessible : par
   # tunnel SSH sur 127.0.0.1, même principe que "monitoring" (Uptime Kuma) ci-dessus,
   # jamais via Traefik. Identifiants admin exclusivement via variables d'environnement
@@ -253,6 +266,7 @@ services:
     depends_on:
       - prometheus
       - loki
+      - tempo
 
 volumes:
   storage_documents:
@@ -260,6 +274,7 @@ volumes:
   loki_data:
   prometheus_data:
   grafana_data:
+  tempo_data:
 
 # Réseau partagé avec la stack Traefik (infrastructure de niveau serveur, hors de ce
 # dépôt - voir le runbook Phase 17) - créé une seule fois sur le serveur
