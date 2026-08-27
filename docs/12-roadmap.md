@@ -1187,6 +1187,14 @@ Loki (logs) → Prometheus (métriques) → Grafana (dashboards) → OpenTelemet
   `loki.source.docker` ne suffit pas à exclure les conteneurs de l'autre environnement
   partageant le même socket Docker - la liste de cibles elle-même doit être filtrée en
   amont, voir `docker/observability/README.md`).
+- Étape 2 (métriques) : **fait**. Prometheus + `promphp/prometheus_client_php` +
+  `artprima/prometheus-metrics-bundle`, `GET /api/metrics` protégé par jeton dédié (jamais
+  le firewall JWT tenant - un firewall Symfony séparé a été nécessaire, un simple
+  `access_control` ne suffisait pas). `App\Shared\Metrics\MetricsRecorder` instrumente
+  analyses de conformité/imports de documents/appels IA aux points réels du pipeline, et
+  réutilise `PlatformHealthAggregator` pour les jauges de santé - jamais de logique dupliquée.
+  Métriques hôte via Alloy (`prometheus.exporter.unix` + `remote_write`). Détail complet :
+  `docs/19-observability-architecture.md`, `docker/observability/README.md`.
 
 ## 42. Operational Readiness
 

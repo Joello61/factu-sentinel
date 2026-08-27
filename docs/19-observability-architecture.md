@@ -108,7 +108,34 @@ revérifié après correction : plus aucune fuite entre projets Compose, logs r�
 requêtables via l'API Loki (`/loki/api/v1/query_range`), format JSON de production et
 injection de `request_id` par `RequestContextProcessor` vérifiés directement.
 
-### Étape 2 - Métriques (Prometheus) - à venir
+### Étape 2 - Métriques (Prometheus) - fait le 27/08/2026
+
+- `promphp/prometheus_client_php` (2.15.1) + `artprima/prometheus-metrics-bundle` (1.22.1) -
+  stockage Redis (préfixe `metrics`, réutilise `REDIS_URL` existant). `GET /api/metrics`
+  (`App\Shared\Controller\GetMetricsController`) protégé par `METRICS_SCRAPE_TOKEN`, jamais
+  le firewall JWT tenant.
+- `App\Shared\Metrics\MetricsRecorder` (nouveau, `backend/src/Shared/Metrics/`) : seul point
+  d'entrée vers le registre Prometheus, instrumente `RunComplianceAnalysisService`
+  (compteur/histogramme par résultat global), `UploadDocumentService` (compteur par issue),
+  `MistralProvider` (compteur/histogramme par issue), `MustangValidatorClient`
+  (compteur/histogramme par opération - `extract`/`validate` - et par issue, ajouté après
+  coup pour couvrir les deux dépendances externes du produit de façon symétrique) - jamais
+  un résultat de conformité et une erreur technique mélangés dans une même métrique, même
+  principe que `../CLAUDE.md` section 9 appliqué à l'observabilité.
+- Jauges de `App\PlatformAdmin\Service\PlatformHealthAggregator` réutilisées directement
+  (nouvelle `PlatformHealthAggregatorInterface`, même pattern d'interface cross-module que
+  Phase 15/16, en sens inverse) - jamais dupliquées.
+- Métriques hôte via `prometheus.exporter.unix` (Alloy), poussées vers Prometheus par
+  `prometheus.remote_write` (`--web.enable-remote-write-receiver`) - comble le trou
+  documenté dans `PlatformHealthAggregator` ("jamais de métrique d'infrastructure hôte").
+- Détail complet, bugs constatés et corrigés (le firewall JWT interceptait le jeton de
+  scrape ; `prometheus.exporter.unix` seul n'expose aucun `/metrics` scrapable de
+  l'extérieur) et vérification effectuée : `docker/observability/README.md`.
+- Un seul échec de test préexistant et sans rapport constaté après cette étape
+  (`IdempotencyStoreTest`, seuil de timing réel de 250ms non tenu dans cet environnement) -
+  composant non touché par cette étape, non corrigé ici (hors périmètre).
+
+### Étape 3 - Dashboards (Grafana) - à venir
 
 ### Étape 3 - Dashboards (Grafana) - à venir
 
