@@ -22,8 +22,17 @@ const PUBLIC_PATHS = ['/login', '/register'];
 // même principe - trouvé manquant ici par le premier run réel de e2e-007-team-invitation.spec.ts
 // (l'invité anonyme cliquant le lien reçu par email était systématiquement rebondi vers
 // /login avant de jamais voir l'aperçu de l'invitation, l'endpoint public
-// GET /invitations/{token} lui-même n'étant jamais en cause).
-const ALWAYS_ACCESSIBLE_PATHS = ['/verify-email', '/invitations'];
+// GET /invitations/{token} lui-même n'étant jamais en cause). Les pages légales (Phase 17)
+// suivent le même principe pour la même raison - trouvé manquant de la même façon : un
+// visiteur non connecté cliquant un lien légal depuis /register (case à cocher) ou /login
+// (pied de page) était rebondi vers /login avant de jamais voir la page demandée.
+const ALWAYS_ACCESSIBLE_PATHS = [
+  '/verify-email',
+  '/invitations',
+  '/mentions-legales',
+  '/cgu',
+  '/politique-de-confidentialite',
+];
 
 // Phase 15 (ADR-009) - surface Platform Administration, garde indépendante de celle du
 // tenant ci-dessus : jamais le même cookie (platform_admin_refresh_token, distinct de

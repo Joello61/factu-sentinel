@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
+import { ArrowLeft } from 'lucide-react';
 import { apiRequest, ApiError } from '@/lib/api/client';
 import { ComplianceResultSummary } from '@/components/compliance/ComplianceResultSummary';
 import { formatTimestamp } from '@/lib/format/date';
@@ -78,8 +79,9 @@ export function ComplianceAnalysisDetail({ analysisId }: { analysisId: string })
   return (
     <div className="flex max-w-3xl flex-col gap-6">
       <div>
-        <Link href="/history" className="text-xs font-medium text-primary hover:underline">
-          ← Retour à l&apos;historique
+        <Link href="/history" className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline">
+          <ArrowLeft aria-hidden="true" size={12} strokeWidth={2} />
+          Retour à l&apos;historique
         </Link>
         <div className="mt-2 flex flex-wrap items-center gap-3">
           <h1 className="text-2xl font-semibold text-foreground">

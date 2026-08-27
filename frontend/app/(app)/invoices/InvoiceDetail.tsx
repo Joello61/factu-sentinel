@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
+import { ArrowLeft } from 'lucide-react';
 import { apiRequest, apiRequestPaginated, apiRequestUpload, ApiError } from '@/lib/api/client';
 import { InvoiceStatusBadge } from '@/components/ui/InvoiceStatusBadge';
 import { DocumentStatusBadge } from '@/components/ui/DocumentStatusBadge';
@@ -259,8 +260,9 @@ export function InvoiceDetail({ invoiceId }: { invoiceId: string }) {
   return (
     <div className="flex max-w-3xl flex-col gap-6">
       <div>
-        <Link href="/invoices" className="text-xs font-medium text-primary hover:underline">
-          ← Retour aux factures
+        <Link href="/invoices" className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline">
+          <ArrowLeft aria-hidden="true" size={12} strokeWidth={2} />
+          Retour aux factures
         </Link>
         <div className="mt-2 flex flex-wrap items-center gap-3">
           <h1 className="text-2xl font-semibold text-foreground">

@@ -59,6 +59,7 @@ test.describe("E2E-007 - Invitation et notification d'équipe", () => {
     await expect(inviteePage).toHaveURL(/\/register/);
     await inviteePage.getByLabel("Adresse email").fill(inviteeEmail);
     await inviteePage.getByLabel("Mot de passe", { exact: true }).fill(TEST_PASSWORD);
+    await inviteePage.getByLabel(/J'accepte les/).check();
     await inviteePage.getByRole("button", { name: "Créer mon compte" }).click();
     await expect(inviteePage).toHaveURL(/\/login\?registered=1/);
 

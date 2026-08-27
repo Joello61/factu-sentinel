@@ -837,6 +837,11 @@ ci-dessus (Scope A ciblé Platform Admin, Scope B produit complet) pour un prest
 externe, et `docs/15-internal-security-review.md` documente la revue de sécurité interne
 menée en préparation - explicitement non substituable à ce pentest.
 
+**Décision finale (27/08/2026)** : aucun des deux pentests ne sera réalisé, faute de
+budget et de disponibilité - voir `docs/17-pentest-scope.md` pour la décision complète et
+sa conséquence directe sur l'activation de la surface Platform Administration (risque
+accepté explicitement, jamais un défaut silencieux).
+
 ## 62. Security Release Gates
 
 ```text
@@ -945,7 +950,7 @@ une garantie).
 
 **API**
 
-- [ ] HTTPS forcé sur l'ensemble des endpoints (section 25) - `DIFFÉRÉ - Bloc B - nécessite un domaine et un certificat réels`. Préparation Phase 17 complète : `App\Shared\Http\HstsHeaderListener` (`HSTS_ENABLED=false` par défaut, `backend/.env`), TLS terminé par Traefik (infrastructure de niveau serveur, résolveur ACME Let's Encrypt, labels de routage sur `docker-compose.prod.yml` service `nginx`, runbook serveur Phase 17) plutôt que par Nginx lui-même - `docker/nginx/prod.conf.template` ne sert plus qu'en HTTP interne (pont FastCGI vers `backend`) - il ne manque que l'exécution réelle (domaine, DNS, installation Traefik, premier certificat)
+- [x] HTTPS forcé sur l'ensemble des endpoints (section 25) - **exécuté réellement (27/08/2026)** : Traefik en production avec certificats TLS réels (Let's Encrypt, renouvellement automatique) pour `factusentinel.joeltech.fr` et `factusentinel-staging.joeltech.fr` (`12-roadmap.md` §43), `docker/nginx/prod.conf.template` ne sert plus qu'en HTTP interne (pont FastCGI vers `backend`). Point restant, non vérifié à ce jour : `HSTS_ENABLED` est toujours `false` dans `backend/.env`/`.env.prod.example` - Traefik termine le HTTPS et redirige déjà HTTP→HTTPS au niveau du reverse proxy, mais l'en-tête applicatif `Strict-Transport-Security` (`App\Shared\Http\HstsHeaderListener`) n'a pas été confirmé actif sur le serveur réel ; à vérifier avant de considérer ce point clos
 - [x] Politique CORS restrictive appliquée (section 21) - `backend/config/packages/nelmio_cors.yaml` (`CORS_ALLOW_ORIGIN` par environnement, jamais de wildcard), en-têtes métier complétés Phase 10 (`Idempotency-Key`, `If-Match`, `X-Request-ID`)
 - [x] Rate limiting actif sur l'authentification et les opérations coûteuses (section 18) - `login_throttling`, `password_reset_request`, `ai_assistant` (Phases 2/8) + `compliance_analysis_trigger`, `document_upload` (Phase 10) - `backend/config/packages/rate_limiter.yaml`, tests `testRateLimitReturns429AfterExhaustingLimiter` par endpoint
 - [x] Contrat d'erreur ne révélant aucun détail technique interne (section 18) - `App\Shared\Http\ApiExceptionListener`, revu Phase 10, aucune régression trouvée
@@ -960,10 +965,10 @@ une garantie).
 
 **Données**
 
-- [ ] Chiffrement en transit systématique (section 25) - `DIFFÉRÉ - Bloc B - nécessite un domaine et un certificat réels` (mécanisme prêt, voir HTTPS forcé ci-dessus - OVHcloud confirmé comme hébergeur, plan Phase 17)
+- [x] Chiffrement en transit systématique (section 25) - **exécuté réellement (27/08/2026)** : TLS réel via Traefik/Let's Encrypt sur les deux environnements (voir HTTPS forcé ci-dessus, `12-roadmap.md` §43)
 - [ ] Chiffrement au repos activé (base de données, stockage) (section 25) - `DIFFÉRÉ - Bloc B - dépend de l'option de chiffrement disque de l'offre OVHcloud retenue, à vérifier au moment du provisionnement`
 - [x] Politique de rétention documentée, même si certaines durées restent « à confirmer juridiquement » (section 38) - déjà documentée section 38, incertitudes juridiques explicitement signalées, pas un point bloquant pour cette case
-- [x] Sauvegardes chiffrées et testées (sections 37, 54) - `docker/backup/backup.sh`/`restore.sh` (gpg AES256, clé jamais stockée avec l'archive) - Phase 10, restauration testée manuellement avec vérification de cohérence croisée `Document` ↔ fichier ↔ `DocumentProcessingRecord` (voir `docker/backup/README.md`). **Phase 17** : automatisation périodique ajoutée (`docker/backup/automated-backup.sh` - cron/systemd, envoi vers un stockage objet distant compatible S3, rétention), et un défaut corrigé au passage - les deux scripts lisaient/écrivaient directement `backend/var/storage/documents` sur l'hôte, ce qui ne fonctionne plus tel quel en production (`docker-compose.prod.yml` porte ce chemin via un volume Docker nommé) ; passent désormais par `docker compose exec backend`, valable dans les deux environnements.
+- [x] Sauvegardes chiffrées et testées (sections 37, 54) - `docker/backup/backup.sh`/`restore.sh` (gpg AES256, clé jamais stockée avec l'archive) - Phase 10, restauration testée manuellement avec vérification de cohérence croisée `Document` ↔ fichier ↔ `DocumentProcessingRecord` (voir `docker/backup/README.md`). **Phase 17** : automatisation périodique ajoutée (`docker/backup/automated-backup.sh` - cron/systemd, envoi vers un stockage objet distant compatible S3, rétention), et un défaut corrigé au passage - les deux scripts lisaient/écrivaient directement `backend/var/storage/documents` sur l'hôte, ce qui ne fonctionne plus tel quel en production (`docker-compose.prod.yml` porte ce chemin via un volume Docker nommé) ; passent désormais par `docker compose exec backend`, valable dans les deux environnements. **Exécuté réellement en production (27/08/2026)** : sauvegarde quotidienne active vers Cloudflare R2 (juridiction UE), restauration testée de bout en bout avec vérification croisée réelle, pas seulement une absence d'erreur (`12-roadmap.md` §43).
 
 **IA**
 
@@ -976,8 +981,8 @@ une garantie).
 
 - [x] Aucun secret dans le code source ou les images de conteneur (sections 26-27) - `backend/.env` committé sans valeur réelle, secrets via `.env.local`/variables CI ; scan automatisé ajouté Phase 10 (`gitleaks/gitleaks-action`, `.github/workflows/lint.yml`)
 - [x] Réseau interne non exposé directement à Internet (section 52) - `docker-compose.yml` : PostgreSQL/Redis liés à `127.0.0.1`, Mustang sans port publié, Nginx seul point d'entrée ; déjà vrai depuis la Phase 0-1
-- [ ] Environnements strictement isolés (section 53) - `DIFFÉRÉ - Bloc B - nécessite le provisionnement réel`. Préparation Phase 17 complète : `docker-compose.prod.yml` générique (staging et production utilisent le même overlay, séparés uniquement par `.env.staging`/`.env.production`, jamais partagés), secrets GitHub Environments distincts par environnement (`docker/deploy/README.md`) - reste à provisionner deux serveurs réellement distincts (OVHcloud confirmé, offre exacte à vérifier au moment du provisionnement)
-- [ ] Monitoring et alerting actifs sur les événements critiques (sections 36-37) - préparation faite en Phase 17 (`docker-compose.prod.yml` service `monitoring`, Uptime Kuma auto-hébergé, `docker/monitoring/README.md` ; connectivité Redis/Mustang ajoutée à `GET /platform-admin/health` ; moniteur push pour les sauvegardes) - reste `DIFFÉRÉ - Bloc B - nécessite le domaine et le déploiement réels` pour l'activation effective : les moniteurs et le canal de notification se configurent une fois manuellement via l'interface Uptime Kuma, jamais par ce dépôt
+- [x] Environnements strictement isolés (section 53) - **exécuté réellement (27/08/2026)** : VPS OVHcloud provisionné, staging (`factusentinel-staging.joeltech.fr`) et production (`factusentinel.joeltech.fr`) avec bases de données, volumes et réseaux Docker distincts (`12-roadmap.md` §43), secrets GitHub Environments distincts par environnement (`docker/deploy/README.md`)
+- [x] Monitoring et alerting actifs sur les événements critiques (sections 36-37) - **exécuté réellement (27/08/2026)** : 10 sondes Uptime Kuma + 1 sonde push de sauvegarde, actives et configurées sur les deux environnements, avec notifications Telegram (`12-roadmap.md` §43, `docker/monitoring/README.md`) ; connectivité Redis/Mustang ajoutée à `GET /platform-admin/health`
 
 **RGPD**
 
