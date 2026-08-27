@@ -56,6 +56,15 @@ services:
   backend:
     image: '${BACKEND_IMAGE}'
     build: !reset null
+    # "missing" (le défaut de Compose) réutiliserait silencieusement une image locale déjà
+    # taguée BACKEND_IMAGE/FRONTEND_IMAGE/MUSTANG_IMAGE si l'appelant a oublié d'exporter le
+    # vrai SHA avant "up -d" - incident réel constaté en production (Phase 18, 27/08/2026,
+    # voir .env.prod.example) : retombé sur le placeholder littéral REMPLACER_PAR_LE_SHA,
+    # qui correspondait par hasard à une vieille image en cache local, sans la moindre
+    # erreur visible. "always" transforme ce même oubli en échec bruyant (image introuvable
+    # sur le registre) au lieu d'un déploiement silencieusement obsolète - même règle
+    # appliquée à "worker"/"mustang"/"frontend" ci-dessous, qui partagent ces variables.
+    pull_policy: always
     volumes: !override
       - storage_documents:/app/var/storage/documents
     environment:
@@ -73,6 +82,7 @@ services:
   worker:
     image: '${BACKEND_IMAGE}'
     build: !reset null
+    pull_policy: always
     volumes: !override
       - storage_documents:/app/var/storage/documents
     entrypoint: !override []
@@ -83,11 +93,13 @@ services:
   mustang:
     image: '${MUSTANG_IMAGE}'
     build: !reset null
+    pull_policy: always
     restart: unless-stopped
 
   frontend:
     image: '${FRONTEND_IMAGE}'
     build: !reset null
+    pull_policy: always
     volumes: !override []
     environment:
       NODE_ENV: production
