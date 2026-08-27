@@ -597,12 +597,16 @@ notion de "terminé" pour cette phase)** :
   frontend : route isolée `/platform-admin/*` (nouveau groupe de routes distinct, jamais
   l'App Shell tenant), `PlatformAdminAuthProvider` séparé, cookie de refresh dédié
   (`platform_admin_refresh_token`, jamais `refresh_token`).
-- **Niveau 2, porte d'activation - explicitement non atteint** : aucun test d'intrusion réel n'a
-  été réalisé (hors de portée d'un agent IA). La surface reste implémentée et testée mais son
-  activation en environnement de production réel reste interdite tant que ce test n'a pas eu
-  lieu et produit une preuve documentée - jamais présentée comme un risque accepté par défaut. La
-  revue de sécurité manuelle approfondie menée en fin de phase (`skill security-review`, détail
-  ci-dessous) est un filet complémentaire, jamais un substitut à ce pentest.
+- **Niveau 2, porte d'activation - non atteint, risque accepté explicitement (mise à jour
+  Phase 17, 27/08/2026)** : aucun test d'intrusion réel n'a été réalisé (hors de portée
+  d'un agent IA), et **aucun ne sera réalisé** - décision finale de l'éditeur, faute de
+  budget et de disponibilité (`docs/17-pentest-scope.md`). La surface est **effectivement
+  active en production** (`https://factusentinel.joeltech.fr/platform-admin/login`),
+  l'éditeur ayant choisi, en connaissance de cause, de ne pas la restreindre techniquement
+  en l'absence de ce test - un risque assumé consciemment, jamais un défaut silencieux ni
+  une conclusion selon laquelle ce risque serait nul ou validé. La revue de sécurité
+  manuelle approfondie menée en fin de Phase 15 (`skill security-review`, détail
+  ci-dessous) reste un filet complémentaire, jamais un substitut à ce pentest.
 
 **Revue de sécurité manuelle de fin de phase (`skill security-review`)** : une analyse ciblée du
 diff complet de la phase a identifié un écart réel, jamais un faux positif - sévérité moyenne,
@@ -1191,28 +1195,42 @@ Legal validation                       - AIPD evaluee, DPA signes avec les fourn
 
 **Aucune case n'est cochée par anticipation** - chacune nécessite une preuve issue du développement réel, pas une supposition.
 
-**État réel après le Bloc A de la Phase 17** (préparation réalisée, détail précis dans
-chaque document source - jamais dupliqué ici) :
+**État réel à la clôture de la Phase 17 (27/08/2026)** - Bloc A (préparation) **et** Bloc B
+(exécution réelle) tous deux menés à leur terme, à l'exception explicite et assumée du
+pentest (voir plus bas) :
 
-- **Security** (`10-security-privacy.md` §68) : plusieurs cases genuinement cochées cette
-  phase (antivirus, sauvegardes automatisées) ; celles qui dépendent d'un serveur réel
-  (HTTPS forcé, chiffrement en transit/repos, environnements isolés, monitoring actif)
-  ont leur préparation technique complète et vérifiée (Nginx TLS, Certbot,
-  `docker-compose.prod.yml`, Uptime Kuma) mais restent explicitement `DIFFÉRÉ - Bloc B` -
-  l'exécution réelle (domaine, provisionnement OVHcloud confirmé) n'a pas eu lieu.
-- **Privacy** : documents de travail produits (`docs/16-rgpd-compliance-dossier.md`) -
-  bases légales, qualification responsable/sous-traitant et conclusion AIPD restent
-  **non validées juridiquement**, comme avant cette phase.
-- **Infrastructure/Monitoring/Backup** : voir Security ci-dessus - même statut de
-  préparation Bloc A complète, activation Bloc B.
-- **Legal validation** : dossier de scope pentest produit (`docs/17-pentest-scope.md`,
-  deux périmètres distincts, Platform Admin et produit complet) - **aucun pentest réel
-  n'a été exécuté**, revue de sécurité interne documentée séparément
-  (`docs/15-internal-security-review.md`) comme non substituable à ce pentest.
+- **Security** (`10-security-privacy.md` §68) : **exécuté réellement**, pas seulement
+  préparé - VPS OVHcloud provisionné et durci (SSH par clé, UFW + correctif DOCKER-USER,
+  fail2ban, mises à jour automatiques), Traefik en production avec certificats TLS réels
+  (Let's Encrypt, renouvellement automatique) pour `factusentinel.joeltech.fr` et
+  `factusentinel-staging.joeltech.fr`, isolation staging/production complète (bases de
+  données, volumes, réseaux distincts). Six bugs réels trouvés et corrigés en déployant
+  pour de vrai (permissions du cache/volume de stockage, résolution DNS Nginx après
+  redéploiement, port de service codé en dur, identifiants de sauvegarde, gestion de
+  point de montage) - détail complet dans le runbook serveur Phase 17.
+- **Infrastructure/Monitoring/Backup** : **exécuté réellement** - sauvegarde automatisée
+  quotidienne (production) vers Cloudflare R2 (juridiction UE), restauration testée de
+  bout en bout avec vérification croisée (pas seulement une absence d'erreur) ; monitoring
+  actif (10 sondes Uptime Kuma + 1 sonde push de sauvegarde) avec notifications Telegram
+  configurées sur les deux environnements.
+- **Privacy** : approfondi par recherche sourcée (`docs/16-rgpd-compliance-dossier.md`,
+  `docs/18-legal-documents-dossier.md`) - mentions légales, CGU et politique de
+  confidentialité **rédigées et publiées** sur cette base, mais **jamais validées par un
+  professionnel du droit** (contrainte budgétaire assumée explicitement par l'éditeur,
+  canaux de validation gratuits identifiés et documentés pour plus tard si besoin).
+- **Legal validation - décision finale assumée, jamais un oubli** : **aucun des deux
+  pentests ne sera réalisé** (`docs/17-pentest-scope.md`, mise à jour du 27/08/2026) -
+  faute de budget et de disponibilité, décision explicite de l'éditeur. Conséquence
+  directe : la surface Platform Administration reste **techniquement accessible en
+  production sans la porte d'activation prévue** (Phase 15, Niveau 2) - risque accepté en
+  connaissance de cause par l'éditeur, jamais présenté comme nul. La revue de sécurité
+  interne (`docs/15-internal-security-review.md`) reste un filet complémentaire, jamais un
+  substitut à ce pentest, exactement comme documenté au moment de sa rédaction.
 
-Le produit n'est pas "Production Ready" simplement parce que le Bloc A est terminé - voir
-le plan Phase 17 pour le détail complet Bloc A (fait) / Bloc B (validation externe et mise
-en production réelle, restant à faire).
+**Le produit est en ligne et fonctionnel** (`https://factusentinel.joeltech.fr`) - la
+Phase 17 est considérée close par l'éditeur à ce stade, avec deux limites assumées et
+documentées plutôt que dissimulées : absence de validation juridique professionnelle des
+documents publiés, et absence de tout pentest.
 
 ## 44. Roadmap Visualization
 
