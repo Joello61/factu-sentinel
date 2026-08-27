@@ -76,6 +76,17 @@ services:
     # autre service de ce fichier n'a de mécanisme d'auto-extinction comparable, cette
     # politique reste donc spécifique à "worker".
     restart: unless-stopped
+    # Sans ceci, ce service hérite du HEALTHCHECK de l'image (backend/Dockerfile, cible
+    # "prod" : test du port 9000 de php-fpm) - jamais écouté ici, "worker" ne fait tourner
+    # que "messenger:consume", jamais php-fpm. Constaté en production (Phase 18) :
+    # "worker" affichait "unhealthy" en permanence, un faux signal, jamais un vrai
+    # problème. "pgrep" est bien présent dans l'image (vérifié sur le serveur).
+    healthcheck:
+      test: ['CMD-SHELL', 'pgrep -f messenger:consume || exit 1']
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
     environment:
       DATABASE_URL: 'postgresql://${POSTGRES_USER:-factusentinel}:${POSTGRES_PASSWORD:-factusentinel}@postgres:5432/${POSTGRES_DB:-factusentinel}?serverVersion=18&charset=utf8'
       REDIS_URL: 'redis://redis:6379'
