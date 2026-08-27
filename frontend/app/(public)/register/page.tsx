@@ -17,11 +17,15 @@ export default function RegisterPage() {
   const passwordRef = useRef<HTMLInputElement>(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [termsAccepted, setTermsAccepted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<FormErrors>(EMPTY_ERRORS);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!termsAccepted) {
+      return;
+    }
     setLoading(true);
     setErrors(EMPTY_ERRORS);
 
@@ -82,7 +86,29 @@ export default function RegisterPage() {
           error={errors.fieldErrors.password}
         />
 
-        <Button type="submit" loading={loading}>
+        <div className="flex items-start gap-2">
+          <input
+            id="terms-accepted"
+            type="checkbox"
+            required
+            checked={termsAccepted}
+            onChange={(event) => setTermsAccepted(event.target.checked)}
+            className="mt-0.5 h-4 w-4 shrink-0 rounded border-border text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1"
+          />
+          <label htmlFor="terms-accepted" className="text-sm text-muted-foreground">
+            J&apos;accepte les{" "}
+            <Link href="/cgu" target="_blank" className="font-medium text-primary hover:underline">
+              conditions générales d&apos;utilisation
+            </Link>{" "}
+            et la{" "}
+            <Link href="/politique-de-confidentialite" target="_blank" className="font-medium text-primary hover:underline">
+              politique de confidentialité
+            </Link>
+            .
+          </label>
+        </div>
+
+        <Button type="submit" loading={loading} disabled={!termsAccepted}>
           Créer mon compte
         </Button>
       </form>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AlertDialog } from "radix-ui";
 import { apiRequest } from "@/lib/api/client";
@@ -203,6 +204,21 @@ export function SettingsForm() {
             Enregistrer
           </Button>
         </form>
+      </section>
+
+      <section className="flex flex-col gap-2">
+        <h2 className="text-lg font-medium text-foreground">Informations légales</h2>
+        <div className="flex flex-wrap gap-4 text-sm">
+          <Link href="/mentions-legales" target="_blank" className="text-primary hover:underline">
+            Mentions légales
+          </Link>
+          <Link href="/cgu" target="_blank" className="text-primary hover:underline">
+            Conditions générales d&apos;utilisation
+          </Link>
+          <Link href="/politique-de-confidentialite" target="_blank" className="text-primary hover:underline">
+            Politique de confidentialité
+          </Link>
+        </div>
       </section>
 
       <section className="flex flex-col gap-4 rounded-md border border-error/40 p-4">
