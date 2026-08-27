@@ -1,0 +1,47 @@
+# Loki - étape 1 de la Phase 18 (docs/19-observability-architecture.md). Mode single-binary
+# (target par défaut, "all"), mono-tenant, stockage filesystem sur le volume nommé Docker
+# "loki_data" (docker-compose.prod.yml) - jamais de port hôte publié, seul Grafana lit ce
+# service sur le réseau Docker interne (voir "Modèle de sécurité" du plan Phase 18).
+auth_enabled: false
+
+server:
+  http_listen_port: 3100
+  grpc_listen_port: 9096
+
+common:
+  instance_addr: 127.0.0.1
+  path_prefix: /loki
+  storage:
+    filesystem:
+      chunks_directory: /loki/chunks
+      rules_directory: /loki/rules
+  replication_factor: 1
+  ring:
+    kvstore:
+      store: inmemory
+
+schema_config:
+  configs:
+    - from: 2024-01-01
+      store: tsdb
+      object_store: filesystem
+      schema: v13
+      index:
+        prefix: index_
+        period: 24h
+
+limits_config:
+  # Rétention explicite (docs/10-security-privacy.md, discipline de rétention bornée) -
+  # jamais illimitée sur un VPS partagé avec les données métier. À ajuster selon le disque
+  # réel observé (plan Phase 18, "Vérification transverse").
+  retention_period: 720h # 30 jours
+
+compactor:
+  working_directory: /loki/compactor
+  retention_enabled: true
+  delete_request_store: filesystem
+
+# Jamais de télémétrie anonyme envoyée à Grafana Labs (docs/10-security-privacy.md,
+# Secure Defaults - aucune donnée transmise à un tiers sans décision explicite).
+analytics:
+  reporting_enabled: false
