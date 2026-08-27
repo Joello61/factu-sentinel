@@ -156,10 +156,86 @@ seul projet réel.
   `Tracer`, `GetMetricsController`) - aucune modification requise, il ignore complètement
   qui consomme ses logs/métriques/traces.
 
+## Rajout - Hygiène des secrets (27/08/2026), pas encore exécuté
+
+**Constat de l'éditeur** : la majorité des secrets de production/staging (`APP_SECRET`,
+`JWT_PASSPHRASE`, `PLATFORM_ADMIN_JWT_PASSPHRASE`, `POSTGRES_PASSWORD`,
+`METRICS_SCRAPE_TOKEN`, `GRAFANA_ADMIN_PASSWORD`, clé SMTP Brevo, `MISTRAL_API_KEY`) ont été
+générés dans l'urgence pendant la clôture de la Phase 18, directement sur le serveur
+(`openssl rand -hex ...`), pour débloquer des fonctionnalités cassées depuis le premier
+déploiement - jamais consignés dans un gestionnaire de secrets, uniquement dans les fichiers
+`.env.production`/`.env.staging` du serveur. Objectif de ce rajout : régénérer l'ensemble de
+ces secrets proprement et les faire vivre dans un vrai gestionnaire, pas seulement des
+fichiers texte non versionnés.
+
+**Gap supplémentaire découvert au passage, non corrigé** : `PLATFORM_ADMIN_TOTP_ENCRYPTION_KEY`
+(`backend/.env`) a exactement le même défaut que `APP_SECRET` avait avant la Phase 18 - une
+vraie valeur de développement committée, jamais surchargée en production
+(`docker-compose.prod.yml` ne la référence nulle part). Cette clé chiffre les secrets TOTP
+(MFA) des `PlatformAdministrator` en base (`docs/10-security-privacy.md`, section 17 bis) -
+la production utilise donc actuellement la clé de dev, publique dans le dépôt Git. Décision
+explicite de l'éditeur (27/08/2026) : traiter ce correctif dans ce même chantier de secrets
+plutôt que dans l'urgence en fin de session Phase 18.
+
+### Inventaire des secrets réels (vérifié via `.env.prod.example` et le code, pas deviné)
+
+| Secret                             | Où il vit aujourd'hui                                                          | Nature                                                    |
+| ----------------------------------- | -------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| `POSTGRES_USER`/`PASSWORD`/`DB`     | `.env.production`/`.env.staging`                                                 | Identifiants base de données                              |
+| `APP_SECRET`                        | `.env.production`/`.env.staging`                                                 | `kernel.secret` Symfony (URLs signées, etc.)               |
+| `JWT_PASSPHRASE`                    | `.env.production`/`.env.staging`                                                 | Passphrase du trousseau JWT tenant                         |
+| `PLATFORM_ADMIN_JWT_PASSPHRASE`     | `.env.production`/`.env.staging`                                                 | Passphrase du trousseau JWT platform admin                 |
+| `config/jwt/*.pem` (4 fichiers)     | Volume Docker nommé `jwt_keys`, généré au démarrage par `backend`                | Clés RSA elles-mêmes (pas une simple chaîne)                |
+| `PLATFORM_ADMIN_TOTP_ENCRYPTION_KEY`| **Nulle part en production actuellement** (gap ci-dessus, à corriger ici)        | Chiffrement des secrets TOTP (MFA) en base                 |
+| `METRICS_SCRAPE_TOKEN`              | `.env.production` **et** `docker/observability/secrets/metrics_scrape_token`     | Jeton de scrape Prometheus - deux emplacements pour la même valeur, jamais désynchronisés manuellement |
+| `GRAFANA_ADMIN_USER`/`PASSWORD`     | `.env.production` uniquement (jamais staging, observabilité = prod seule)        | Identifiants admin Grafana                                 |
+| `MAILER_DSN` (clé SMTP Brevo)       | `.env.production`/`.env.staging` (deux clés Brevo distinctes déjà générées)       | Identifiants d'envoi d'email                                |
+| `MISTRAL_API_KEY`                   | `.env.production`/`.env.staging`                                                 | Clé API fournisseur IA                                     |
+| `SSH_PRIVATE_KEY`                   | Secret GitHub Actions (Environment), jamais sur le serveur                       | Déploiement CI/CD                                           |
+| `BACKUP_GPG_PASSPHRASE`             | Fourni uniquement à l'invocation manuelle (`docker/backup/README.md`), jamais stocké | Chiffrement des sauvegardes                              |
+
+### Candidats pour le gestionnaire de secrets - aucun choix fait
+
+À évaluer avant de trancher (même discipline que pour Brevo/Mistral - jamais une décision
+silencieuse, voir `../CLAUDE.md` section 21) :
+
+- **Infisical** (self-hosted, MIT, open-source) - le plus adopté comme alternative à Vault
+  pour un usage self-hosted sans la complexité opérationnelle de Vault ; CLI et Agent pour
+  injecter les secrets au déploiement (compatible avec le modèle actuel `--env-file`, ou en
+  remplacement direct).
+- **HashiCorp Vault / OpenBao** (fork open-source de Vault depuis son passage en licence
+  BSL) - le plus complet et le plus robuste, mais la charge opérationnelle pour un
+  développeur solo est réelle (cohérence avec `06-technical-architecture.md` section 3,
+  "simplicité opérationnelle pour un développeur solo").
+- **Bitwarden Secrets Manager** - self-hosting existe mais historiquement réservé aux offres
+  payantes/entreprise à vérifier à l'implémentation (peut avoir changé) ; écosystème
+  d'intégrations plus restreint que les deux options ci-dessus.
+
+Aucune décision n'est prise ici - seulement le cadre d'évaluation, à trancher au démarrage
+réel de ce chantier.
+
+### Plan à haut niveau (pas encore exécuté)
+
+1. Choisir le gestionnaire (ci-dessus), l'installer (self-hosted, cohérent avec le reste de
+   la stack qui ne dépend d'aucun service managé tiers au MVP).
+2. Régénérer **chaque** secret de l'inventaire ci-dessus avec une valeur fraîche (jamais
+   réutiliser une valeur ayant transité par un terminal partagé ou un historique de
+   session), y compris `PLATFORM_ADMIN_TOTP_ENCRYPTION_KEY`.
+3. Enregistrer chaque valeur dans le gestionnaire, jamais seulement dans `.env.production`/
+   `.env.staging` en clair sur le serveur.
+4. Adapter le mécanisme d'injection (`docker-compose.prod.yml`, `.env.prod.example`,
+   `docker/deploy/ssh-deploy.sh`) pour lire depuis le gestionnaire plutôt que depuis un
+   fichier texte - portée exacte à définir selon l'outil choisi.
+5. Redéployer les deux environnements avec les nouvelles valeurs, revérifier le parcours
+   complet (inscription, connexion, email, IA, alertes) comme à la clôture de la Phase 18.
+6. Documenter la procédure de rotation dans `docs/10-security-privacy.md` section 27.
+
 ## Ce que ce document ne fait pas
 
 Il ne migre rien, ne provisionne rien, ne modifie aucun fichier de production. C'est un
 plan à exécuter plus tard, une fois que l'éditeur aura validé en conditions réelles que la
 Phase 18 (couplée à FactuSentinel) fonctionne correctement - décision explicite de
 l'éditeur (27/08/2026) de séquencer les choses ainsi plutôt que de retravailler
-l'architecture avant d'avoir un signal de fonctionnement réel.
+l'architecture avant d'avoir un signal de fonctionnement réel. Le rajout sur l'hygiène des
+secrets ci-dessus suit le même principe : rien n'a été régénéré, aucun gestionnaire n'a été
+installé, seul le périmètre et l'inventaire sont posés.
