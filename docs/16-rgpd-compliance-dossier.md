@@ -162,33 +162,36 @@ données - `06-technical-architecture.md` §14-15).
 
 ### 2.3 Points vérifiés dans le DPA public de Mistral, à confirmer contractuellement
 
-Le DPA public (vérifié le 26/08/2026) contredit partiellement l'hypothèse optimiste
+Le DPA public (`legal.mistral.ai/terms/data-processing-addendum`, revérifié le 27/08/2026,
+numéros de section confirmés à cette date) contredit partiellement l'hypothèse optimiste
 précédemment posée dans `10-security-privacy.md` §45 ("risque réduit... mais pas éliminé
 par construction") :
 
-- **Localisation/résidence UE** : Mistral présente une résidence UE par défaut pour "La
-  Plateforme" (société française) - **à confirmer que le produit utilise bien cette offre
-  et pas une variante hors UE**.
-- **Transferts internationaux** : le DPA autorise explicitement des transferts vers des
-  pays bénéficiant d'une décision d'adéquation de la Commission européenne, ou vers des
-  "Restricted Countries" sous clauses contractuelles types (section 8 du DPA). **Ce n'est
-  pas une garantie d'absence de transfert hors UE** - un mécanisme de transfert existe et
-  doit être vérifié pour ce compte précisément, pas présumé inexistant du seul fait que
-  Mistral est une société française.
-- **Entraînement des modèles** : le DPA indique que Mistral peut traiter les données pour
-  l'entraînement de ses modèles **sauf opt-out explicite du client** (y compris les
-  retours "pouce levé/baissé"). **Action requise, non encore vérifiée comme faite** :
-  confirmer que l'opt-out est activé sur le compte utilisé par FactuSentinel avant toute
-  mise en production réelle.
-- **Rétention post-résiliation** : les données ne sont plus accessibles après un délai de
-  30 jours suivant la fin du contrat, selon le DPA.
-- **Sous-traitants ultérieurs** : Mistral maintient une liste à jour de ses propres
-  sous-traitants (Trust Center) - **à consulter au moment de la validation contractuelle**,
-  pas supposée stable dans le temps.
-- **Zero Data Retention** : une option existe côté Mistral pour les appels sans état
-  (dont les appels de complétion utilisés ici), mais réservée à un palier d'offre
-  spécifique ("Scale") - **à vérifier si le palier souscrit par FactuSentinel y donne
-  accès**, pas supposé actif par défaut.
+- **Localisation/résidence UE** : le DPA lui-même ne détaille pas d'option de résidence UE
+  spécifique dans son texte (renvoi au Trust Center pour les mesures techniques) -
+  **toujours à confirmer directement dans la console/le contrat du compte utilisé**, pas
+  déductible du seul DPA générique.
+- **Transferts internationaux** (section 8 du DPA, définition 1(h)) : transferts autorisés
+  vers tout pays bénéficiant d'une décision d'adéquation de la Commission européenne
+  (section 8.1), et vers les "Restricted Countries" (tout pays hors EEE sans décision
+  d'adéquation) sous clauses contractuelles types, Module 4 Sous-traitant→Responsable
+  (section 8.2). **Confirmé : un mécanisme de transfert hors UE existe bel et bien** -
+  jamais une garantie d'absence de transfert du seul fait que Mistral est une société
+  française.
+- **Entraînement des modèles** (section 2.3) : **confirmé, modèle opt-out** - Mistral peut
+  traiter les données pour l'entraînement "sauf si le client a désactivé l'entraînement"
+  (y compris les retours "pouce levé/baissé"). **Action requise, non encore vérifiée comme
+  faite** : activer explicitement cette désactivation sur le compte utilisé par
+  FactuSentinel avant toute mise en production réelle avec des utilisateurs.
+- **Rétention post-résiliation** (section 10.1) : **confirmé** - les données ne sont plus
+  accessibles après un délai de 30 jours suivant la fin de l'accès du client.
+- **Sous-traitants ultérieurs** (section 7.1, Exhibit 1) : liste tenue à jour à
+  `trust.mistral.ai/subprocessors` - **à consulter au moment de la validation
+  contractuelle**, jamais supposée stable dans le temps.
+- **Zero Data Retention** (section 2.3) : le DPA mentionne cette option comme activable
+  pour des exceptions de détection d'abus, sans préciser explicitement le palier d'offre
+  qui y donne droit dans le texte du DPA lui-même - **toujours à vérifier directement avec
+  le compte/l'offre souscrite**, pas résolu par cette relecture du DPA seul.
 
 ### 2.4 Conclusion de ce dossier
 
@@ -201,17 +204,65 @@ dans `10-security-privacy.md` §45 une fois obtenue.
 
 ## 3. Qualification responsable de traitement / sous-traitant
 
-Reprend `10-security-privacy.md` §43 sans le trancher : l'éditeur agit vraisemblablement
-comme **responsable de traitement** pour les données de ses utilisateurs directs (comptes,
-données d'entreprise), et potentiellement comme **sous-traitant** pour les données des
-clients tiers de ses utilisateurs figurant sur une facture (une facture contenant des
-informations sur un client relève des propres obligations RGPD de l'utilisateur envers ce
-client). **Cette qualification a des implications contractuelles directes** (nécessité
-potentielle d'un accord de sous-traitance avec les utilisateurs professionnels, mentions
-à faire figurer dans les conditions générales d'utilisation) - **à valider juridiquement
-avant toute formalisation contractuelle**, pas tranchée par ce document.
+Reprend `10-security-privacy.md` §43, précisé (pas tranché) à l'aide du cadre officiel
+CNIL (`Déterminer la qualification juridique des acteurs`, `Responsable du traitement,
+sous-traitants : comment bien identifier son rôle ?`, vérifiés le 27/08/2026) : le critère
+déterminant n'est jamais la qualification choisie contractuellement par les parties, mais
+qui détermine réellement les **finalités et moyens** du traitement, et si le prestataire
+traite la donnée **pour ses propres finalités** (auquel cas il devient responsable, voire
+responsable conjoint) ou **exclusivement pour le compte du client, sur ses instructions**
+(auquel cas il est sous-traitant). La CNIL rappelle explicitement qu'elle n'est pas liée
+par la qualification contractuelle en cas de contrôle - elle requalifie sur la base des
+faits réels.
+
+Appliqué à FactuSentinel, sur la base de ce cadre (analyse informée, pas une conclusion
+juridique certaine) :
+
+- **Données du compte utilisateur lui-même** (email, entreprise, factures analysées comme
+  objet du service) : FactuSentinel détermine les finalités et moyens de ce traitement
+  (fournir le service de vérification) - **responsable de traitement**, orientation
+  suffisamment claire pour ne pas nécessiter un arbitrage juridique long, mais toujours
+  formellement "à valider" avant toute politique de confidentialité publiée.
+- **Données d'un client tiers de l'utilisateur figurant sur une facture** (nom, adresse,
+  parfois SIREN) : FactuSentinel ne détermine ni la collecte initiale de cette donnée (faite
+  par l'utilisateur, dans le cadre de sa propre relation commerciale) ni son usage final -
+  le traitement se limite à vérifier la conformité de la facture qui la contient, sur
+  instruction implicite de l'utilisateur, sans réutilisation à des fins propres à
+  FactuSentinel (pas de statistiques croisées inter-organisations, pas d'entraînement de
+  modèle sur ces données - isolation tenant stricte, ADR-004). C'est la configuration que
+  le cadre CNIL qualifie typiquement de **sous-traitance** plutôt que de responsabilité
+  conjointe, contrairement à un service qui réutiliserait la donnée pour ses propres
+  finalités (ex. amélioration de produit à partir des données de tous les clients
+  confondus) - ce que FactuSentinel ne fait structurellement pas.
+
+**Implication concrète, actionnable sans juriste dans un premier temps** : si l'analyse
+ci-dessus est confirmée, les conditions générales d'utilisation de FactuSentinel devront
+intégrer une clause de sous-traitance conforme à l'article 28 RGPD (objet, durée, nature
+et finalité du traitement, obligations de sécurité, sort des données en fin de contrat,
+droit d'audit) plutôt qu'un accord de sous-traitance séparé à négocier individuellement
+avec chaque utilisateur - une clause standard intégrée aux CGU est une pratique courante et
+proportionnée pour un service SaaS grand public/TPE, pas systématiquement un contrat sur
+mesure nécessitant un avocat par client. **Cette qualification et la rédaction exacte de
+cette clause restent à valider avant publication** - voir section 6 pour les pistes de
+validation à coût nul ou faible.
 
 ## 4. Screening de nécessité d'une AIPD
+
+### 4.0 Vérification croisée avec la liste positive officielle de la CNIL
+
+Au-delà des 9 critères G29 (grille ci-dessous), la CNIL a publié une **liste positive
+distincte et contraignante** de 14 types de traitements pour lesquels une AIPD est
+**obligatoire dans tous les cas** (délibération n° 2018-327 du 11 octobre 2018, revérifiée
+le 27/08/2026 sur cnil.fr - `Listes des traitements pour lesquels une AIPD est requise ou
+non`). Cette liste inclut notamment : données de santé par des établissements de soins,
+profilage RH, accompagnement social/médico-social, géolocalisation à large échelle, données
+génétiques/biométriques à des fins d'identification, évaluation de solvabilité/scoring
+crédit à large échelle, dispositifs de lancement d'alerte, objets connectés de santé.
+**Aucun de ces types ne correspond au traitement de FactuSentinel** (pas de données de
+santé, pas de profilage RH, pas de scoring de personnes physiques, pas de géolocalisation) -
+constat qui renforce, sans le remplacer, le screening par les 9 critères ci-dessous. La
+liste complète et à jour reste à consulter directement sur cnil.fr avant toute conclusion
+définitive, jamais reproduite de mémoire.
 
 Grille reprenant les **9 critères officiels** issus des lignes directrices G29/CNIL
 (vérifiés sur cnil.fr le 26/08/2026 : "Ce qu'il faut savoir sur l'analyse d'impact relative
@@ -248,3 +299,39 @@ des données financières évoluent significativement**.
 - Décision finale, validée juridiquement, sur la nécessité d'une AIPD complète (section 4).
 - Mise à jour de `10-security-privacy.md` (§41, §43, §45, §46) une fois ces validations
   obtenues, jamais anticipée ici.
+
+## 6. Avancer sans budget avocat - ressources gratuites vérifiées (27/08/2026)
+
+Ce dossier a déjà fait la plus grande partie du travail de préparation (registre, cadre de
+qualification appliqué, screening AIPD croisé avec la liste officielle, DPA Mistral
+disséqué section par section). Ce qui reste n'est pas nécessairement hors de portée sans
+budget - plusieurs ressources officielles gratuites existent en France, à distinguer d'une
+simple confirmation d'auto-diagnostic (jamais un substitut à un avis professionnel pour un
+point réellement disputé) :
+
+- **Consultations juridiques gratuites CCI + Ordre des avocats** : la plupart des Chambres
+  de Commerce et d'Industrie organisent, avec le barreau local, des permanences juridiques
+  gratuites sur rendez-vous pour les entrepreneurs (souvent mensuelles, parfois
+  bimensuelles) - couvrent typiquement droit des contrats, RGPD, propriété intellectuelle.
+  Chercher "[ta ville] CCI permanence juridique gratuite avocat" ou contacter directement
+  la CCI de ton département. C'est le canal le plus direct pour faire trancher précisément
+  les deux points encore ouverts de ce dossier (qualification sous-traitant section 3,
+  bases légales section 1) par un professionnel, sans frais.
+- **Registre des traitements** : modèle Excel officiel et gratuit sur cnil.fr (rubrique
+  Documentation > Modèle de registre), version "simple" adaptée à une TPE - peut remplacer
+  ou compléter le tableau de la section 1 de ce dossier sous une forme que la CNIL
+  reconnaît directement en cas de contrôle.
+- **Logiciel PIA (AIPD)** : outil libre et gratuit publié par la CNIL (poste de travail ou
+  serveur), structuré exactement selon la méthodologie officielle en 4 étapes - à utiliser
+  si la conclusion provisoire de la section 4 devait un jour basculer vers "AIPD requise"
+  (pas nécessaire dans l'état actuel de l'analyse).
+- **CNIL elle-même** : service de renseignement téléphonique et par formulaire, gratuit,
+  pour une question ponctuelle et précise (pas une revue complète de produit) -
+  `cnil.fr/fr/notification-de-plainte` et rubrique contact du site.
+
+**Ce que ces ressources ne remplacent pas** : la rédaction contractuelle finale (clause de
+sous-traitance dans les CGU, section 3), et un désaccord ou un cas limite qu'un
+professionnel jugerait réellement incertain après avoir vu le produit réel - dans ce cas,
+la permanence gratuite CCI/Ordre des avocats reste le point d'entrée recommandé avant
+d'envisager une consultation payante ciblée sur le seul point resté incertain, plutôt
+qu'un mandat complet.
