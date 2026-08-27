@@ -12,6 +12,7 @@ use App\Identity\Entity\User;
 use App\Shared\Audit\AuditLogger;
 use App\Shared\Audit\Enum\ActorType;
 use App\Shared\Audit\Enum\EventType;
+use App\Shared\Observability\Tracer;
 use App\Shared\Security\CurrentOrganizationResolver;
 use App\Shared\Security\EmailVerificationGuard;
 use Doctrine\ORM\EntityManagerInterface;
@@ -38,6 +39,7 @@ final class AnswerAssistantQuestionService
         private readonly Security $security,
         private readonly CurrentOrganizationResolver $currentOrganizationResolver,
         private readonly EmailVerificationGuard $emailVerificationGuard,
+        private readonly Tracer $tracer,
         #[Autowire(service: 'limiter.ai_assistant')]
         private readonly RateLimiterFactory $rateLimiter,
     ) {
@@ -45,6 +47,14 @@ final class AnswerAssistantQuestionService
 
     /** @return array{status: int, body: array<string, mixed>} */
     public function answer(string $question): array
+    {
+        return $this->tracer->trace('ai.answer_assistant_question', function () use ($question) {
+            return $this->doAnswer($question);
+        });
+    }
+
+    /** @return array{status: int, body: array<string, mixed>} */
+    private function doAnswer(string $question): array
     {
         $this->emailVerificationGuard->assertVerified();
 

@@ -1168,6 +1168,63 @@ Phase 17 : monitoring auto-hébergé (Uptime Kuma, docker/monitoring/README.md) 
 
 **Pas de stack d'observabilité disproportionnée au MVP** - logs et métriques de base suffisent pour un développeur solo, cohérent avec `06-technical-architecture.md` (section 23).
 
+**Phase 18 (27/08/2026) - révision explicite de la décision ci-dessus** : la décision "pas
+de stack disproportionnée au MVP" reste valable pour un besoin de production, mais l'objectif
+de la Phase 18 est différent et assumé par l'éditeur - apprendre concrètement à instrumenter
+une API réelle (métriques, logs centralisés, traces distribuées), pas combler un manque de
+production. Portée : **production uniquement** (staging garde ses outils actuels - logs
+Docker, `/api/health`, Uptime Kuma) ; les deux environnements tournant sur le même VPS,
+doubler la stack aurait été une mauvaise optimisation pour un objectif d'apprentissage.
+Construction séquentielle, un signal à la fois, mesuré avant de passer au suivant : Alloy +
+Loki (logs) → Prometheus (métriques) → Grafana (dashboards) → OpenTelemetry + Tempo
+(traces). Détail complet des choix et journal des étapes : `docs/19-observability-architecture.md`.
+
+- Étape 1 (logs) : **fait**. Promtail (EOL 2 mars 2026) jamais retenu - Alloy à la place.
+  `symfony/monolog-bundle` ajouté (JSON structuré sur `stderr` en production, recette
+  Symfony standard), `App\Shared\Logging\RequestContextProcessor` corrèle chaque ligne de
+  log à `request_id` (et `organization_id`/`user_id` quand authentifiée). Filtrage Alloy par
+  projet Compose vérifié empiriquement nécessaire (l'argument `relabel_rules` seul de
+  `loki.source.docker` ne suffit pas à exclure les conteneurs de l'autre environnement
+  partageant le même socket Docker - la liste de cibles elle-même doit être filtrée en
+  amont, voir `docker/observability/README.md`).
+- Étape 2 (métriques) : **fait**. Prometheus + `promphp/prometheus_client_php` +
+  `artprima/prometheus-metrics-bundle`, `GET /api/metrics` protégé par jeton dédié (jamais
+  le firewall JWT tenant - un firewall Symfony séparé a été nécessaire, un simple
+  `access_control` ne suffisait pas). `App\Shared\Metrics\MetricsRecorder` instrumente
+  analyses de conformité/imports de documents/appels IA aux points réels du pipeline, et
+  réutilise `PlatformHealthAggregator` pour les jauges de santé - jamais de logique dupliquée.
+  Métriques hôte via Alloy (`prometheus.exporter.unix` + `remote_write`). Détail complet :
+  `docs/19-observability-architecture.md`, `docker/observability/README.md`.
+- Étape 3 (dashboards/alerting) : **fait**. Datasources et trois dashboards Grafana
+  provisionnés en code, cinq règles d'alerte reprenant la grille de sévérité
+  `10-security-privacy.md` §37 (niveau "Critique" explicitement non couvert - pas dérivable
+  de métriques génériques). Point de contact Telegram et politique de notification : à
+  configurer manuellement une fois déployé (même bot que Uptime Kuma), jamais par fichier -
+  un secret de bot n'a pas d'équivalent au `credentials_file` de Prometheus côté Grafana ;
+  décision explicite de l'éditeur de le faire après la fusion/le déploiement, pas avant.
+  Détail complet : `docs/19-observability-architecture.md`, `docker/observability/README.md`.
+- Étape 4 (traces) : **fait pour le déploiement, critère de clôture de la phase encore
+  ouvert**. OpenTelemetry SDK (instrumentation manuelle, jamais l'auto-instrumentation PECL
+  ni le bundle bêta) + Tempo (mode monolithique, sans Kafka). Spans réels vérifiés avec de
+  vrais appels réseau (backend → Tempo, requête HTTP authentifiée réelle jusqu'à Mistral).
+  Constat d'architecture : Mustang (worker asynchrone) et Mistral (endpoints synchrones) ne
+  sont jamais dans la même requête HTTP dans ce produit - chaque point réel est tracé
+  séparément plutôt que de forcer la structure illustrative initialement supposée. **La
+  corrélation Loki↔Tempo en un seul geste sur une vraie requête n'a pas pu être démontrée en
+  développement** (l'environnement `dev` écrit les logs dans un fichier, jamais `stdout`) -
+  reste à faire une fois en production réelle, procédure exacte dans
+  `docker/observability/README.md`. La Phase 18 reste ouverte jusqu'à cette démonstration.
+
+**Phase 19 (27/08/2026) - gap constaté, pas encore corrigé** : la Phase 18 couple la stack
+d'observabilité à FactuSentinel (`docker-compose.prod.yml`, un seul projet Compose), alors
+que l'éditeur avait explicitement proposé dès le départ un socle partagé
+(`/opt/infrastructure/`, réutilisable par un futur projet). Écart reconnu en cours de
+Phase 18, décision explicite de l'éditeur de terminer la Phase 18 couplée d'abord (valider
+que ça fonctionne), puis de documenter la migration séparément plutôt que de retravailler
+l'architecture avant d'avoir un signal réel - voir
+`docs/20-observability-infrastructure-migration.md` pour le gap complet et le plan de
+migration (rien n'est encore exécuté).
+
 ## 42. Operational Readiness
 
 Avant la Phase 17 (Production) : sauvegardes testées (`10-security-privacy.md`, section 54), procédure de restauration documentée et testée (section 37 de `09-test-strategy.md`), monitoring et alerting actifs (section 41 de ce document), processus de réponse aux incidents documenté même de façon simple (`10-security-privacy.md`, section 55), documentation opérationnelle à jour (section 40), stratégie de déploiement et de rollback définie (`06-technical-architecture.md`, section 32).

@@ -27,7 +27,7 @@ use Doctrine\DBAL\Exception as DbalException;
  * les HEALTHCHECK Docker de backend/frontend (`backend/Dockerfile`, `frontend/Dockerfile`) :
  * prouve la joignabilité réseau, pas la santé fonctionnelle complète du service distant.
  */
-final readonly class PlatformHealthAggregator
+final readonly class PlatformHealthAggregator implements PlatformHealthAggregatorInterface
 {
     private const float CONNECT_TIMEOUT_SECONDS = 2.0;
 

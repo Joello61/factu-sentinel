@@ -5,3 +5,8 @@
 # l'avertissement "DO NOT DEFINE PRODUCTION SECRETS IN THIS FILE" - la production surcharge
 # cette variable via un vrai mécanisme d'environnement, jamais cette valeur commitée.
 d63da1168231c8d143d4ea49eedd34612d62ba43:backend/.env:generic-api-key:66
+
+# Même raisonnement, Phase 18 : METRICS_SCRAPE_TOKEN est une valeur de développement/CI
+# placeholder (backend/.env, jamais un secret de production - la production surcharge
+# cette variable via un vrai mécanisme d'environnement, jamais cette valeur commitée).
+c20772cc9690c6620efa9f92c3c56f21a159db52:backend/.env:generic-api-key:130

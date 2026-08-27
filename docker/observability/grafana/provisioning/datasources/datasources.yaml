@@ -1,0 +1,43 @@
+# Grafana - étape 3 de la Phase 18 (docs/19-observability-architecture.md). Tout en code
+# (provisioning as-code), jamais de clic manuel dans l'UI pour ces deux datasources -
+# cohérent avec le principe "reproductible" déjà appliqué ailleurs dans le projet.
+# uid fixes (jamais générés) : référencés explicitement par les règles d'alerte provisionnées
+# (docker/observability/grafana/provisioning/alerting/rules.yaml).
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    uid: prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: false
+
+  - name: Loki
+    uid: loki
+    type: loki
+    access: proxy
+    url: http://loki:3100
+    isDefault: false
+    editable: false
+    jsonData:
+      # Champ dérivé request_id -> recherche TraceQL dans Tempo (étape 4) - request_id est
+      # un attribut de span applicatif (App\Shared\Observability\Tracer), jamais l'identifiant
+      # de trace natif OpenTelemetry : une recherche TraceQL par attribut
+      # ("{.request_id=...}"), pas une résolution directe d'identifiant de trace, vérifiée
+      # avant d'écrire cette configuration (docker/observability/README.md).
+      derivedFields:
+        - datasourceUid: tempo
+          matcherRegex: '"request_id":"([0-9a-f-]+)"'
+          name: TraceID
+          url: '{.request_id="${__value.raw}"}'
+          urlDisplayLabel: 'Voir la trace Tempo'
+
+  - name: Tempo
+    uid: tempo
+    type: tempo
+    access: proxy
+    url: http://tempo:3200
+    isDefault: false
+    editable: false

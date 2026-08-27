@@ -170,9 +170,111 @@ services:
     ports:
       - '127.0.0.1:${MONITORING_PORT:-3001}:3001'
 
+  # Phase 18 (docs/19-observability-architecture.md), étape 1 - jamais exposé publiquement,
+  # même principe que "monitoring" ci-dessus (aucun port hôte : seul Grafana, étape 3, lira
+  # ce service sur le réseau Docker interne). Actif uniquement en production
+  # (COMPOSE_PROFILES=observability, jamais dans .env.staging - portée décidée pour cette
+  # phase, docs/12-roadmap.md §41).
+  loki:
+    image: grafana/loki:3.7.6
+    restart: unless-stopped
+    profiles: [observability]
+    volumes:
+      - loki_data:/loki
+      - ./docker/observability/loki-config.yaml:/etc/loki/local-config.yaml:ro
+
+  # Remplace Promtail (EOL 2 mars 2026) - découvre et lit les logs des conteneurs de CE
+  # projet Compose uniquement (FACTUSENTINEL_COMPOSE_PROJECT, voir
+  # docker/observability/alloy-config.alloy) : le socket Docker est partagé par tout le VPS,
+  # staging inclus - sans ce filtre, Alloy remonterait aussi les conteneurs de l'autre
+  # environnement.
+  alloy:
+    image: grafana/alloy:v1.19.2
+    restart: unless-stopped
+    profiles: [observability]
+    command: ['run', '--server.http.listen-addr=0.0.0.0:12345', '/etc/alloy/config.alloy']
+    environment:
+      FACTUSENTINEL_COMPOSE_PROJECT: '${COMPOSE_PROJECT_NAME}'
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./docker/observability/alloy-config.alloy:/etc/alloy/config.alloy:ro
+      # Étape 2 - prometheus.exporter.unix a besoin du vrai /proc, /sys et système de
+      # fichiers de l'hôte, jamais la vue cgroup limitée du conteneur (constaté à la
+      # vérification, docker/observability/README.md).
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/host/root:ro
+    depends_on:
+      - loki
+      - prometheus
+
+  # Étape 2 (métriques) - jamais de port hôte non plus (accès seulement via Grafana, étape
+  # 3, sur le réseau Docker interne), même principe que "loki" ci-dessus. Le récepteur
+  # remote-write est activé uniquement pour recevoir les métriques hôte poussées par Alloy
+  # (docker/observability/alloy-config.alloy) - jamais un accès externe à ce chemin, ce
+  # service n'a de toute façon aucun port publié.
+  prometheus:
+    image: prom/prometheus:v3.14.0
+    restart: unless-stopped
+    profiles: [observability]
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=15d'
+      - '--web.enable-remote-write-receiver'
+    volumes:
+      - prometheus_data:/prometheus
+      - ./docker/observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      # Jamais le jeton en clair dans un fichier versionné (../CLAUDE.md section 15) -
+      # fichier créé une fois manuellement sur le serveur, jamais committé (procédure
+      # exacte dans docker/observability/README.md).
+      - ./docker/observability/secrets/metrics_scrape_token:/run/secrets/metrics_scrape_token:ro
+
+  # Étape 4 (traces) - mode monolithique (target "all", le défaut), jamais Kafka (réservé
+  # au mode microservices/scale de Tempo 3.0, vérifié avant de choisir cet outil). Jamais de
+  # port hôte : seuls Grafana (lecture) et backend/worker (écriture OTLP, réseau Docker
+  # interne "default") lui parlent.
+  tempo:
+    image: grafana/tempo:3.0.3
+    restart: unless-stopped
+    profiles: [observability]
+    command: ['-config.file=/etc/tempo/tempo.yaml']
+    volumes:
+      - tempo_data:/var/tempo
+      - ./docker/observability/tempo.yaml:/etc/tempo/tempo.yaml:ro
+
+  # Étape 3 (dashboards/alerting) - seul service de ce volet réellement accessible : par
+  # tunnel SSH sur 127.0.0.1, même principe que "monitoring" (Uptime Kuma) ci-dessus,
+  # jamais via Traefik. Identifiants admin exclusivement via variables d'environnement
+  # (jamais de valeur par défaut ici) ; inscription et accès anonyme désactivés
+  # explicitement plutôt que de compter sur leur défaut (Fail Secure).
+  grafana:
+    image: grafana/grafana:13.2.0
+    restart: unless-stopped
+    profiles: [observability]
+    environment:
+      GF_SECURITY_ADMIN_USER: '${GRAFANA_ADMIN_USER}'
+      GF_SECURITY_ADMIN_PASSWORD: '${GRAFANA_ADMIN_PASSWORD}'
+      GF_USERS_ALLOW_SIGN_UP: 'false'
+      GF_AUTH_ANONYMOUS_ENABLED: 'false'
+    ports:
+      - '127.0.0.1:${GRAFANA_PORT:-3000}:3000'
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./docker/observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./docker/observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      - prometheus
+      - loki
+      - tempo
+
 volumes:
   storage_documents:
   uptime_kuma_data:
+  loki_data:
+  prometheus_data:
+  grafana_data:
+  tempo_data:
 
 # Réseau partagé avec la stack Traefik (infrastructure de niveau serveur, hors de ce
 # dépôt - voir le runbook Phase 17) - créé une seule fois sur le serveur

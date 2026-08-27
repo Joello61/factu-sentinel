@@ -45,6 +45,9 @@ desktop.ini
 docker-compose.override.yml
 docker/**/data/
 docker/**/*.local.yml
+# Phase 18 - jeton de scrape Prometheus, créé une fois manuellement sur le serveur
+# (docker/observability/README.md), jamais committé (../CLAUDE.md section 15).
+docker/observability/secrets/
 
 # Infrastructure (état/config locale, jamais de secret commité)
 infra/**/*.local.*

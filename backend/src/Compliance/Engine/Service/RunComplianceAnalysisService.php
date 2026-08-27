@@ -18,6 +18,8 @@ use App\Shared\Audit\AuditLogger;
 use App\Shared\Audit\Enum\ActorType;
 use App\Shared\Audit\Enum\EventType;
 use App\Shared\Idempotency\Service\IdempotencyStore;
+use App\Shared\Metrics\MetricsRecorder;
+use App\Shared\Observability\Tracer;
 use App\Shared\Security\EmailVerificationGuard;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\SecurityBundle\Security;
@@ -45,6 +47,8 @@ final class RunComplianceAnalysisService
         private readonly ComplianceEngine $complianceEngine,
         private readonly AuditLogger $auditLogger,
         private readonly IdempotencyStore $idempotencyStore,
+        private readonly MetricsRecorder $metricsRecorder,
+        private readonly Tracer $tracer,
         private readonly Security $security,
         private readonly EmailVerificationGuard $emailVerificationGuard,
         #[Autowire(service: 'limiter.compliance_analysis_trigger')]
@@ -66,7 +70,11 @@ final class RunComplianceAnalysisService
             fn (): array => $this->idempotencyStore->execute(
                 $organization->getId(),
                 $idempotencyKey,
-                fn (): array => $this->doRun($organization, $invoice),
+                fn (): array => $this->tracer->trace(
+                    'compliance_analysis',
+                    fn (): array => $this->doRun($organization, $invoice),
+                    ['invoice_id' => $invoice->getId()->toRfc4122()],
+                ),
             ),
         );
     }
@@ -74,6 +82,8 @@ final class RunComplianceAnalysisService
     /** @return array{status: int, body: array<string, mixed>} */
     private function doRun(Organization $organization, Invoice $invoice): array
     {
+        $startedAt = microtime(true);
+
         $fiscalContext = $this->fiscalContextRepository->findCurrent($organization->getId());
 
         if (null === $fiscalContext) {
@@ -109,6 +119,7 @@ final class RunComplianceAnalysisService
         );
 
         $analysis->markCompleted($globalResult, new \DateTimeImmutable());
+        $this->metricsRecorder->recordComplianceAnalysis($globalResult->value, microtime(true) - $startedAt);
 
         $this->entityManager->persist($analysis);
         $this->entityManager->persist($snapshot);

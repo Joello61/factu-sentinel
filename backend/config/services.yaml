@@ -22,6 +22,8 @@ services:
             string $redisUrl: '%env(REDIS_URL)%'
             bool $hstsEnabled: '%env(bool:HSTS_ENABLED)%'
             string $platformAdminTotpEncryptionKeyHex: '%env(PLATFORM_ADMIN_TOTP_ENCRYPTION_KEY)%'
+            string $metricsScrapeToken: '%env(METRICS_SCRAPE_TOKEN)%'
+            string $tempoOtlpEndpoint: '%env(TEMPO_OTLP_ENDPOINT)%'
 
     # makes classes in src/ available to be used as services
     # this creates a service per class whose id is the fully-qualified class name
@@ -46,6 +48,15 @@ services:
     # PlatformAnalyticsAggregator/App\PlatformAdmin\Controller\GetPlatformAnalyticsTrendsController,
     # même raisonnement que les deux entrées Phase 15 ci-dessus.
     App\Compliance\Engine\Service\ComplianceAnalyticsReaderInterface: '@App\Compliance\Engine\Service\ComplianceAnalyticsReader'
+    # Phase 18 - interface cross-module exposée à App\Shared\Metrics\MetricsRecorder, en sens
+    # inverse des trois entrées ci-dessus (Shared consommant PlatformAdmin, jamais l'inverse).
+    App\PlatformAdmin\Service\PlatformHealthAggregatorInterface: '@App\PlatformAdmin\Service\PlatformHealthAggregator'
+
+    # Alias vers le registre déjà instancié par artprima/prometheus-metrics-bundle
+    # (config/packages/artprima_prometheus_metrics.yaml) - la classe elle-même n'est jamais
+    # autowirable telle quelle (id de service "prometheus_metrics_bundle.collector_registry",
+    # pas le nom de classe, "_defaults.autowire: false" dans le bundle lui-même).
+    Prometheus\CollectorRegistry: '@prometheus_metrics_bundle.collector_registry'
 
     # Constaté à l'implémentation : contrairement à $mustangBaseUrl ci-dessus, ajouter ces
     # trois valeurs à _defaults.bind ne suffisait pas à les faire résoudre pour

@@ -1,0 +1,75 @@
+// Grafana Alloy - étape 1 de la Phase 18 (docs/19-observability-architecture.md). Promtail
+// est EOL (2 mars 2026, plus aucun correctif) - Alloy est le collecteur recommandé
+// aujourd'hui pour ce même besoin (découverte des conteneurs Docker, envoi vers Loki).
+//
+// Filtrage explicite par projet Compose (FACTUSENTINEL_COMPOSE_PROJECT, injecté par
+// docker-compose.prod.yml depuis COMPOSE_PROJECT_NAME) : le socket Docker est partagé par
+// tout le VPS, staging ET production y compris - sans ce filtre, Alloy remonterait aussi
+// les conteneurs de l'autre environnement (portée "production uniquement", plan Phase 18).
+// Docker Compose applique déjà automatiquement les labels com.docker.compose.project et
+// com.docker.compose.service à chaque conteneur - jamais besoin de les ajouter nous-mêmes.
+
+discovery.docker "host" {
+	host = "unix:///var/run/docker.sock"
+}
+
+// Le filtrage réel (exclure les conteneurs de l'autre environnement) doit se faire sur la
+// LISTE de cibles elle-même (targets = discovery.docker.host.targets, exports .output) -
+// constaté à la vérification (plan Phase 18, "Vérification de cette étape seule") :
+// passer seulement les .rules de ce composant à l'argument "relabel_rules" de
+// loki.source.docker réétiquette les entrées mais ne les EXCLUT jamais de la collecte,
+// l'action "keep"/"drop" n'ayant d'effet que sur une vraie liste de cibles en amont.
+discovery.relabel "factusentinel_containers" {
+	targets = discovery.docker.host.targets
+
+	rule {
+		source_labels = ["__meta_docker_container_label_com_docker_compose_project"]
+		regex         = sys.env("FACTUSENTINEL_COMPOSE_PROJECT")
+		action        = "keep"
+	}
+
+	rule {
+		source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+		target_label  = "service_name"
+	}
+}
+
+loki.source.docker "factusentinel" {
+	host       = "unix:///var/run/docker.sock"
+	targets    = discovery.relabel.factusentinel_containers.output
+	labels     = {"environment" = "production"}
+	forward_to = [loki.write.default.receiver]
+}
+
+loki.write "default" {
+	endpoint {
+		url = "http://loki:3100/loki/api/v1/push"
+	}
+}
+
+// Étape 2 - métriques hôte (CPU/RAM/disque), comble le trou explicitement documenté dans
+// App\PlatformAdmin\Service\PlatformHealthAggregator ("jamais de métrique d'infrastructure
+// hôte... relève du monitoring auto-hébergé externe"). Constaté à la vérification :
+// prometheus.exporter.unix seul n'expose aucun /metrics agrégé qu'un Prometheus externe
+// pourrait "pull" - il faut le "push" explicitement vers le récepteur remote-write de
+// Prometheus (docker-compose.prod.yml, "--web.enable-remote-write-receiver"), jamais un
+// scrape_config Prometheus pointant directement sur Alloy.
+prometheus.exporter.unix "host" {
+	// Alloy tourne dans un conteneur : sans ces trois chemins, l'exporter ne verrait que le
+	// /proc et /sys DU CONTENEUR (vue cgroup), jamais le vrai VPS hôte - bind-mounts en
+	// lecture seule correspondants dans docker-compose.prod.yml.
+	procfs_path = "/host/proc"
+	sysfs_path  = "/host/sys"
+	rootfs_path = "/host/root"
+}
+
+prometheus.scrape "host" {
+	targets    = prometheus.exporter.unix.host.targets
+	forward_to = [prometheus.remote_write.default.receiver]
+}
+
+prometheus.remote_write "default" {
+	endpoint {
+		url = "http://prometheus:9090/api/v1/write"
+	}
+}
