@@ -86,6 +86,15 @@ services:
       # authentifié, incident réel constaté en production, Phase 18, 27/08/2026). Même
       # périmètre que MAILER_DSN ci-dessus (backend uniquement).
       MAILER_FROM: '${MAILER_FROM}'
+      # backend/.env (committé) laisse MISTRAL_API_KEY vide par convention (secret jamais en
+      # dur dans un fichier versionné) - sans surcharge ici, l'AI Gateway échoue
+      # systématiquement (App\AI\Exception\AiProviderUnavailableException, repli contrôlé
+      # vers "L'assistant IA n'est pas disponible pour le moment.", jamais un crash - mais
+      # jamais de vraie réponse IA non plus). MISTRAL_BASE_URL/MISTRAL_MODEL restent les
+      # défauts de backend/.env, corrects pour tout environnement. Backend uniquement, même
+      # raison que MAILER_DSN - les deux endpoints IA sont synchrones (08-api-specification.md
+      # section 35), jamais appelés depuis "worker".
+      MISTRAL_API_KEY: '${MISTRAL_API_KEY}'
       # backend/.env (committé) définit APP_SECRET="" (placeholder vide, jamais une valeur
       # utilisable) - sans surcharge ici, framework.secret ("kernel.secret") reste vide en
       # production. symfonycasts/verify-email-bundle en dépend (UriSigner interne) pour

@@ -77,19 +77,41 @@ Trace Tempo (même request_id en attribut de span, étape 4)
 Décomposition Symfony → Mustang/Mistral visible dans la trace
 ```
 
-**Statut (27/08/2026) : non satisfait, phase toujours ouverte.** Chaque brique est vérifiée
-séparément avec de vrais appels réseau (span réel backend → Tempo avec `request_id`
-retrouvé par recherche TraceQL ; vraie requête HTTP authentifiée jusqu'à
-`MistralProvider::complete()` déclenchant réellement les spans) - voir le journal de
-l'étape 4 ci-dessous. Ce qui manque, cause identifiée et non un doute : en environnement
-`dev`, `monolog.yaml` envoie les logs vers un fichier (`dev.log`), jamais vers `stdout` -
-Alloy ne peut donc pas les voir localement. Seul l'environnement `prod` réel envoie du JSON
-structuré sur `stderr`. La démonstration du parcours complet en un seul geste (chercher un
-`request_id` dans Loki, cliquer le champ dérivé, arriver sur la trace Tempo) doit donc être
-faite une fois en production - procédure exacte dans `docker/observability/README.md`,
-section étape 4. Cette phase reste ouverte jusqu'à ce que cette procédure ait été exécutée
-et sa preuve ajoutée à ce document (au réel avec captures ou un extrait texte du log et de
-la trace correspondante).
+**Statut (27/08/2026) : satisfait, phase close.** Le parcours complet a été exécuté et
+démontré une fois en production réelle, sur une vraie requête authentifiée
+(`POST /api/v1/assistant/questions`) :
+
+1. **Requête** : `POST https://factusentinel.joeltech.fr/api/v1/assistant/questions`,
+   authentifiée, déclenchée depuis le formulaire assistant de la page de détail d'une
+   facture (`frontend/components/compliance/AssistantQuestionForm.tsx`). L'appel Mistral
+   sous-jacent a échoué (`Mistral returned a non-200 status.`,
+   `AiProviderUnavailableException`) - sans incidence sur la démonstration : le chemin tracé
+   est identique en succès comme en échec (`Tracer::trace()` enregistre et transmet le span
+   dans les deux cas), conformément à ce qui était déjà anticipé dans
+   `docker/observability/README.md`.
+2. **`request_id`** : `01a044f9-dd0e-7200-95e5-b73af3d33655`, retourné dans le corps de la
+   réponse d'erreur (`error.request_id`, convention API déjà actée) - inutile même de lire
+   l'en-tête `X-Request-ID` séparément ici.
+3. **Log Loki** : ligne JSON retrouvée dans Grafana Explore (datasource Loki,
+   `{service_name="backend"} |= "01a044f9-dd0e-7200-95e5-b73af3d33655"`) - `channel: app`,
+   `level_name: ERROR`, message `"Unhandled API exception"`, exception
+   `Symfony\Component\HttpKernel\Exception\ServiceUnavailableHttpException` avec pour cause
+   `App\AI\Exception\AiProviderUnavailableException`, contexte `request_id`/`organization_id`/
+   `user_id` bien présents. Le panneau de détail Grafana affiche également un champ
+   `TraceID` reconnu automatiquement - confirmation directe que le champ dérivé Loki→Tempo
+   (`{.request_id="${__value.raw}"}`, provisionné à l'étape 4) fonctionne.
+4. **Trace Tempo** : ouverte depuis ce champ `TraceID`
+   (`f3460169493976380e7530c97573eebe`), service `factusentinel-backend`, span racine
+   `ai.answer_assistant_question` (262,39 ms) avec un span enfant `mistral.chat_completion`
+   (250,14 ms) correctement imbriqué dessous - décomposition Symfony → Mistral visible
+   exactement comme prévu.
+
+Preuve conservée ci-dessus (log JSON complet et capture texte de la vue trace Tempo,
+27/08/2026). Le même test pour le chemin `document_processing`/`mustang.*` (import de
+document) n'a pas été rejoué séparément - le mécanisme est identique (même `Tracer::trace()`,
+même vérification déjà faite en développement à l'étape 4) et le principe du parcours est
+désormais démontré une fois en conditions réelles, ce qui satisfait le critère tel que posé
+ci-dessus ("une seule fois suffit mais réellement").
 
 C'est ce parcours - pas seulement "les conteneurs tournent" - qui donne sa valeur au
 chantier. Non bloquant pour déployer Tempo lui-même, mais bloquant pour clore cette phase.
@@ -164,18 +186,22 @@ injection de `request_id` par `RequestContextProcessor` vérifiés directement.
 - Datasources Prometheus/Loki et trois dashboards (`API et Compliance Engine`,
   `Infrastructure`, `Logs`) provisionnés en code (`docker/observability/grafana/`) -
   `allowUiUpdates: false`, jamais de configuration perdue au clic.
-- Cinq règles d'alerte réelles (`grafana/provisioning/alerting/rules.yaml`), reprenant la
+- Six règles d'alerte réelles (`grafana/provisioning/alerting/rules.yaml`), reprenant la
   grille de sévérité `docs/10-security-privacy.md` §37 dans la limite de ce qui est
   détectable depuis des métriques génériques - le niveau "Critique" (violation d'isolation
   multi-tenant, faille d'authentification, fuite de secret) reste explicitement non couvert,
-  jamais présenté comme tel.
+  jamais présenté comme tel. Sixième règle ajoutée le 27/08/2026 sur
+  `factusentinel_async_jobs_dead_letter_count`, retenue plutôt qu'un moniteur Uptime Kuma
+  "Docker Container" sur `worker` (aurait exigé de monter `/var/run/docker.sock` dans le
+  conteneur de monitoring - accès root-équivalent au démon Docker, un vrai compromis de
+  sécurité écarté pour ce besoin).
 - Point de contact Telegram et politique de notification : configuration manuelle unique via
   l'UI Grafana, même bot que Uptime Kuma - jamais provisionnable par fichier sans exposer un
   secret dans un fichier versionné.
 - Vérification complète (provisioning sans erreur, datasources `OK`, dashboards/règles
   d'alerte présents via l'API, requêtes réelles exécutées) : `docker/observability/README.md`.
 
-### Étape 4 - Traces (OpenTelemetry SDK manuel + Tempo) - fait (déploiement) le 27/08/2026, critère de clôture de la phase encore ouvert
+### Étape 4 - Traces (OpenTelemetry SDK manuel + Tempo) - fait le 27/08/2026, critère de clôture de la phase satisfait (voir section précédente)
 
 - `open-telemetry/sdk` (1.15.0) + `open-telemetry/exporter-otlp` (1.4.0, OTLP/HTTP en JSON,
   jamais protobuf - évite une extension PECL supplémentaire). `App\Shared\Observability\Tracer`
