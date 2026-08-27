@@ -73,6 +73,13 @@ services:
       CORS_ALLOW_ORIGIN: '${CORS_ALLOW_ORIGIN}'
       FRONTEND_URL: '${FRONTEND_URL}'
       HSTS_ENABLED: '${HSTS_ENABLED:-false}'
+      # backend/.env (committé) ne définit que le défaut de dev "null://null" - sans cette
+      # ligne, ce défaut resterait actif en production (aucun autre fichier ne le
+      # surcharge) et VerifyEmailMailer/PasswordResetMailer/InvitationMailer jetteraient
+      # silencieusement chaque email (Phase 18, 27/08/2026). Jamais nécessaire sur
+      # "worker" : ces trois mailers ne sont appelés que depuis des controllers
+      # synchrones de "backend".
+      MAILER_DSN: '${MAILER_DSN}'
     restart: unless-stopped
 
   # "entrypoint" de base (docker-compose.yml) est spécifique au dev : entrypoint-worker-dev.sh
