@@ -21,6 +21,18 @@ security:
             pattern: ^/(_(profiler|wdt)|css|images|js)/
             security: false
 
+        # Phase 18, étape 2 - doit précéder `api` ci-dessous, même raisonnement que
+        # `platform_admin` juste en dessous : ^/api matcherait aussi ce préfixe. Sécurité
+        # entièrement gérée par App\Shared\Controller\GetMetricsController lui-même (jeton
+        # dédié METRICS_SCRAPE_TOKEN) - jamais le composant Security. Nécessaire car
+        # l'authenticator JWT du firewall `api` (jwt: ~) tente d'authentifier toute requête
+        # portant un en-tête "Authorization: Bearer ..." avant même que l'access_control
+        # PUBLIC_ACCESS ne soit évalué, échouant en 401 sur un jeton qui n'est pas un JWT
+        # (constaté à la vérification).
+        metrics:
+            pattern: ^/api/metrics
+            security: false
+
         # Phase 15 (ADR-009) - doit précéder `api` ci-dessous : Symfony retient le premier
         # firewall dont le pattern correspond, et ^/api matcherait aussi ce préfixe.
         # Authentification structurellement séparée (backend/config/services.yaml,
