@@ -230,11 +230,36 @@ services:
       # exacte dans docker/observability/README.md).
       - ./docker/observability/secrets/metrics_scrape_token:/run/secrets/metrics_scrape_token:ro
 
+  # Étape 3 (dashboards/alerting) - seul service de ce volet réellement accessible : par
+  # tunnel SSH sur 127.0.0.1, même principe que "monitoring" (Uptime Kuma) ci-dessus,
+  # jamais via Traefik. Identifiants admin exclusivement via variables d'environnement
+  # (jamais de valeur par défaut ici) ; inscription et accès anonyme désactivés
+  # explicitement plutôt que de compter sur leur défaut (Fail Secure).
+  grafana:
+    image: grafana/grafana:13.2.0
+    restart: unless-stopped
+    profiles: [observability]
+    environment:
+      GF_SECURITY_ADMIN_USER: '${GRAFANA_ADMIN_USER}'
+      GF_SECURITY_ADMIN_PASSWORD: '${GRAFANA_ADMIN_PASSWORD}'
+      GF_USERS_ALLOW_SIGN_UP: 'false'
+      GF_AUTH_ANONYMOUS_ENABLED: 'false'
+    ports:
+      - '127.0.0.1:${GRAFANA_PORT:-3000}:3000'
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./docker/observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./docker/observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      - prometheus
+      - loki
+
 volumes:
   storage_documents:
   uptime_kuma_data:
   loki_data:
   prometheus_data:
+  grafana_data:
 
 # Réseau partagé avec la stack Traefik (infrastructure de niveau serveur, hors de ce
 # dépôt - voir le runbook Phase 17) - créé une seule fois sur le serveur
