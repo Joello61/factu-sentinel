@@ -14,14 +14,19 @@ via `COMPOSE_PROFILES=observability`, jamais présent dans `.env.staging`
 (`.env.prod.example`).
 
 Même modèle de sécurité que Uptime Kuma (`docker/monitoring/README.md`) : aucun de ces
-services ne passe par Traefik ni n'a de route publique. Seul Grafana (étape 3) sera
+services ne passe par Traefik ni n'a de route publique. Seul Grafana (étape 3) est
 accessible, par tunnel SSH, sur un port `127.0.0.1` dédié.
+
+```bash
+ssh -L 3000:localhost:3000 <utilisateur>@<serveur>
+# puis ouvrir http://localhost:3000 dans un navigateur local
+```
 
 ## Construction par étapes (plan Phase 18) - un signal à la fois
 
 1. **Logs** (Alloy + Loki) - fait, voir ci-dessous.
 2. **Métriques** (Prometheus) - fait, voir ci-dessous.
-3. **Dashboards** (Grafana) - à venir.
+3. **Dashboards et alerting** (Grafana) - fait, voir ci-dessous.
 4. **Traces** (OpenTelemetry SDK manuel + Tempo) - à venir, avec pour objectif de démontrer
    concrètement la corrélation requête → `request_id` → log Loki → trace Tempo →
    décomposition Symfony/Mustang/Mistral (critère de clôture de la phase, pas une
@@ -145,3 +150,65 @@ routes `dev` (profiler/wdt) - la règle `access_control` devenue redondante a é
   mesure un délai réel (sous-processus PHP séparé) contre un seuil fixe de 250ms, et échoue
   de façon reproductible dans cet environnement (mesures 200-243ms) - composant non touché
   par cette étape, hors périmètre de cette phase.
+
+## Étape 3 - Dashboards et alerting (Grafana)
+
+- `grafana/provisioning/datasources/datasources.yaml` : Prometheus (`uid: prometheus`) et
+  Loki (`uid: loki`), tout en code, jamais configuré à la main dans l'UI - `uid` fixes pour
+  être référençables explicitement depuis les règles d'alerte.
+- `grafana/provisioning/dashboards/dashboards.yaml` + `grafana/dashboards/*.json` : trois
+  tableaux de bord committés, chacun répondant à une question précise
+  (`allowUiUpdates: false` - toute modification passe par le fichier JSON, jamais par un
+  clic UI qui serait perdu au prochain déploiement) :
+  - **"API et Compliance Engine"** : débit/erreurs/latence HTTP (fourni gratuitement par
+    `AppMetrics`, aucune instrumentation à écrire), analyses de conformité par résultat,
+    imports de documents et appels Mistral/Mustang par issue, coût IA 24h, connectivité
+    Redis/Mustang.
+  - **"Infrastructure (hôte)"** : CPU, mémoire, disque, charge système - métriques Alloy de
+    l'étape 2.
+  - **"Logs"** : vue Loki avec un sélecteur de service et des requêtes déjà écrites
+    (erreurs, rafale de 5xx dérivée des logs).
+- `grafana/provisioning/alerting/rules.yaml` : cinq règles d'alerte réelles, reprenant la
+  grille de sévérité de `docs/10-security-privacy.md` section 37 dans la mesure de ce qui
+  est réellement détectable depuis des métriques génériques - **le niveau "Critique" de
+  cette grille (violation d'isolation multi-tenant, faille d'authentification exploitée,
+  fuite de secret) n'est PAS couvert ici**, ce sont des événements applicatifs qui
+  nécessiteraient une instrumentation dédiée, jamais dérivables d'un taux de 4xx/5xx
+  générique : rafale de 5xx, taux d'échec de connexion anormal (`action="POST-auth_login_check"`,
+  format de label vérifié dans le code du bundle Prometheus), Mustang/Redis injoignables,
+  coût IA anormal sur 24h. Seuils marqués "à ajuster" dans le fichier - valeurs de départ,
+  jamais calibrées sur un usage réel.
+- Service `grafana` (`docker-compose.prod.yml`) : identifiants admin exclusivement par
+  variables d'environnement (`GRAFANA_ADMIN_USER`/`GRAFANA_ADMIN_PASSWORD`,
+  `.env.prod.example`), inscription et accès anonyme désactivés explicitement.
+
+### Point de contact Telegram - configuration manuelle, une fois
+
+Comme pour Uptime Kuma (`docker/monitoring/README.md`), **le point de contact et la
+politique de notification ne sont jamais provisionnés par fichier** - un jeton de bot
+Telegram est un secret, et Grafana ne propose aucun mécanisme pour lire un tel champ depuis
+un fichier séparé au moment du provisioning (contrairement à `credentials_file` côté
+Prometheus) ; le committer en clair dans `rules.yaml` violerait `../CLAUDE.md` section 15.
+
+1. Ouvrir Grafana (tunnel SSH ci-dessus) → Alerting → Contact points → New contact point.
+2. Type "Telegram", **BOT API Token** et **Chat ID** : réutiliser le même bot que celui déjà
+   configuré pour Uptime Kuma (`docker/monitoring/README.md`) - un seul bot, deux
+   consommateurs, jamais un nouveau canal à créer.
+3. Alerting → Notification policies → éditer la politique par défaut → Contact point :
+   sélectionner celui créé à l'étape 2.
+4. Tester : bouton "Test" du contact point, confirmer la réception sur Telegram avant de
+   considérer cette étape terminée.
+
+### Vérification effectuée
+
+- Stack complète (Loki, Alloy, Prometheus, Grafana) démarrée localement : les trois
+  sections de provisioning (`datasources`, `dashboards`, `alerting`) se chargent sans
+  erreur (`logger=provisioning.* ... finished to provision ...`).
+- API Grafana : les trois dashboards et les cinq règles d'alerte sont bien enregistrés ;
+  `api/datasources/uid/{prometheus,loki}/health` renvoie `OK` pour les deux ; les règles
+  d'alerte évaluent avec `health: ok` (aucune erreur de requête).
+- Requêtes réelles testées directement contre les datasources via le proxy Grafana : la
+  requête CPU hôte renvoie une valeur réelle, la requête LogQL du dashboard "Logs" s'exécute
+  sans erreur (0 résultat normal ici - Alloy/Loki/Prometheus/Grafana n'écrivent pas de log
+  JSON `level=ERROR`, contrairement au backend en production), le sélecteur de service du
+  dashboard "Logs" renvoie les bons noms de conteneurs.

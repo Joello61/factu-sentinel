@@ -1195,6 +1195,13 @@ Loki (logs) → Prometheus (métriques) → Grafana (dashboards) → OpenTelemet
   réutilise `PlatformHealthAggregator` pour les jauges de santé - jamais de logique dupliquée.
   Métriques hôte via Alloy (`prometheus.exporter.unix` + `remote_write`). Détail complet :
   `docs/19-observability-architecture.md`, `docker/observability/README.md`.
+- Étape 3 (dashboards/alerting) : **fait**. Datasources et trois dashboards Grafana
+  provisionnés en code, cinq règles d'alerte reprenant la grille de sévérité
+  `10-security-privacy.md` §37 (niveau "Critique" explicitement non couvert - pas dérivable
+  de métriques génériques). Point de contact Telegram configuré manuellement une fois (même
+  bot que Uptime Kuma), jamais par fichier - un secret de bot n'a pas d'équivalent au
+  `credentials_file` de Prometheus côté Grafana. Détail complet :
+  `docs/19-observability-architecture.md`, `docker/observability/README.md`.
 
 ## 42. Operational Readiness
 

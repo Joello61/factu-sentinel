@@ -135,8 +135,20 @@ injection de `request_id` par `RequestContextProcessor` vérifiés directement.
   (`IdempotencyStoreTest`, seuil de timing réel de 250ms non tenu dans cet environnement) -
   composant non touché par cette étape, non corrigé ici (hors périmètre).
 
-### Étape 3 - Dashboards (Grafana) - à venir
+### Étape 3 - Dashboards et alerting (Grafana) - fait le 27/08/2026
 
-### Étape 3 - Dashboards (Grafana) - à venir
+- Datasources Prometheus/Loki et trois dashboards (`API et Compliance Engine`,
+  `Infrastructure`, `Logs`) provisionnés en code (`docker/observability/grafana/`) -
+  `allowUiUpdates: false`, jamais de configuration perdue au clic.
+- Cinq règles d'alerte réelles (`grafana/provisioning/alerting/rules.yaml`), reprenant la
+  grille de sévérité `docs/10-security-privacy.md` §37 dans la limite de ce qui est
+  détectable depuis des métriques génériques - le niveau "Critique" (violation d'isolation
+  multi-tenant, faille d'authentification, fuite de secret) reste explicitement non couvert,
+  jamais présenté comme tel.
+- Point de contact Telegram et politique de notification : configuration manuelle unique via
+  l'UI Grafana, même bot que Uptime Kuma - jamais provisionnable par fichier sans exposer un
+  secret dans un fichier versionné.
+- Vérification complète (provisioning sans erreur, datasources `OK`, dashboards/règles
+  d'alerte présents via l'API, requêtes réelles exécutées) : `docker/observability/README.md`.
 
 ### Étape 4 - Traces (OpenTelemetry SDK manuel + Tempo) - à venir
