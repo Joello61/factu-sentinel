@@ -109,7 +109,17 @@ COPY --from=build --chown=app:app /app /app
 # ci-dessous, Symfony ne peut créer aucun sous-répertoire ("var/cache/prod", "var/log")
 # au runtime ("Unable to create the cache directory"), le répertoire parent restant
 # root:root et non accessible en écriture à un utilisateur non-root.
-RUN mkdir -p var/cache var/log \
+#
+# "var/storage/documents" ci-dessous pour la même raison, mais avec une conséquence plus
+# grave, constatée seulement au premier test réel de restauration en production : ce
+# chemin est le POINT DE MONTAGE du volume Docker nommé "storage_documents"
+# (docker-compose.prod.yml) - Docker recopie la propriété/le contenu d'un répertoire déjà
+# présent dans l'image vers un volume nommé VIDE lors de son tout premier montage (jamais
+# ensuite). Sans ce répertoire créé et possédé par "app" ici, un volume fraîchement créé
+# héritait de la propriété root par défaut, rendant tout upload de document impossible
+# ("Permission denied") - jamais rencontré avant cette vérification, aucun document réel
+# n'ayant encore été uploadé en production.
+RUN mkdir -p var/cache var/log var/storage/documents \
     && chown -R app:app var
 
 USER app

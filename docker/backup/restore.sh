@@ -58,8 +58,11 @@ echo "Restauration du stockage documentaire..."
 # Même raisonnement que backup.sh : passe par le conteneur "backend" plutôt que par un
 # chemin hôte, qui n'est un bind-mount du dépôt qu'en développement (Phase 17,
 # docs/12-roadmap.md) - en production, seul le conteneur voit le volume Docker nommé
-# ("storage_documents").
-docker compose exec -T backend sh -c 'rm -rf /app/var/storage/documents && mkdir -p /app/var/storage/documents'
+# ("storage_documents"). "/app/var/storage/documents" est alors le POINT DE MONTAGE de ce
+# volume, pas un simple répertoire - "rm -rf" dessus échoue avec "Resource busy" (Linux
+# interdit de supprimer un point de montage actif), constaté lors du premier test de
+# restauration réel en production. On vide son CONTENU, jamais le répertoire lui-même.
+docker compose exec -T backend sh -c 'find /app/var/storage/documents -mindepth 1 -delete'
 docker compose exec -T backend tar -xzf - -C /app/var/storage < "$WORKDIR/storage.tar.gz"
 
 echo "Restauration terminée depuis $ARCHIVE_PATH"
