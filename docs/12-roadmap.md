@@ -1198,10 +1198,22 @@ Loki (logs) → Prometheus (métriques) → Grafana (dashboards) → OpenTelemet
 - Étape 3 (dashboards/alerting) : **fait**. Datasources et trois dashboards Grafana
   provisionnés en code, cinq règles d'alerte reprenant la grille de sévérité
   `10-security-privacy.md` §37 (niveau "Critique" explicitement non couvert - pas dérivable
-  de métriques génériques). Point de contact Telegram configuré manuellement une fois (même
-  bot que Uptime Kuma), jamais par fichier - un secret de bot n'a pas d'équivalent au
-  `credentials_file` de Prometheus côté Grafana. Détail complet :
-  `docs/19-observability-architecture.md`, `docker/observability/README.md`.
+  de métriques génériques). Point de contact Telegram et politique de notification : à
+  configurer manuellement une fois déployé (même bot que Uptime Kuma), jamais par fichier -
+  un secret de bot n'a pas d'équivalent au `credentials_file` de Prometheus côté Grafana ;
+  décision explicite de l'éditeur de le faire après la fusion/le déploiement, pas avant.
+  Détail complet : `docs/19-observability-architecture.md`, `docker/observability/README.md`.
+- Étape 4 (traces) : **fait pour le déploiement, critère de clôture de la phase encore
+  ouvert**. OpenTelemetry SDK (instrumentation manuelle, jamais l'auto-instrumentation PECL
+  ni le bundle bêta) + Tempo (mode monolithique, sans Kafka). Spans réels vérifiés avec de
+  vrais appels réseau (backend → Tempo, requête HTTP authentifiée réelle jusqu'à Mistral).
+  Constat d'architecture : Mustang (worker asynchrone) et Mistral (endpoints synchrones) ne
+  sont jamais dans la même requête HTTP dans ce produit - chaque point réel est tracé
+  séparément plutôt que de forcer la structure illustrative initialement supposée. **La
+  corrélation Loki↔Tempo en un seul geste sur une vraie requête n'a pas pu être démontrée en
+  développement** (l'environnement `dev` écrit les logs dans un fichier, jamais `stdout`) -
+  reste à faire une fois en production réelle, procédure exacte dans
+  `docker/observability/README.md`. La Phase 18 reste ouverte jusqu'à cette démonstration.
 
 ## 42. Operational Readiness
 

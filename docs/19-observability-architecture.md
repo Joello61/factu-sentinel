@@ -42,6 +42,16 @@ tournent sur le même VPS OVHcloud (4 vCPU/8 Go) ; doubler la stack d'observabil
   amélioration future possible une fois l'approche manuelle éprouvée.
 - **Tempo en mode monolithique (`-target=all`, le défaut) ne nécessite pas Kafka** - cette
   exigence ne s'applique qu'au mode microservices/scale de Tempo 3.0.
+- **Constat d'architecture (étape 4)** : Mustang et Mistral ne sont **jamais appelés dans la
+  même requête HTTP** dans ce produit. Mustang (`extract`/`validate`) n'est appelé que par
+  `App\Document\MessageHandler\ExtractDocumentContentHandler`, un worker Messenger
+  asynchrone déclenché par l'import d'un document - jamais par
+  `RunComplianceAnalysisService`, qui ne lit que des données déjà extraites. Mistral n'est
+  appelé que par les deux endpoints IA synchrones (`ExplainComplianceFindingService`,
+  `AnswerAssistantQuestionService`). Le plan initial de cette étape supposait à tort une
+  seule requête combinant les deux (reproduisant un exemple illustratif donné en
+  discussion, pas le code réel) - corrigé en traçant chaque point réel séparément plutôt
+  que de forcer artificiellement une structure synchrone qui n'existe pas dans ce produit.
 - **Modèle de sécurité : SSH-tunnel uniquement, comme Uptime Kuma** - Grafana, Prometheus,
   Loki, Tempo et Alloy ne passent jamais par Traefik et n'ont aucune route publique. Seule
   exception : `GET /api/metrics` (étape 2), protégé par un jeton applicatif
@@ -64,8 +74,22 @@ Logs Loki (recherche par request_id, étape 1)
      ↓
 Trace Tempo (même request_id en attribut de span, étape 4)
      ↓
-Décomposition Symfony → Mustang → Mistral visible dans la trace
+Décomposition Symfony → Mustang/Mistral visible dans la trace
 ```
+
+**Statut (27/08/2026) : non satisfait, phase toujours ouverte.** Chaque brique est vérifiée
+séparément avec de vrais appels réseau (span réel backend → Tempo avec `request_id`
+retrouvé par recherche TraceQL ; vraie requête HTTP authentifiée jusqu'à
+`MistralProvider::complete()` déclenchant réellement les spans) - voir le journal de
+l'étape 4 ci-dessous. Ce qui manque, cause identifiée et non un doute : en environnement
+`dev`, `monolog.yaml` envoie les logs vers un fichier (`dev.log`), jamais vers `stdout` -
+Alloy ne peut donc pas les voir localement. Seul l'environnement `prod` réel envoie du JSON
+structuré sur `stderr`. La démonstration du parcours complet en un seul geste (chercher un
+`request_id` dans Loki, cliquer le champ dérivé, arriver sur la trace Tempo) doit donc être
+faite une fois en production - procédure exacte dans `docker/observability/README.md`,
+section étape 4. Cette phase reste ouverte jusqu'à ce que cette procédure ait été exécutée
+et sa preuve ajoutée à ce document (au réel avec captures ou un extrait texte du log et de
+la trace correspondante).
 
 C'est ce parcours - pas seulement "les conteneurs tournent" - qui donne sa valeur au
 chantier. Non bloquant pour déployer Tempo lui-même, mais bloquant pour clore cette phase.
@@ -151,4 +175,29 @@ injection de `request_id` par `RequestContextProcessor` vérifiés directement.
 - Vérification complète (provisioning sans erreur, datasources `OK`, dashboards/règles
   d'alerte présents via l'API, requêtes réelles exécutées) : `docker/observability/README.md`.
 
-### Étape 4 - Traces (OpenTelemetry SDK manuel + Tempo) - à venir
+### Étape 4 - Traces (OpenTelemetry SDK manuel + Tempo) - fait (déploiement) le 27/08/2026, critère de clôture de la phase encore ouvert
+
+- `open-telemetry/sdk` (1.15.0) + `open-telemetry/exporter-otlp` (1.4.0, OTLP/HTTP en JSON,
+  jamais protobuf - évite une extension PECL supplémentaire). `App\Shared\Observability\Tracer`
+  (nouveau) : point d'entrée unique, méthode générique `trace()`, `request_id` injecté
+  automatiquement, flush explicite sur `kernel.terminate` et les événements de fin de
+  message Messenger (jamais un minuteur d'arrière-plan, incompatible avec un processus
+  PHP-FPM court-vécu).
+- Spans ajoutés : `compliance_analysis` (parent), `ai.explain_compliance_finding`/
+  `ai.answer_assistant_question` (parents) avec `mistral.chat_completion` en enfant,
+  `document_processing` (parent, worker Messenger - jamais de `request_id` ici, structurellement
+  absent d'un contexte sans requête HTTP) avec `mustang.extract`/`mustang.validate` en enfants.
+- Bug constaté et corrigé : Tempo 3.0 a supprimé la section `compactor` - la rétention est
+  désormais `overrides.defaults.compaction.block_retention` (confirmé par l'erreur réelle du
+  conteneur, jamais deviné).
+- Datasource Tempo + champ dérivé Loki (`{.request_id="${__value.raw}"}`, recherche TraceQL
+  par attribut de span applicatif, jamais une résolution d'identifiant de trace natif).
+- Vérifié avec de vrais appels réseau (backend réel → Tempo réel, même réseau Docker que la
+  stack de développement) : span réel retrouvé par recherche TraceQL, vraie requête HTTP
+  authentifiée jusqu'à `MistralProvider::complete()` déclenchant réellement les spans
+  attendus. Détail complet : `docker/observability/README.md`.
+- **Non démontré, cause identifiée** : la corrélation Loki↔Tempo en un seul geste, parce que
+  l'environnement `dev` envoie les logs vers un fichier, jamais `stdout` - seul `prod` (la
+  vraie production) le fait. Procédure exacte à exécuter une fois déployé :
+  `docker/observability/README.md`, étape 4. **La Phase 18 reste ouverte jusqu'à
+  l'exécution de cette procédure et l'ajout de sa preuve à ce document.**

@@ -27,10 +27,11 @@ ssh -L 3000:localhost:3000 <utilisateur>@<serveur>
 1. **Logs** (Alloy + Loki) - fait, voir ci-dessous.
 2. **Métriques** (Prometheus) - fait, voir ci-dessous.
 3. **Dashboards et alerting** (Grafana) - fait, voir ci-dessous.
-4. **Traces** (OpenTelemetry SDK manuel + Tempo) - à venir, avec pour objectif de démontrer
-   concrètement la corrélation requête → `request_id` → log Loki → trace Tempo →
-   décomposition Symfony/Mustang/Mistral (critère de clôture de la phase, pas une
-   amélioration facultative).
+4. **Traces** (OpenTelemetry SDK manuel + Tempo) - fait, voir ci-dessous. **Le critère de
+   clôture de la phase (corrélation request_id → log Loki → trace Tempo démontrée sur une
+   vraie requête) reste ouvert** - chaque brique est vérifiée séparément avec des appels
+   réseau réels, mais la démonstration complète nécessite l'environnement de production
+   (voir "Ce qui reste à démontrer après déploiement" ci-dessous).
 
 ## Étape 1 - Logs (Alloy + Loki)
 
@@ -212,3 +213,73 @@ Prometheus) ; le committer en clair dans `rules.yaml` violerait `../CLAUDE.md` s
   sans erreur (0 résultat normal ici - Alloy/Loki/Prometheus/Grafana n'écrivent pas de log
   JSON `level=ERROR`, contrairement au backend en production), le sélecteur de service du
   dashboard "Logs" renvoie les bons noms de conteneurs.
+
+## Étape 4 - Traces (OpenTelemetry SDK manuel + Tempo)
+
+- `open-telemetry/sdk` (1.15.0) + `open-telemetry/exporter-otlp` (1.4.0, OTLP/HTTP en JSON
+  - `ContentTypes::JSON`, jamais `application/x-protobuf` - évite l'extension PECL
+  `protobuf`, cohérent avec la décision de ne pas alourdir le `Dockerfile` pour ce chantier).
+  Jamais le bundle communautaire (bêta) ni l'auto-instrumentation PECL - voir
+  `docs/19-observability-architecture.md` pour la décision complète.
+- `App\Shared\Observability\Tracer` (nouveau, `backend/src/Shared/Observability/`) : point
+  d'entrée unique vers le SDK, même principe que `MetricsRecorder`. Une seule méthode
+  générique `trace(string $spanName, callable $callback, array $attributes = [])` -
+  `request_id` injecté automatiquement sur chaque span depuis une requête HTTP (jamais
+  laissé à la discrétion de l'appelant). `BatchSpanProcessor` + flush explicite sur
+  `kernel.terminate` (après l'envoi de la réponse - jamais sur le chemin critique) et sur
+  les deux événements de fin de message Messenger (`WorkerMessageHandledEvent`/
+  `WorkerMessageFailedEvent`) pour le worker - un minuteur d'arrière-plan ne survivrait pas
+  à la fin d'un processus PHP-FPM court-vécu.
+- Spans ajoutés aux points réels du pipeline :
+  - `compliance_analysis` (`RunComplianceAnalysisService`) - span parent, synchrone.
+  - `ai.explain_compliance_finding` / `ai.answer_assistant_question` (les deux endpoints
+    IA synchrones) - span parent, avec `mistral.chat_completion` (`MistralProvider`) comme
+    enfant.
+  - `document_processing` (`ExtractDocumentContentHandler`, **worker Messenger, jamais une
+    requête HTTP**) - span parent, avec `mustang.extract`/`mustang.validate`
+    (`MustangValidatorClient`) comme enfants. **Aucun `request_id` ici** - ce contexte n'a
+    structurellement jamais de requête HTTP active ; `organization_id`/`document_id`
+    servent d'attributs de corrélation à la place.
+- `tempo.yaml` : mode monolithique (`-target=all`, le défaut - jamais Kafka, réservé au mode
+  microservices/scale de Tempo 3.0, vérifié avant de choisir cet outil), stockage
+  filesystem, rétention 7 jours. **Bug constaté et corrigé** : Tempo 3.0 a supprimé la
+  section `compactor` entièrement - la rétention est désormais
+  `overrides.defaults.compaction.block_retention`, jamais plus une config dédiée (constaté
+  via l'erreur réelle `field compactor not found in type app.Config`, jamais deviné).
+- Datasource Tempo ajoutée à Grafana + champ dérivé sur le datasource Loki
+  (`{.request_id="${__value.raw}"}`, une recherche TraceQL par attribut - `request_id` est
+  un attribut de span applicatif, jamais l'identifiant de trace natif OpenTelemetry, donc
+  jamais une résolution directe d'identifiant).
+
+### Vérification effectuée - et ce qui reste à démontrer après déploiement
+
+**Vérifié avec des appels réseau réels, pas supposé** :
+- Un span envoyé depuis le vrai conteneur `backend` vers un vrai Tempo (même réseau Docker
+  que la stack de développement réelle, pas un projet Compose isolé) : parents/enfants
+  correctement imbriqués, `request_id` présent sur chaque span, retrouvé par une recherche
+  TraceQL `{.request_id="..."}` - exactement le mécanisme utilisé par le champ dérivé Grafana.
+- Une vraie requête HTTP authentifiée (`POST /api/v1/assistant/questions`, jusqu'au bout,
+  jusqu'à l'appel réel à `MistralProvider::complete()`) déclenche bien les spans
+  `ai.answer_assistant_question`/`mistral.chat_completion` - `MISTRAL_API_KEY` étant vide en
+  développement, l'appel échoue (503) mais le chemin tracé est identique en succès comme en
+  échec (`Tracer::trace()` enregistre et transmet le span dans les deux cas).
+- Le format JSON du handler de production et l'injection de `request_id` par
+  `RequestContextProcessor` (étape 1) restent corrects, vérifiés directement.
+
+**Non démontré en développement, à faire une fois déployé** : la corrélation complète en
+un seul geste (chercher un `request_id` dans Loki, cliquer le champ dérivé, arriver sur la
+trace Tempo correspondante) n'a pas pu être vérifiée en local. Cause identifiée, pas un
+doute : `config/packages/monolog.yaml` envoie les logs vers un **fichier**
+(`%kernel.logs_dir%/dev.log`) en environnement `dev`, jamais vers `stdout` - un choix
+délibéré et déjà documenté (étape 1, "format plus verbeux en dev"), mais qui signifie
+qu'Alloy ne voit jamais ces lignes en local, seulement les logs d'accès bruts de PHP-FPM.
+Seul l'environnement `prod` (utilisé réellement en production, `docker-compose.prod.yml`,
+`APP_ENV: prod`) envoie du JSON structuré sur `stderr`. **Procédure à exécuter une fois en
+production, avec preuve à conserver dans `docs/19-observability-architecture.md`** :
+1. Faire une vraie requête authentifiée (ex. `POST /assistant/questions`).
+2. Relever `X-Request-ID` dans la réponse.
+3. Dashboard "Logs" (Grafana) : chercher ce `request_id`, confirmer que la ligne JSON existe.
+4. Cliquer le champ dérivé "Voir la trace Tempo" sur cette ligne, confirmer l'arrivée sur la
+   trace correspondante avec la décomposition `ai.*`/`mistral.*` (ou `document_processing`/
+   `mustang.*` pour un import de document) visible.
+5. Seulement à ce moment, considérer le critère de clôture de la Phase 18 satisfait.
