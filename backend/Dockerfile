@@ -122,7 +122,20 @@ COPY --from=build --chown=app:app /app /app
 RUN mkdir -p var/cache var/log var/storage/documents \
     && chown -R app:app var
 
+# config/jwt/ est le point de montage du volume nommé "jwt_keys" (docker-compose.prod.yml,
+# même raison que "var/storage/documents" ci-dessus) - créé et possédé par "app" avant le
+# "USER app" ci-dessous pour la même raison : un volume nommé fraîchement créé hérite sinon
+# de la propriété root, empêchant "app" d'y écrire les clés générées au démarrage
+# (docker/entrypoint-prod.sh).
+RUN mkdir -p config/jwt \
+    && chown -R app:app config/jwt
+
+COPY docker/entrypoint-prod.sh /usr/local/bin/docker-entrypoint-prod.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint-prod.sh
+
 USER app
+
+ENTRYPOINT ["docker-entrypoint-prod.sh"]
 
 EXPOSE 9000
 

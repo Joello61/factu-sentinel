@@ -67,6 +67,7 @@ services:
     pull_policy: always
     volumes: !override
       - storage_documents:/app/var/storage/documents
+      - jwt_keys:/app/config/jwt
     environment:
       APP_ENV: prod
       APP_DEBUG: '0'
@@ -80,6 +81,11 @@ services:
       # "worker" : ces trois mailers ne sont appelés que depuis des controllers
       # synchrones de "backend".
       MAILER_DSN: '${MAILER_DSN}'
+      # backend/.env (committé) définit "no-reply@factusentinel.local" (domaine fictif,
+      # jamais valide) - sans surcharge ici, Brevo rejette l'envoi (expéditeur non
+      # authentifié, incident réel constaté en production, Phase 18, 27/08/2026). Même
+      # périmètre que MAILER_DSN ci-dessus (backend uniquement).
+      MAILER_FROM: '${MAILER_FROM}'
       # backend/.env (committé) définit APP_SECRET="" (placeholder vide, jamais une valeur
       # utilisable) - sans surcharge ici, framework.secret ("kernel.secret") reste vide en
       # production. symfonycasts/verify-email-bundle en dépend (UriSigner interne) pour
@@ -90,25 +96,43 @@ services:
       # "worker" - kernel.secret est une primitive du framework, pas une dépendance
       # propre à un seul controller comme MAILER_DSN ci-dessus.
       APP_SECRET: '${APP_SECRET}'
+      # backend/.env (committé) commite de vraies valeurs hexadécimales, mais de
+      # développement local uniquement (jamais destinées à un environnement réel,
+      # `docs/15-internal-security-review.md` section 3) - sans surcharge ici, la paire de
+      # clés JWT générée au démarrage (docker/entrypoint-prod.sh) serait chiffrée avec une
+      # passphrase de dev, jamais isolée par environnement. Nécessaire aussi sur "worker" :
+      # les deux services génèrent indépendamment sur le même volume "jwt_keys", la
+      # passphrase doit être identique des deux côtés.
+      JWT_PASSPHRASE: '${JWT_PASSPHRASE}'
+      PLATFORM_ADMIN_JWT_PASSPHRASE: '${PLATFORM_ADMIN_JWT_PASSPHRASE}'
     restart: unless-stopped
 
   # "entrypoint" de base (docker-compose.yml) est spécifique au dev : entrypoint-worker-dev.sh
   # attend un bind-mount partagé avec "backend" qui n'existe pas ici (image déjà construite,
-  # rien à attendre) - !override vide rend à l'entrypoint par défaut de l'image ("command"
-  # ci-dessous, hérité du fichier de base, s'exécute alors directement).
+  # rien à attendre). Un "!override []" (vide) désactiverait entièrement l'ENTRYPOINT de
+  # l'image, y compris celui du Dockerfile ("docker-entrypoint-prod.sh") - constaté en
+  # relisant la sémantique Compose "entrypoint: []" (équivaut à "--entrypoint ''" côté
+  # Docker, jamais un simple retour à l'image par défaut) : "worker" a donc besoin de sa
+  # propre entrée explicite ici, jamais une liste vide, pour générer lui aussi les
+  # trousseaux JWT (voir le commentaire sur "backend" ci-dessus - même volume "jwt_keys").
   worker:
     image: '${BACKEND_IMAGE}'
     build: !reset null
     pull_policy: always
     volumes: !override
       - storage_documents:/app/var/storage/documents
-    entrypoint: !override []
+      - jwt_keys:/app/config/jwt
+    entrypoint: !override ['docker-entrypoint-prod.sh']
     environment:
       APP_ENV: prod
       APP_DEBUG: '0'
       # Même raison que "backend" ci-dessus (kernel.secret) - jamais MAILER_DSN ici, voir
       # le commentaire correspondant sur "backend".
       APP_SECRET: '${APP_SECRET}'
+      # Même raison que "backend" ci-dessus (génération JWT au démarrage sur le volume
+      # partagé "jwt_keys") - voir le commentaire correspondant sur "backend".
+      JWT_PASSPHRASE: '${JWT_PASSPHRASE}'
+      PLATFORM_ADMIN_JWT_PASSPHRASE: '${PLATFORM_ADMIN_JWT_PASSPHRASE}'
 
   mustang:
     image: '${MUSTANG_IMAGE}'
@@ -302,6 +326,11 @@ services:
 
 volumes:
   storage_documents:
+  # config/jwt/*.pem (les deux trousseaux, tenant et platform_admin) - généré au démarrage
+  # par docker/entrypoint-prod.sh, jamais bakée dans l'image (backend/Dockerfile) ; ce
+  # volume nommé est ce qui permet à "--skip-if-exists" de réutiliser la même paire d'un
+  # déploiement à l'autre plutôt que d'en régénérer une à chaque redémarrage de conteneur.
+  jwt_keys:
   uptime_kuma_data:
   loki_data:
   prometheus_data:
