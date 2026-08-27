@@ -1,0 +1,115 @@
+# Architecture d'observabilité - Phase 18
+
+> Ce document détaille les choix techniques de la Phase 18 (`docs/12-roadmap.md` §41) et
+> journalise les étapes réellement franchies, au fur et à mesure - jamais rédigé par
+> anticipation d'une étape non encore livrée.
+
+## Contexte et portée
+
+Phase 17 a fermé la roadmap MVP avec une décision explicite : "pas de stack
+d'observabilité disproportionnée" (`docs/12-roadmap.md` §41), Uptime Kuma suffisant pour
+la disponibilité. Cette décision reste valable *pour un besoin de production* - l'objectif
+de la Phase 18 est différent et explicitement assumé par l'éditeur : **apprendre à
+instrumenter une vraie API** (métriques, logs centralisés, traces distribuées), pas
+combler un manque de production.
+
+**Portée : production uniquement.** Staging garde ses outils actuels (logs Docker, logs
+Symfony, `/api/health`, Uptime Kuma) - pas la stack complète. Les deux environnements
+tournent sur le même VPS OVHcloud (4 vCPU/8 Go) ; doubler la stack d'observabilité aurait
+été une mauvaise optimisation pour un objectif d'apprentissage.
+
+**Ordre de construction, un signal à la fois, mesuré avant de passer au suivant** :
+1. Alloy + Loki (logs)
+2. Prometheus (métriques)
+3. Grafana (dashboards)
+4. OpenTelemetry + Tempo (traces) - en dernier, le plus délicat
+
+## Décisions techniques actées (recherche du 26-27/08/2026)
+
+- **Promtail est EOL** (2 mars 2026, plus aucun correctif) - remplacé par **Grafana
+  Alloy**, le collecteur unifié recommandé par Grafana Labs aujourd'hui.
+- **Le bundle communautaire `friendsofopentelemetry/opentelemetry-bundle` est
+  explicitement en stade "Development"/bêta** (vérifié sur son dépôt GitHub et Packagist)
+  - en conflit avec la règle du projet interdisant les dépendances bêta/expérimentales
+  (`../CLAUDE.md` section 5). **Décision : ne pas l'utiliser.** À la place (étape 4) : le
+  SDK PHP officiel `open-telemetry/sdk` (stable) + `open-telemetry/exporter-otlp` (stable,
+  OTLP/HTTP - évite l'extension PECL gRPC), avec de l'instrumentation **manuelle**, pas
+  d'auto-instrumentation via l'extension PECL `ext-opentelemetry`. Choix aussi le plus
+  cohérent avec l'objectif d'apprentissage - écrire soi-même les spans enseigne davantage
+  qu'un paquet qui instrumente tout automatiquement, et évite d'ajouter une extension C au
+  `Dockerfile` de production pour ce premier chantier. L'auto-instrumentation officielle
+  (`open-telemetry/opentelemetry-auto-symfony`, celle-ci réellement stable) reste une
+  amélioration future possible une fois l'approche manuelle éprouvée.
+- **Tempo en mode monolithique (`-target=all`, le défaut) ne nécessite pas Kafka** - cette
+  exigence ne s'applique qu'au mode microservices/scale de Tempo 3.0.
+- **Modèle de sécurité : SSH-tunnel uniquement, comme Uptime Kuma** - Grafana, Prometheus,
+  Loki, Tempo et Alloy ne passent jamais par Traefik et n'ont aucune route publique. Seule
+  exception : `GET /api/metrics` (étape 2), protégé par un jeton applicatif
+  (`METRICS_SCRAPE_TOKEN`), puisqu'il est servi par Nginx qui, lui, est déjà exposé
+  publiquement pour le reste de l'API.
+- Versions exactes des images tierces : vérifiées et pinnées au moment de chaque étape
+  (jamais le tag `latest`) - voir le journal ci-dessous pour les valeurs réellement
+  utilisées, à revérifier avant toute mise à jour future.
+
+## Critère de complétude de la phase - non négociable
+
+La Phase 18 n'est pas considérée terminée tant que le parcours complet suivant n'a pas été
+démontré concrètement, une seule fois suffit mais réellement, sur une vraie requête en
+production :
+
+```text
+Requête HTTP → request_id (RequestIdListener)
+     ↓
+Logs Loki (recherche par request_id, étape 1)
+     ↓
+Trace Tempo (même request_id en attribut de span, étape 4)
+     ↓
+Décomposition Symfony → Mustang → Mistral visible dans la trace
+```
+
+C'est ce parcours - pas seulement "les conteneurs tournent" - qui donne sa valeur au
+chantier. Non bloquant pour déployer Tempo lui-même, mais bloquant pour clore cette phase.
+
+## Journal des étapes
+
+### Étape 1 - Logs (Alloy + Loki) - fait le 27/08/2026
+
+- `symfony/monolog-bundle` (v4.0.2) ajouté - recette Symfony standard
+  (`backend/config/packages/monolog.yaml`) : JSON structuré sur `stderr` en production
+  (déjà capturé par Docker), format lisible en développement.
+- `App\Shared\Logging\RequestContextProcessor` (nouveau, `backend/src/Shared/Logging/`) :
+  enrichit chaque ligne de log avec `request_id` (`RequestIdListener::ATTRIBUTE`, déjà
+  généré/renvoyé par requête) et, quand disponibles, `organization_id`
+  (`CurrentOrganizationResolver::ATTRIBUTE`) et `user_id` (`Security::getUser()`) -
+  identifiants UUID uniquement, jamais d'email, de SIREN, de montant ou de contenu de
+  document/prompt IA (`docs/10-security-privacy.md` section 35).
+- `docker/observability/loki-config.yaml` : Loki `grafana/loki:3.7.6`, mode single-binary,
+  stockage filesystem sur le volume nommé `loki_data`, rétention 30 jours, télémétrie
+  anonyme désactivée.
+- `docker/observability/alloy-config.alloy` : Alloy `grafana/alloy:v1.19.2`, découverte via
+  le socket Docker, filtrée sur `FACTUSENTINEL_COMPOSE_PROJECT` (voir "Bug constaté"
+  ci-dessous), forward vers Loki.
+- `docker-compose.prod.yml` : services `loki`/`alloy` ajoutés, tous deux sous
+  `profiles: [observability]` (actif uniquement si `COMPOSE_PROFILES=observability`, jamais
+  défini dans `.env.staging`) - mécanisme Docker Compose standard, aucune duplication de
+  fichier compose nécessaire pour la portée "production uniquement".
+- `COMPOSE_PROJECT_NAME` rendu obligatoire par environnement (`.env.prod.example`) - unique
+  sur tout le VPS, consommé par Compose lui-même ET par Alloy pour le filtrage ci-dessous.
+
+**Bug constaté et corrigé pendant la vérification** : passer uniquement les `.rules`
+(export) d'un composant `discovery.relabel` à l'argument `relabel_rules` de
+`loki.source.docker` réétiquette les entrées mais **ne les exclut jamais de la collecte** -
+vérifié empiriquement en local (Alloy remontait bien les conteneurs d'un tout autre projet
+Compose, avec `service_name=unknown_service` faute de label appliqué). Le filtrage réel doit
+passer par la liste de cibles elle-même : `discovery.relabel` doit recevoir les vraies
+cibles (`targets = discovery.docker.host.targets`), et c'est son export `.output` (pas
+`.rules` seul) qui doit alimenter `targets` sur `loki.source.docker`. Reproduit et
+revérifié après correction : plus aucune fuite entre projets Compose, logs réels ingérés et
+requêtables via l'API Loki (`/loki/api/v1/query_range`), format JSON de production et
+injection de `request_id` par `RequestContextProcessor` vérifiés directement.
+
+### Étape 2 - Métriques (Prometheus) - à venir
+
+### Étape 3 - Dashboards (Grafana) - à venir
+
+### Étape 4 - Traces (OpenTelemetry SDK manuel + Tempo) - à venir

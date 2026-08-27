@@ -20,6 +20,13 @@ développement (bind-mount, `docker-compose.yml`). En production
 passent désormais par `docker compose exec backend tar ...` dans les deux cas, jamais un
 chemin hôte supposé.
 
+**Hors périmètre (Phase 18, décision explicite)** : les données de la stack d'observabilité
+(`docker/observability/` - Loki, Prometheus, Tempo) ne rejoignent jamais cette sauvegarde.
+Ce sont des données d'observabilité, pas des données métier - entièrement reproductibles
+depuis le provisioning Grafana (as-code, `docker/observability/grafana/provisioning/`) et
+sans perte de valeur métier en cas de perte, contrairement à PostgreSQL/`storage_documents`
+ci-dessus.
+
 ## RPO / RTO
 
 24h / 24h (décision produit actée, `docs/10-security-privacy.md` section 59) - une

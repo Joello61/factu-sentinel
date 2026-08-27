@@ -481,7 +481,13 @@ Ce journal sert une double fonction : la **conformité produit** elle-même (ré
 
 **Monitoring** - disponibilité de l'application elle-même, disponibilité perçue des intégrations externes (section 16), santé de la file de tâches (jobs bloqués ou en échec répété, section 13), utilisation du stockage.
 
-Aucun outil précis n'est choisi ici, conformément à la consigne de ne pas trancher prématurément l'implémentation.
+Outils retenus (Phase 18, `docs/19-observability-architecture.md`, portée production
+uniquement) : logs via Grafana Alloy + Loki (Promtail EOL) ; métriques via Prometheus ;
+traces via un SDK OpenTelemetry PHP instrumenté manuellement (jamais l'auto-instrumentation
+par extension PECL ni le bundle Symfony communautaire, en stade bêta au moment du choix) +
+Grafana Tempo ; tableau de bord unique via Grafana. Aucun de ces outils ne remplace Uptime
+Kuma (disponibilité, Phase 17) - voir `docs/19-observability-architecture.md` pour la
+distinction et le détail des choix.
 
 ## 24. Gestion des erreurs
 

@@ -1168,6 +1168,26 @@ Phase 17 : monitoring auto-hébergé (Uptime Kuma, docker/monitoring/README.md) 
 
 **Pas de stack d'observabilité disproportionnée au MVP** - logs et métriques de base suffisent pour un développeur solo, cohérent avec `06-technical-architecture.md` (section 23).
 
+**Phase 18 (27/08/2026) - révision explicite de la décision ci-dessus** : la décision "pas
+de stack disproportionnée au MVP" reste valable pour un besoin de production, mais l'objectif
+de la Phase 18 est différent et assumé par l'éditeur - apprendre concrètement à instrumenter
+une API réelle (métriques, logs centralisés, traces distribuées), pas combler un manque de
+production. Portée : **production uniquement** (staging garde ses outils actuels - logs
+Docker, `/api/health`, Uptime Kuma) ; les deux environnements tournant sur le même VPS,
+doubler la stack aurait été une mauvaise optimisation pour un objectif d'apprentissage.
+Construction séquentielle, un signal à la fois, mesuré avant de passer au suivant : Alloy +
+Loki (logs) → Prometheus (métriques) → Grafana (dashboards) → OpenTelemetry + Tempo
+(traces). Détail complet des choix et journal des étapes : `docs/19-observability-architecture.md`.
+
+- Étape 1 (logs) : **fait**. Promtail (EOL 2 mars 2026) jamais retenu - Alloy à la place.
+  `symfony/monolog-bundle` ajouté (JSON structuré sur `stderr` en production, recette
+  Symfony standard), `App\Shared\Logging\RequestContextProcessor` corrèle chaque ligne de
+  log à `request_id` (et `organization_id`/`user_id` quand authentifiée). Filtrage Alloy par
+  projet Compose vérifié empiriquement nécessaire (l'argument `relabel_rules` seul de
+  `loki.source.docker` ne suffit pas à exclure les conteneurs de l'autre environnement
+  partageant le même socket Docker - la liste de cibles elle-même doit être filtrée en
+  amont, voir `docker/observability/README.md`).
+
 ## 42. Operational Readiness
 
 Avant la Phase 17 (Production) : sauvegardes testées (`10-security-privacy.md`, section 54), procédure de restauration documentée et testée (section 37 de `09-test-strategy.md`), monitoring et alerting actifs (section 41 de ce document), processus de réponse aux incidents documenté même de façon simple (`10-security-privacy.md`, section 55), documentation opérationnelle à jour (section 40), stratégie de déploiement et de rollback définie (`06-technical-architecture.md`, section 32).
