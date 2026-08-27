@@ -1203,17 +1203,18 @@ Loki (logs) → Prometheus (métriques) → Grafana (dashboards) → OpenTelemet
   un secret de bot n'a pas d'équivalent au `credentials_file` de Prometheus côté Grafana ;
   décision explicite de l'éditeur de le faire après la fusion/le déploiement, pas avant.
   Détail complet : `docs/19-observability-architecture.md`, `docker/observability/README.md`.
-- Étape 4 (traces) : **fait pour le déploiement, critère de clôture de la phase encore
-  ouvert**. OpenTelemetry SDK (instrumentation manuelle, jamais l'auto-instrumentation PECL
-  ni le bundle bêta) + Tempo (mode monolithique, sans Kafka). Spans réels vérifiés avec de
-  vrais appels réseau (backend → Tempo, requête HTTP authentifiée réelle jusqu'à Mistral).
-  Constat d'architecture : Mustang (worker asynchrone) et Mistral (endpoints synchrones) ne
-  sont jamais dans la même requête HTTP dans ce produit - chaque point réel est tracé
-  séparément plutôt que de forcer la structure illustrative initialement supposée. **La
-  corrélation Loki↔Tempo en un seul geste sur une vraie requête n'a pas pu être démontrée en
-  développement** (l'environnement `dev` écrit les logs dans un fichier, jamais `stdout`) -
-  reste à faire une fois en production réelle, procédure exacte dans
-  `docker/observability/README.md`. La Phase 18 reste ouverte jusqu'à cette démonstration.
+- Étape 4 (traces) : **fait, critère de clôture de la phase satisfait le 27/08/2026**.
+  OpenTelemetry SDK (instrumentation manuelle, jamais l'auto-instrumentation PECL ni le
+  bundle bêta) + Tempo (mode monolithique, sans Kafka). Constat d'architecture : Mustang
+  (worker asynchrone) et Mistral (endpoints synchrones) ne sont jamais dans la même requête
+  HTTP dans ce produit - chaque point réel est tracé séparément plutôt que de forcer la
+  structure illustrative initialement supposée. **Corrélation Loki↔Tempo démontrée en
+  production réelle** : une vraie requête authentifiée (`POST /assistant/questions`,
+  `request_id` `01a044f9-dd0e-7200-95e5-b73af3d33655`) retrouvée dans Loki, champ dérivé
+  Grafana fonctionnel, trace Tempo ouverte avec la décomposition
+  `ai.answer_assistant_question` → `mistral.chat_completion` visible - preuve complète dans
+  `docs/19-observability-architecture.md`, section « Critère de complétude ». **Phase 18
+  close.**
 
 **Phase 19 (27/08/2026) - gap constaté, pas encore corrigé** : la Phase 18 couple la stack
 d'observabilité à FactuSentinel (`docker-compose.prod.yml`, un seul projet Compose), alors
