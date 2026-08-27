@@ -1215,6 +1215,16 @@ Loki (logs) → Prometheus (métriques) → Grafana (dashboards) → OpenTelemet
   reste à faire une fois en production réelle, procédure exacte dans
   `docker/observability/README.md`. La Phase 18 reste ouverte jusqu'à cette démonstration.
 
+**Phase 19 (27/08/2026) - gap constaté, pas encore corrigé** : la Phase 18 couple la stack
+d'observabilité à FactuSentinel (`docker-compose.prod.yml`, un seul projet Compose), alors
+que l'éditeur avait explicitement proposé dès le départ un socle partagé
+(`/opt/infrastructure/`, réutilisable par un futur projet). Écart reconnu en cours de
+Phase 18, décision explicite de l'éditeur de terminer la Phase 18 couplée d'abord (valider
+que ça fonctionne), puis de documenter la migration séparément plutôt que de retravailler
+l'architecture avant d'avoir un signal réel - voir
+`docs/20-observability-infrastructure-migration.md` pour le gap complet et le plan de
+migration (rien n'est encore exécuté).
+
 ## 42. Operational Readiness
 
 Avant la Phase 17 (Production) : sauvegardes testées (`10-security-privacy.md`, section 54), procédure de restauration documentée et testée (section 37 de `09-test-strategy.md`), monitoring et alerting actifs (section 41 de ce document), processus de réponse aux incidents documenté même de façon simple (`10-security-privacy.md`, section 55), documentation opérationnelle à jour (section 40), stratégie de déploiement et de rollback définie (`06-technical-architecture.md`, section 32).
