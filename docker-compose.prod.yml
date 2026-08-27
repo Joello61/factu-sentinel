@@ -198,13 +198,43 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - ./docker/observability/alloy-config.alloy:/etc/alloy/config.alloy:ro
+      # Étape 2 - prometheus.exporter.unix a besoin du vrai /proc, /sys et système de
+      # fichiers de l'hôte, jamais la vue cgroup limitée du conteneur (constaté à la
+      # vérification, docker/observability/README.md).
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/host/root:ro
     depends_on:
       - loki
+      - prometheus
+
+  # Étape 2 (métriques) - jamais de port hôte non plus (accès seulement via Grafana, étape
+  # 3, sur le réseau Docker interne), même principe que "loki" ci-dessus. Le récepteur
+  # remote-write est activé uniquement pour recevoir les métriques hôte poussées par Alloy
+  # (docker/observability/alloy-config.alloy) - jamais un accès externe à ce chemin, ce
+  # service n'a de toute façon aucun port publié.
+  prometheus:
+    image: prom/prometheus:v3.14.0
+    restart: unless-stopped
+    profiles: [observability]
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=15d'
+      - '--web.enable-remote-write-receiver'
+    volumes:
+      - prometheus_data:/prometheus
+      - ./docker/observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      # Jamais le jeton en clair dans un fichier versionné (../CLAUDE.md section 15) -
+      # fichier créé une fois manuellement sur le serveur, jamais committé (procédure
+      # exacte dans docker/observability/README.md).
+      - ./docker/observability/secrets/metrics_scrape_token:/run/secrets/metrics_scrape_token:ro
 
 volumes:
   storage_documents:
   uptime_kuma_data:
   loki_data:
+  prometheus_data:
 
 # Réseau partagé avec la stack Traefik (infrastructure de niveau serveur, hors de ce
 # dépôt - voir le runbook Phase 17) - créé une seule fois sur le serveur

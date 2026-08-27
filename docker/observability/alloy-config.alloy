@@ -47,6 +47,29 @@ loki.write "default" {
 	}
 }
 
-// Étape 2 (Prometheus) étendra ce fichier avec un composant
-// prometheus.exporter.unix pour les métriques hôte (CPU/RAM/disque) - pas ajouté ici pour
-// garder chaque étape indépendamment vérifiable (plan Phase 18).
+// Étape 2 - métriques hôte (CPU/RAM/disque), comble le trou explicitement documenté dans
+// App\PlatformAdmin\Service\PlatformHealthAggregator ("jamais de métrique d'infrastructure
+// hôte... relève du monitoring auto-hébergé externe"). Constaté à la vérification :
+// prometheus.exporter.unix seul n'expose aucun /metrics agrégé qu'un Prometheus externe
+// pourrait "pull" - il faut le "push" explicitement vers le récepteur remote-write de
+// Prometheus (docker-compose.prod.yml, "--web.enable-remote-write-receiver"), jamais un
+// scrape_config Prometheus pointant directement sur Alloy.
+prometheus.exporter.unix "host" {
+	// Alloy tourne dans un conteneur : sans ces trois chemins, l'exporter ne verrait que le
+	// /proc et /sys DU CONTENEUR (vue cgroup), jamais le vrai VPS hôte - bind-mounts en
+	// lecture seule correspondants dans docker-compose.prod.yml.
+	procfs_path = "/host/proc"
+	sysfs_path  = "/host/sys"
+	rootfs_path = "/host/root"
+}
+
+prometheus.scrape "host" {
+	targets    = prometheus.exporter.unix.host.targets
+	forward_to = [prometheus.remote_write.default.receiver]
+}
+
+prometheus.remote_write "default" {
+	endpoint {
+		url = "http://prometheus:9090/api/v1/write"
+	}
+}
