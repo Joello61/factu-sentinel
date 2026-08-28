@@ -117,6 +117,11 @@ jobs:
           DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
           IMAGE_BASE: ${{ needs.build-and-push.outputs.image_base }}
           IMAGE_TAG: ${{ needs.build-and-push.outputs.image_tag }}
+          # Identité machine Universal Auth Infisical dédiée à "staging" (Phase 19
+          # Workstream B) - accès en lecture seule, limité à l'environnement Infisical
+          # "staging" du projet "FactuSentinel", jamais partagée avec "production".
+          INFISICAL_CLIENT_ID: ${{ secrets.INFISICAL_CLIENT_ID }}
+          INFISICAL_CLIENT_SECRET: ${{ secrets.INFISICAL_CLIENT_SECRET }}
         run: docker/deploy/ssh-deploy.sh staging
 
   # environment: production sans "needs: deploy-staging" ne suffirait pas à empêcher un
@@ -145,4 +150,9 @@ jobs:
           DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
           IMAGE_BASE: ${{ needs.build-and-push.outputs.image_base }}
           IMAGE_TAG: ${{ needs.build-and-push.outputs.image_tag }}
+          # Identité machine Universal Auth Infisical dédiée à "production" (Phase 19
+          # Workstream B) - accès en lecture seule, limité à l'environnement Infisical
+          # "production" du projet "FactuSentinel", jamais partagée avec "staging".
+          INFISICAL_CLIENT_ID: ${{ secrets.INFISICAL_CLIENT_ID }}
+          INFISICAL_CLIENT_SECRET: ${{ secrets.INFISICAL_CLIENT_SECRET }}
         run: docker/deploy/ssh-deploy.sh production
