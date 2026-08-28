@@ -1220,15 +1220,20 @@ Loki (logs) → Prometheus (métriques) → Grafana (dashboards) → OpenTelemet
   `docs/19-observability-architecture.md`, section « Critère de complétude ». **Phase 18
   close.**
 
-**Phase 19 (27/08/2026) - gap constaté, pas encore corrigé** : la Phase 18 couple la stack
-d'observabilité à FactuSentinel (`docker-compose.prod.yml`, un seul projet Compose), alors
-que l'éditeur avait explicitement proposé dès le départ un socle partagé
-(`/opt/infrastructure/`, réutilisable par un futur projet). Écart reconnu en cours de
-Phase 18, décision explicite de l'éditeur de terminer la Phase 18 couplée d'abord (valider
-que ça fonctionne), puis de documenter la migration séparément plutôt que de retravailler
-l'architecture avant d'avoir un signal réel - voir
-`docs/20-observability-infrastructure-migration.md` pour le gap complet et le plan de
-migration (rien n'est encore exécuté).
+**Phase 19 (27-28/08/2026) - Workstream A (migration infra) fait, Workstream B (secrets)
+reste à faire.** La Phase 18 couplait la stack d'observabilité à FactuSentinel
+(`docker-compose.prod.yml`, un seul projet Compose), alors que l'éditeur avait explicitement
+proposé dès le départ un socle partagé (`/opt/infrastructure/`, réutilisable par un futur
+projet). Écart reconnu en cours de Phase 18, décision explicite de l'éditeur de terminer la
+Phase 18 couplée d'abord (valider que ça fonctionne), puis de migrer séparément - voir
+`docs/20-observability-infrastructure-migration.md` pour le plan complet et son état
+d'exécution réel (écarts inclus : Traefik et Uptime Kuma également migrés, dépôt Git dédié,
+trois bugs réels trouvés et corrigés en cours de migration). Traefik, Loki, Alloy, Prometheus,
+Tempo, Grafana et Uptime Kuma vivent désormais dans `github.com/Joello61/infrastructure`,
+réutilisable par de futurs projets hébergés sur le même VPS. Détail complet et preuves :
+`docs/19-observability-architecture.md`. Reste à faire (Workstream B, non commencé) :
+gestionnaire de secrets (Infisical), régénération complète des secrets prod/staging, correctif
+`PLATFORM_ADMIN_TOTP_ENCRYPTION_KEY`.
 
 ## 42. Operational Readiness
 
