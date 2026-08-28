@@ -72,8 +72,19 @@ echo "=== Synchronisation du code au commit testé (${IMAGE_TAG}) ==="
 git fetch origin main
 git checkout --quiet "$IMAGE_TAG"
 
+# "docker-compose.prod.observability.yml" ajoute nginx/backend/worker à
+# "observability-shared" (socle partagé, Phase 19) - chargé UNIQUEMENT en production,
+# jamais en staging (portée déjà documentée, voir ce fichier pour le raisonnement complet :
+# la fusion de listes Compose est strictement additive, aucun override ne peut retirer un
+# réseau ajouté dans un fichier de base - seul le fait de ne jamais charger ce fichier pour
+# staging garantit l'exclusion, jamais un contenu conditionnel à l'intérieur du fichier).
+COMPOSE_FILES="-f docker-compose.yml -f docker-compose.prod.yml -f docker-compose.prod.traefik.yml"
+if [ "$ENVIRONMENT" = "production" ]; then
+  COMPOSE_FILES="\$COMPOSE_FILES -f docker-compose.prod.observability.yml"
+fi
+
 echo "=== Récupération des images ==="
-docker compose --env-file "$ENV_FILE" -f docker-compose.yml -f docker-compose.prod.yml -f docker-compose.prod.traefik.yml pull
+docker compose --env-file "$ENV_FILE" \$COMPOSE_FILES pull
 
 echo "=== Démarrage des nouveaux conteneurs ==="
 # "--remove-orphans" : "docker compose up -d" ne supprime jamais de lui-même les conteneurs
@@ -83,7 +94,7 @@ echo "=== Démarrage des nouveaux conteneurs ==="
 # indéfiniment, en conflit de port avec le nouveau socle partagé). Scope automatiquement
 # limité au projet Compose courant (COMPOSE_PROJECT_NAME) - ne touche jamais aux
 # conteneurs d'un autre projet (ex. /opt/infrastructure/).
-docker compose --env-file "$ENV_FILE" -f docker-compose.yml -f docker-compose.prod.yml -f docker-compose.prod.traefik.yml up -d --remove-orphans
+docker compose --env-file "$ENV_FILE" \$COMPOSE_FILES up -d --remove-orphans
 
 echo "=== Migrations de base de données ==="
 # Étape distincte et explicite, après le démarrage des nouveaux conteneurs (plan
