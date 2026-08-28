@@ -1,9 +1,11 @@
 # Phase 19 - Migration de la stack d'observabilité vers /opt/infrastructure/
 
-> Ce document ne migre rien : il documente un écart constaté, sa cause, et un plan de
-> migration concret - rien de ce qui suit n'a été exécuté. La Phase 18 (`docs/12-roadmap.md`
-> §41, `docs/19-observability-architecture.md`) reste la source de vérité pour ce qui est
-> réellement déployé aujourd'hui.
+> **Mise à jour (28/08/2026) : Workstream A (migration infra) exécuté et vérifié en
+> production - voir « État d'exécution réel » en fin de document pour les écarts précis
+> par rapport au plan ci-dessous.** Workstream B (secrets, section « Rajout - Hygiène des
+> secrets ») reste non exécuté. Le plan original ci-dessous est conservé tel quel comme
+> historique de la décision, pas réécrit silencieusement - les écarts sont documentés
+> séparément.
 
 ## Le gap constaté
 
@@ -230,12 +232,65 @@ réel de ce chantier.
    complet (inscription, connexion, email, IA, alertes) comme à la clôture de la Phase 18.
 6. Documenter la procédure de rotation dans `docs/10-security-privacy.md` section 27.
 
-## Ce que ce document ne fait pas
+## Ce que ce document ne fait pas (état au moment de la rédaction du plan ci-dessus)
 
-Il ne migre rien, ne provisionne rien, ne modifie aucun fichier de production. C'est un
-plan à exécuter plus tard, une fois que l'éditeur aura validé en conditions réelles que la
-Phase 18 (couplée à FactuSentinel) fonctionne correctement - décision explicite de
-l'éditeur (27/08/2026) de séquencer les choses ainsi plutôt que de retravailler
-l'architecture avant d'avoir un signal de fonctionnement réel. Le rajout sur l'hygiène des
-secrets ci-dessus suit le même principe : rien n'a été régénéré, aucun gestionnaire n'a été
-installé, seul le périmètre et l'inventaire sont posés.
+Le plan ci-dessus ne migrait rien, ne provisionnait rien, ne modifiait aucun fichier de
+production - une fois que l'éditeur avait validé en conditions réelles que la Phase 18
+(couplée à FactuSentinel) fonctionnait correctement (décision explicite du 27/08/2026). Le
+rajout sur l'hygiène des secrets suit toujours le même principe et reste non exécuté (voir
+ci-dessous) : rien n'a été régénéré, aucun gestionnaire n'a été installé, seul le périmètre
+et l'inventaire sont posés.
+
+## État d'exécution réel (28/08/2026)
+
+**Workstream A (migration infra) exécuté et vérifié en production**, avec plusieurs écarts
+réels par rapport au plan original ci-dessus - jamais une réécriture silencieuse des
+sections précédentes, documentés ici :
+
+- **Traefik également migré**, alors que le plan original le laissait explicitement hors
+  périmètre ("déjà traité exactement comme l'éditeur le souhaite"). Décision de l'éditeur en
+  cours de revue du plan d'exécution : devenir le reverse proxy global versionné du VPS.
+  Capture de la configuration réellement active sur le serveur (déjà en place depuis le
+  26/08/2026, jamais devinée), `git init` en place sans toucher au conteneur en cours
+  d'exécution - zéro coupure, contrairement à la procédure de bascule initialement prévue.
+- **Uptime Kuma également migré**, absent du plan original (gap dans le gap, découvert
+  pendant la revue du plan d'exécution). Aucune fusion propre possible entre les deux
+  instances existantes (production/staging) - Uptime Kuma 2.x a retiré l'export/import JSON
+  (vérifié, pas supposé) - décision de l'éditeur : une seule instance partagée, données de
+  production migrées 1:1, moniteurs de staging recréés manuellement.
+- **`/opt/infrastructure/` devient un dépôt Git privé dédié** (`github.com/Joello61/infrastructure`),
+  jamais des fichiers serveur non versionnés - le plan original laissait la question ouverte.
+- Le gestionnaire de secrets a été tranché en cours d'exécution : **Infisical** (self-hosted,
+  MIT) - voir Workstream B ci-dessous, toujours non exécuté au moment de cette mise à jour.
+
+**Trois bugs réels trouvés et corrigés pendant l'exécution**, aucun anticipé dans le plan
+original, tous vérifiés avant/après correction (jamais supposés résolus) :
+
+1. **Réseau `observability-shared` partagé par erreur avec staging.** `docker-compose.prod.yml`
+   étant identique entre production et staging, l'ajout direct du réseau prévu par le plan
+   original mettait aussi staging dessus - collision d'alias DNS Compose (`nginx`) entre les
+   deux environnements, Prometheus scrapait parfois le mauvais environnement. Corrigé par un
+   nouveau fichier `docker-compose.prod.observability.yml`, chargé uniquement en production
+   par `ssh-deploy.sh` (la fusion de listes réseau Compose étant strictement additive,
+   l'exclusion ne peut se faire qu'au niveau du fichier chargé, jamais de son contenu). Un
+   second bug (perte du réseau `default` implicite pour `backend`/`worker`) a été attrapé par
+   `docker compose config` avant tout commit.
+2. **Permissions du fichier `metrics_scrape_token_factusentinel`** - Prometheus tourne en
+   UID `65534` (`nobody`) dans son conteneur, pas root ; le fichier créé côté hôte
+   appartenait à `ubuntu` avec `600` - `chown 65534:65534` requis.
+3. **`METRICS_SCRAPE_TOKEN` jamais câblé dans `docker-compose.prod.yml` depuis la Phase 18**
+   (absent du bloc `environment` de `backend`, contrairement à `APP_SECRET`/`MAILER_DSN`/
+   `JWT_PASSPHRASE`/`MISTRAL_API_KEY`, déjà corrigés à l'époque) - la production acceptait
+   silencieusement le jeton de développement commité dans `backend/.env` au lieu de la
+   vraie valeur de `.env.production`. Trouvé en vérifiant le scrape Prometheus depuis le
+   nouveau socle, jamais une régression de cette migration - un gap préexistant depuis la
+   Phase 18, jamais repéré avant.
+
+Autre correction apportée en cours de route, indépendante du contenu de ce plan mais
+nécessaire pour l'exécuter sans risque : ajout de `--remove-orphans` à
+`docker/deploy/ssh-deploy.sh` (`docker compose up -d` ne retire jamais de lui-même les
+conteneurs d'un service supprimé d'un fichier Compose).
+
+Détail complet des vérifications (traces Tempo, alertes Grafana, datasources) :
+`docs/19-observability-architecture.md`, section « Phase 19 - migration vers le socle
+partagé ».

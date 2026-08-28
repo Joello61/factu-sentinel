@@ -6,8 +6,10 @@ Phase 17 (`docs/12-roadmap.md`). Couvre le pont HTTP -> FastCGI interne de produ
 
 **Périmètre de cette phase** : configuration générique, indépendante de l'hébergeur
 retenu (OVHcloud, `docs/12-roadmap.md` Phase 17). L'exécution réelle (domaine, DNS,
-premier certificat) relève du Bloc B - voir le runbook serveur Phase 17 pour la procédure
-complète, jamais anticipée ici.
+premier certificat) relève du Bloc B - voir le dépôt `github.com/Joello61/infrastructure`
+(`traefik/`, Phase 19) pour la configuration Traefik réelle, jamais anticipée ici. (Ce
+dépôt a remplacé un "runbook serveur Phase 17" qui n'a en réalité jamais existé comme
+fichier distinct - référence corrigée plutôt que reproduite une fois de plus.)
 
 ## Rôle de Nginx depuis l'introduction de Traefik
 
@@ -37,15 +39,16 @@ PHP-FPM) - son seul rôle restant, avec le routage `/` vers le frontend Next.js.
 
 ## TLS, DNS, certificat réel
 
-Entièrement porté par Traefik désormais - voir le runbook serveur Phase 17 (installation
-Traefik, résolveur ACME, labels de routage sur ce service `nginx`) pour la procédure
-complète d'émission du premier certificat et son renouvellement automatique.
+Entièrement porté par Traefik désormais - voir `github.com/Joello61/infrastructure`
+(`traefik/`, configuration statique, résolveur ACME) pour la configuration réelle. Labels
+de routage sur ce service `nginx` : `docker-compose.prod.traefik.yml` (non commité, propre
+à chaque environnement, voir son `.example`).
 
 ## Ce qui reste au Bloc B
 
 - Domaine réel, DNS pointant vers le serveur provisionné.
 - `PUBLIC_DOMAIN` réel dans `.env.production`/`.env.staging` (voir `.env.prod.example`).
-- Installation et configuration de Traefik sur le serveur (runbook Phase 17).
+- Installation et configuration de Traefik sur le serveur (`github.com/Joello61/infrastructure`, `traefik/`).
 - Activation de `HSTS_ENABLED=true` (`backend/.env`, `HstsHeaderListener`) **seulement**
   une fois le certificat réel confirmé actif côté Traefik - jamais avant, au risque de
   rendre le site inaccessible en HTTPS pour les navigateurs l'ayant déjà mémorisé.

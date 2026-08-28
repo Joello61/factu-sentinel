@@ -227,3 +227,47 @@ injection de `request_id` par `RequestContextProcessor` vérifiés directement.
   vraie production) le fait. Procédure exacte à exécuter une fois déployé :
   `docker/observability/README.md`, étape 4. **La Phase 18 reste ouverte jusqu'à
   l'exécution de cette procédure et l'ajout de sa preuve à ce document.**
+
+## Phase 19 - migration vers le socle partagé (28/08/2026)
+
+Toutes les références ci-dessus à `docker/observability/` et à `docker-compose.prod.yml`
+(services `loki`/`alloy`/`prometheus`/`tempo`/`grafana`/`monitoring`) décrivent l'état réel
+de la Phase 18, couplé à FactuSentinel - elles restent exactes comme **historique**, mais ne
+décrivent plus l'emplacement réel de la configuration depuis la Phase 19. Loki, Alloy,
+Prometheus, Tempo, Grafana et Uptime Kuma vivent désormais dans le dépôt privé
+`github.com/Joello61/infrastructure`, réutilisable par de futurs projets hébergés sur le même
+VPS - voir `docs/20-observability-infrastructure-migration.md` pour le plan de migration et
+son exécution réelle. Le code applicatif référencé ci-dessus
+(`RequestContextProcessor`/`MetricsRecorder`/`GetMetricsController`/`Tracer`) est resté
+inchangé - il ignore complètement qui consomme ses signaux.
+
+**Critère de clôture reproduit sur le nouveau socle (28/08/2026)** :
+- Trace Tempo retrouvée directement via TraceQL sur `request_id` réel
+  (`01a049d9-8480-7c93-a0a2-e7a59cdfb853`, requête authentifiée réelle
+  `POST /assistant/questions`) - `rootTraceName: ai.answer_assistant_question`, décomposition
+  correcte, `mistral.chat_completion` en enfant.
+- **Nuance découverte, pas une régression de la migration** : aucune ligne JSON avec
+  `request_id` n'existe dans Loki pour cette requête, alors qu'elle a pourtant réussi.
+  Cause identifiée dans le code, pas supposée : `backend/config/packages/monolog.yaml`
+  utilise le handler `fingers_crossed` en production (`action_level: error`) - les logs
+  d'une requête ne sont écrits sur `stderr` que si une erreur survient réellement pendant
+  cette requête, jamais pour un succès. Le pipeline Loki lui-même reste confirmé fonctionnel
+  (vraies lignes `backend` reçues côté Loki, labels corrects, `environment=production`) -
+  seule cette requête précise, sans erreur, n'avait rien à transmettre. La démonstration
+  originale de la Phase 18 (`request_id` `01a044f9-dd0e-7200-95e5-b73af3d33655`) a
+  probablement coïncidé avec une requête qui échouait réellement à l'époque (plusieurs bugs
+  de production étaient en cours de correction simultanément) - pas un cas représentatif à
+  reproduire systématiquement sur une requête qui réussit.
+- Datasources Prometheus/Loki/Tempo et les 6 règles d'alerte confirmés sains via l'API
+  Grafana (`health: ok`, aucune `lastError`) sur le nouveau socle.
+
+**Trois bugs réels trouvés et corrigés pendant la migration**, aucun anticipé au départ,
+tous vérifiés avant/après correction plutôt que supposés résolus (détail complet dans
+`docs/20-observability-infrastructure-migration.md`) :
+1. Réseau `observability-shared` partagé par erreur avec staging (résolution DNS ambiguë de
+   l'alias `nginx`, jetons de deux environnements en collision) - corrigé par un overlay
+   Compose chargé uniquement en production.
+2. Permissions du fichier `metrics_scrape_token_factusentinel` (Prometheus tourne en UID
+   65534, pas root).
+3. `METRICS_SCRAPE_TOKEN` jamais câblé dans `docker-compose.prod.yml` depuis la Phase 18 -
+   la production acceptait silencieusement le jeton de développement commité dans le dépôt.
