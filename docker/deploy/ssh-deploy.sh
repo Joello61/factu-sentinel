@@ -76,7 +76,14 @@ echo "=== Récupération des images ==="
 docker compose --env-file "$ENV_FILE" -f docker-compose.yml -f docker-compose.prod.yml -f docker-compose.prod.traefik.yml pull
 
 echo "=== Démarrage des nouveaux conteneurs ==="
-docker compose --env-file "$ENV_FILE" -f docker-compose.yml -f docker-compose.prod.yml -f docker-compose.prod.traefik.yml up -d
+# "--remove-orphans" : "docker compose up -d" ne supprime jamais de lui-même les conteneurs
+# d'un service retiré d'un fichier Compose (constaté en pratique, Phase 19,
+# docs/20-observability-infrastructure-migration.md - le retrait de la stack
+# d'observabilité/monitoring embarquée aurait sinon laissé tourner des conteneurs orphelins
+# indéfiniment, en conflit de port avec le nouveau socle partagé). Scope automatiquement
+# limité au projet Compose courant (COMPOSE_PROJECT_NAME) - ne touche jamais aux
+# conteneurs d'un autre projet (ex. /opt/infrastructure/).
+docker compose --env-file "$ENV_FILE" -f docker-compose.yml -f docker-compose.prod.yml -f docker-compose.prod.traefik.yml up -d --remove-orphans
 
 echo "=== Migrations de base de données ==="
 # Étape distincte et explicite, après le démarrage des nouveaux conteneurs (plan
