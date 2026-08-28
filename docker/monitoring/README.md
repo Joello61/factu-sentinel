@@ -26,38 +26,21 @@ dans un seul mécanisme** (plan Phase 17) :
   outil de monitoring ne peut pas franchir - les sauvegardes (voir plus bas) et
   l'expiration du certificat TLS (voir plus bas).
 
-## Uptime Kuma (`docker-compose.prod.yml`, service `monitoring`)
+## Uptime Kuma - déplacé vers le socle partagé (Phase 19)
 
-Auto-hébergé (`louislam/uptime-kuma`), jamais exposé publiquement - un tableau de bord de
-supervision révèle la topologie interne du service et n'a d'utilité que pour l'opérateur,
-jamais pour un utilisateur final. Publié uniquement sur `127.0.0.1:3001` du serveur :
-accès par tunnel SSH.
+Uptime Kuma vivait auparavant dans `docker-compose.prod.yml` (service `monitoring`),
+couplé au seul projet Compose de FactuSentinel, avec un port dédié par environnement
+(`MONITORING_PORT`). Migré vers le socle partagé du VPS (Phase 19,
+`docs/20-observability-infrastructure-migration.md`) : une seule instance désormais,
+`github.com/Joello61/infrastructure`, qui surveille tous les projets hébergés sur ce
+serveur - accès toujours exclusivement par tunnel SSH, jamais exposé publiquement (voir le
+README de ce dépôt pour la procédure et le port réel).
 
-```bash
-ssh -L 3001:localhost:3001 <utilisateur>@<serveur>
-# puis ouvrir http://localhost:3001 dans un navigateur local
-```
-
-Uptime Kuma ne propose pas de provisioning déclaratif par fichier de configuration
-(vérifié le 26/08/2026) - les moniteurs ci-dessous se créent une fois, manuellement, via
-son interface, au moment du Bloc B (premier déploiement réel avec un domaine confirmé).
-
-### Moniteurs à créer
-
-| Moniteur | Type | Cible | Ce qu'il prouve |
-|---|---|---|---|
-| API publique | HTTP(s) | `https://<domaine>/api/health` | Disponibilité de bout en bout (Nginx → backend → PostgreSQL), certificat TLS (activer "Certificate Expiry Notification" - alerte intégrée, aucun script séparé nécessaire) |
-| PostgreSQL | TCP Port | `postgres:5432` (réseau Docker interne - Uptime Kuma tourne sur le même réseau) | Le conteneur accepte des connexions |
-| Redis | TCP Port | `redis:6379` | Idem |
-| Mustang | TCP Port | `mustang:8080` | Idem |
-| ClamAV | TCP Port | `clamav:3310` | Idem |
-| Sauvegarde quotidienne | Push (passif) | URL générée par Uptime Kuma, renseignée dans `BACKUP_MONITORING_PUSH_URL` (`docker/backup/README.md`) | Détecte une sauvegarde silencieusement absente (cron qui ne se déclenche plus, échec avant le point d'envoi) - configurer l'intervalle attendu à un peu plus de 24h, jamais moins que la fréquence réelle du cron |
-
-### Notifications
-
-À configurer une fois un canal choisi (email, Slack, Discord, autre - Uptime Kuma
-supporte plusieurs canaux nativement) - aucun canal n'est retenu par les décisions
-produit actuelles, ce choix reste au Bloc B.
+Les moniteurs eux-mêmes (API publique, TCP `postgres`/`redis`/`mustang`/`clamav`, push
+sauvegarde quotidienne) restent ceux déjà configurés manuellement dans l'interface Uptime
+Kuma - migrés avec le volume de données lors de la bascule (Phase 19), jamais recréés à
+zéro. Uptime Kuma ne propose toujours pas de provisioning déclaratif par fichier de
+configuration (vérifié le 26/08/2026).
 
 ## Ce que ce volet ne couvre pas
 
