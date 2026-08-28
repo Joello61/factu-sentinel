@@ -115,6 +115,12 @@ services:
       JWT_PASSPHRASE: '${JWT_PASSPHRASE}'
       PLATFORM_ADMIN_JWT_PASSPHRASE: '${PLATFORM_ADMIN_JWT_PASSPHRASE}'
     restart: unless-stopped
+    networks:
+      - default
+      # Export OTLP des traces vers "tempo:4318" (socle partagé, Phase 19) - "worker"
+      # rejoint aussi ce même réseau ci-dessous, pour les mêmes raisons (spans
+      # "document_processing"/"mustang.*", étape 4 de la Phase 18).
+      - observability-shared
 
   # "entrypoint" de base (docker-compose.yml) est spécifique au dev : entrypoint-worker-dev.sh
   # attend un bind-mount partagé avec "backend" qui n'existe pas ici (image déjà construite,
@@ -145,6 +151,11 @@ services:
       # Même raison que "backend" ci-dessus (kernel.secret) - jamais MAILER_DSN ici, voir
       # le commentaire correspondant sur "backend".
       APP_SECRET: '${APP_SECRET}'
+    networks:
+      - default
+      # Export OTLP des traces vers "tempo:4318" (socle partagé, Phase 19) - voir le
+      # commentaire correspondant sur "backend".
+      - observability-shared
 
   mustang:
     image: '${MUSTANG_IMAGE}'
@@ -203,6 +214,11 @@ services:
     networks:
       - default
       - traefik-public
+      # Cible de scrape Prometheus (Phase 19, socle partagé) - rejoint uniquement par
+      # "nginx" (jamais "backend"/"worker" directement, jamais "postgres"/"redis"/"mustang" -
+      # moindre privilège, seul le point d'entrée HTTP a besoin d'être atteint depuis
+      # l'extérieur de ce projet Compose).
+      - observability-shared
     # Les labels Traefik (nom du routeur) ne sont PAS ici : Compose interpole les
     # variables d'environnement dans les valeurs de labels, jamais dans leurs clés
     # (vérifié avec "docker compose config" le 26/08/2026) - or Traefik traite les noms
@@ -213,128 +229,13 @@ services:
     # chaque environnement (voir docker-compose.prod.traefik.yml.example), jamais dans ce
     # fichier générique partagé.
 
-  # Monitoring auto-hébergé (Phase 17, docs/12-roadmap.md §41) - OVHcloud n'a pas
-  # d'équivalent natif à Scaleway Cockpit (comparaison hébergeur, plan Phase 17). Interface
-  # jamais exposée publiquement (accès par tunnel SSH uniquement, voir docker/monitoring/
-  # README.md) : un tableau de bord de supervision révèle la topologie interne et n'a
-  # d'utilité que pour l'opérateur, jamais pour un utilisateur final. Les moniteurs
-  # eux-mêmes (HTTP, TCP, push) se configurent une fois via son interface, pas par ce
-  # fichier - Uptime Kuma ne propose pas de provisioning déclaratif par YAML au moment de
-  # l'écriture (vérifié le 26/08/2026).
-  #
-  # Port hôte paramétrable (MONITORING_PORT, défaut 3001) - constaté au premier
-  # déploiement production réel : un port fixe entre en collision dès qu'une seconde stack
-  # (staging) tourne sur le même VPS ("Bind for 127.0.0.1:3001 failed: port is already
-  # allocated"), même mécanisme que le nom de routeur Traefik (docker-compose.prod.traefik.yml) -
-  # une ressource au niveau du serveur, jamais partageable telle quelle entre deux
-  # environnements sur le même hôte. Contrairement au nom de routeur Traefik, une simple
-  # valeur (pas une clé de label) suffit ici - interpolée directement dans ce fichier
-  # partagé, chaque environnement fixant sa propre valeur dans son .env.
-  monitoring:
-    image: louislam/uptime-kuma:2.3.2
-    restart: unless-stopped
-    volumes:
-      - uptime_kuma_data:/app/data
-    ports:
-      - '127.0.0.1:${MONITORING_PORT:-3001}:3001'
-
-  # Phase 18 (docs/19-observability-architecture.md), étape 1 - jamais exposé publiquement,
-  # même principe que "monitoring" ci-dessus (aucun port hôte : seul Grafana, étape 3, lira
-  # ce service sur le réseau Docker interne). Actif uniquement en production
-  # (COMPOSE_PROFILES=observability, jamais dans .env.staging - portée décidée pour cette
-  # phase, docs/12-roadmap.md §41).
-  loki:
-    image: grafana/loki:3.7.6
-    restart: unless-stopped
-    profiles: [observability]
-    volumes:
-      - loki_data:/loki
-      - ./docker/observability/loki-config.yaml:/etc/loki/local-config.yaml:ro
-
-  # Remplace Promtail (EOL 2 mars 2026) - découvre et lit les logs des conteneurs de CE
-  # projet Compose uniquement (FACTUSENTINEL_COMPOSE_PROJECT, voir
-  # docker/observability/alloy-config.alloy) : le socket Docker est partagé par tout le VPS,
-  # staging inclus - sans ce filtre, Alloy remonterait aussi les conteneurs de l'autre
-  # environnement.
-  alloy:
-    image: grafana/alloy:v1.19.2
-    restart: unless-stopped
-    profiles: [observability]
-    command: ['run', '--server.http.listen-addr=0.0.0.0:12345', '/etc/alloy/config.alloy']
-    environment:
-      FACTUSENTINEL_COMPOSE_PROJECT: '${COMPOSE_PROJECT_NAME}'
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-      - ./docker/observability/alloy-config.alloy:/etc/alloy/config.alloy:ro
-      # Étape 2 - prometheus.exporter.unix a besoin du vrai /proc, /sys et système de
-      # fichiers de l'hôte, jamais la vue cgroup limitée du conteneur (constaté à la
-      # vérification, docker/observability/README.md).
-      - /proc:/host/proc:ro
-      - /sys:/host/sys:ro
-      - /:/host/root:ro
-    depends_on:
-      - loki
-      - prometheus
-
-  # Étape 2 (métriques) - jamais de port hôte non plus (accès seulement via Grafana, étape
-  # 3, sur le réseau Docker interne), même principe que "loki" ci-dessus. Le récepteur
-  # remote-write est activé uniquement pour recevoir les métriques hôte poussées par Alloy
-  # (docker/observability/alloy-config.alloy) - jamais un accès externe à ce chemin, ce
-  # service n'a de toute façon aucun port publié.
-  prometheus:
-    image: prom/prometheus:v3.14.0
-    restart: unless-stopped
-    profiles: [observability]
-    command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
-      - '--storage.tsdb.path=/prometheus'
-      - '--storage.tsdb.retention.time=15d'
-      - '--web.enable-remote-write-receiver'
-    volumes:
-      - prometheus_data:/prometheus
-      - ./docker/observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      # Jamais le jeton en clair dans un fichier versionné (../CLAUDE.md section 15) -
-      # fichier créé une fois manuellement sur le serveur, jamais committé (procédure
-      # exacte dans docker/observability/README.md).
-      - ./docker/observability/secrets/metrics_scrape_token:/run/secrets/metrics_scrape_token:ro
-
-  # Étape 4 (traces) - mode monolithique (target "all", le défaut), jamais Kafka (réservé
-  # au mode microservices/scale de Tempo 3.0, vérifié avant de choisir cet outil). Jamais de
-  # port hôte : seuls Grafana (lecture) et backend/worker (écriture OTLP, réseau Docker
-  # interne "default") lui parlent.
-  tempo:
-    image: grafana/tempo:3.0.3
-    restart: unless-stopped
-    profiles: [observability]
-    command: ['-config.file=/etc/tempo/tempo.yaml']
-    volumes:
-      - tempo_data:/var/tempo
-      - ./docker/observability/tempo.yaml:/etc/tempo/tempo.yaml:ro
-
-  # Étape 3 (dashboards/alerting) - seul service de ce volet réellement accessible : par
-  # tunnel SSH sur 127.0.0.1, même principe que "monitoring" (Uptime Kuma) ci-dessus,
-  # jamais via Traefik. Identifiants admin exclusivement via variables d'environnement
-  # (jamais de valeur par défaut ici) ; inscription et accès anonyme désactivés
-  # explicitement plutôt que de compter sur leur défaut (Fail Secure).
-  grafana:
-    image: grafana/grafana:13.2.0
-    restart: unless-stopped
-    profiles: [observability]
-    environment:
-      GF_SECURITY_ADMIN_USER: '${GRAFANA_ADMIN_USER}'
-      GF_SECURITY_ADMIN_PASSWORD: '${GRAFANA_ADMIN_PASSWORD}'
-      GF_USERS_ALLOW_SIGN_UP: 'false'
-      GF_AUTH_ANONYMOUS_ENABLED: 'false'
-    ports:
-      - '127.0.0.1:${GRAFANA_PORT:-3000}:3000'
-    volumes:
-      - grafana_data:/var/lib/grafana
-      - ./docker/observability/grafana/provisioning:/etc/grafana/provisioning:ro
-      - ./docker/observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
-    depends_on:
-      - prometheus
-      - loki
-      - tempo
+  # Le monitoring (Uptime Kuma) et l'observabilité (Loki/Alloy/Prometheus/Tempo/Grafana)
+  # vivaient auparavant ici, couplés à ce seul projet Compose (Phase 17 §41, Phase 18) -
+  # migrés vers le socle partagé du VPS (Phase 19,
+  # docs/20-observability-infrastructure-migration.md) : dépôt privé
+  # github.com/Joello61/infrastructure, réutilisable par de futurs projets hébergés sur ce
+  # même serveur. "nginx" ci-dessous rejoint désormais "observability-shared" (cible de
+  # scrape Prometheus) au lieu d'exécuter ces services localement.
 
 volumes:
   storage_documents:
@@ -345,15 +246,13 @@ volumes:
   # Monté uniquement sur "backend", jamais "worker" (voir son commentaire) - un seul
   # écrivain, jamais deux entrypoints concurrents sur le même fichier.
   jwt_keys:
-  uptime_kuma_data:
-  loki_data:
-  prometheus_data:
-  grafana_data:
-  tempo_data:
 
-# Réseau partagé avec la stack Traefik (infrastructure de niveau serveur, hors de ce
-# dépôt - voir le runbook Phase 17) - créé une seule fois sur le serveur
-# ("docker network create traefik-public"), jamais par ce fichier lui-même.
+# "traefik-public" et "observability-shared" sont des réseaux partagés avec le socle
+# d'infrastructure du VPS (github.com/Joello61/infrastructure, Phase 19 - hors de ce
+# dépôt) - créés une seule fois sur le serveur ("docker network create <nom>"), jamais par
+# ce fichier lui-même.
 networks:
   traefik-public:
+    external: true
+  observability-shared:
     external: true
