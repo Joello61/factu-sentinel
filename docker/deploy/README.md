@@ -15,8 +15,7 @@ bloque donc aussi bien la CI que tout déploiement qui en dépendrait.
 ### 1. Serveur(s) provisionnés
 
 Recommandation d'origine : un serveur pour `staging`, un pour `production` (jamais la
-même base de données). **Décision retenue au provisionnement réel (runbook serveur
-Phase 17, section 3.5)** : un seul VPS pour les deux, faute d'un second serveur
+même base de données). **Décision retenue au provisionnement réel** : un seul VPS pour les deux, faute d'un second serveur
 disponible - deux stacks Compose indépendantes sur ce VPS (répertoires, bases de
 données, volumes de stockage et sous-domaines distincts), routées par la même instance
 Traefik partagée. Toujours vrai dans les deux cas :
@@ -32,9 +31,13 @@ Traefik partagée. Toujours vrai dans les deux cas :
   au premier déploiement réel (Phase 17) : avant ce correctif, un changement de
   `docker-compose.prod.yml` (rendre le port du service `monitoring` configurable)
   n'atteignait jamais le serveur, cette étape n'existant pas encore - seules les images
-  étaient mises à jour. Les fichiers non suivis par Git (`.env.staging`/`.env.production`,
-  `docker-compose.prod.traefik.yml`) ne sont jamais affectés par cette synchronisation.
-- `.env.staging`/`.env.production` renseignés (voir `.env.prod.example`), jamais committés.
+  étaient mises à jour. Les fichiers non suivis par Git (`docker-compose.prod.traefik.yml`)
+  ne sont jamais affectés par cette synchronisation.
+- Secrets applicatifs (`POSTGRES_*`, `APP_SECRET`, `JWT_PASSPHRASE`, etc.) stockés dans
+  Infisical (Phase 19 Workstream B) - plus de fichier `.env.staging`/`.env.production`
+  contenant des valeurs réelles sur le serveur (voir `.env.prod.example`, désormais
+  purement documentaire : inventaire commenté des variables attendues, jamais chargé par
+  Compose).
 - `docker-compose.prod.traefik.yml` créé une fois par environnement (voir
   `docker-compose.prod.traefik.yml.example`) avec un nom de routeur Traefik **unique sur
   tout le serveur** (ex. `factusentinel` en production, `factusentinel-staging` en
@@ -55,7 +58,7 @@ Traefik partagée. Toujours vrai dans les deux cas :
   et le domaine de cet environnement pointant réellement vers le serveur (DNS) - le
   certificat TLS est alors émis automatiquement par Traefik au premier appel HTTPS
   routé, jamais un préalable manuel côté FactuSentinel (voir `docker/nginx/README.md` et
-  le runbook serveur Phase 17). `docker-compose.prod.yml` (service `nginx`) ne dépend
+  `github.com/Joello61/infrastructure`, `traefik/`). `docker-compose.prod.yml` (service `nginx`) ne dépend
   plus d'aucun certificat pour démarrer - il ne sert qu'en HTTP interne.
 
 ### 2. Clé SSH de déploiement
@@ -77,6 +80,8 @@ par le job, `.github/workflows/deploy.yml`) :
 | `SSH_HOST` | Adresse du serveur (IP ou domaine) |
 | `SSH_USER` | Utilisateur SSH de déploiement |
 | `DEPLOY_PATH` | Chemin absolu du dépôt cloné sur le serveur (ex. `/opt/factusentinel`) |
+| `INFISICAL_CLIENT_ID` | Identité machine Universal Auth (Phase 19 Workstream B) dédiée à cet environnement, projet Infisical "FactuSentinel" |
+| `INFISICAL_CLIENT_SECRET` | Client secret associé - accès en lecture seule, jamais partagé entre staging et production |
 
 **Sur l'environnement `production` uniquement** : ajouter une règle **"Required
 reviewers"** (au moins toi-même) - c'est ce qui matérialise la "validation manuelle avant
@@ -108,8 +113,8 @@ de chaque nouvelle migration avant fusion, additive vs destructive.
 
 ## Vérification avant le tout premier déploiement réel
 
-- [ ] `docker compose --env-file .env.staging -f docker-compose.yml -f docker-compose.prod.yml -f docker-compose.prod.traefik.yml config` valide sans erreur sur le serveur lui-même.
-- [ ] Traefik installé, démarré, et réseau `traefik-public` créé sur le serveur ; DNS du domaine de cet environnement déjà propagé (`docker/nginx/README.md`, runbook serveur Phase 17).
+- [ ] `infisical run --projectId=<id> --env=staging -- docker compose -f docker-compose.yml -f docker-compose.prod.yml -f docker-compose.prod.traefik.yml config` valide sans erreur sur le serveur lui-même.
+- [ ] Traefik installé, démarré, et réseau `traefik-public` créé sur le serveur ; DNS du domaine de cet environnement déjà propagé (`docker/nginx/README.md`, `github.com/Joello61/infrastructure`).
 - [ ] `docker login ghcr.io` déjà fait sur le serveur.
 - [ ] Secrets des deux environnements GitHub renseignés, "Required reviewers" actif sur `production`.
 - [ ] Migrations existantes revues une dernière fois (additives uniquement).
