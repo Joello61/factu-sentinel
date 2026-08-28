@@ -114,6 +114,16 @@ services:
       # gère aucune route HTTP/JWT et ne doit jamais écrire concurremment sur "jwt_keys").
       JWT_PASSPHRASE: '${JWT_PASSPHRASE}'
       PLATFORM_ADMIN_JWT_PASSPHRASE: '${PLATFORM_ADMIN_JWT_PASSPHRASE}'
+      # backend/.env (committé) définit une vraie valeur hexadécimale, mais de
+      # développement local uniquement (même défaut que JWT_PASSPHRASE ci-dessus) - jamais
+      # câblé ici depuis la Phase 18 (oubli réel, jamais une décision délibérée), constaté
+      # le 28/08/2026 en vérifiant le scrape Prometheus depuis le nouveau socle partagé
+      # (Phase 19) : la production acceptait silencieusement le jeton de développement,
+      # public dans le dépôt, au lieu de la vraie valeur de `.env.production`
+      # (`GetMetricsController` compare via `hash_equals`, jamais un 500 qui aurait signalé
+      # le problème plus tôt - juste une acceptation incorrecte). Jamais nécessaire sur
+      # "worker" - `GET /api/metrics` n'est jamais exposé que par "backend".
+      METRICS_SCRAPE_TOKEN: '${METRICS_SCRAPE_TOKEN}'
     restart: unless-stopped
     # "observability-shared" (export OTLP vers "tempo:4318") n'est PAS ici - vit dans
     # docker-compose.prod.observability.yml, chargé uniquement en production
