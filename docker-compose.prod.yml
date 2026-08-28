@@ -115,12 +115,10 @@ services:
       JWT_PASSPHRASE: '${JWT_PASSPHRASE}'
       PLATFORM_ADMIN_JWT_PASSPHRASE: '${PLATFORM_ADMIN_JWT_PASSPHRASE}'
     restart: unless-stopped
-    networks:
-      - default
-      # Export OTLP des traces vers "tempo:4318" (socle partagé, Phase 19) - "worker"
-      # rejoint aussi ce même réseau ci-dessous, pour les mêmes raisons (spans
-      # "document_processing"/"mustang.*", étape 4 de la Phase 18).
-      - observability-shared
+    # "observability-shared" (export OTLP vers "tempo:4318") n'est PAS ici - vit dans
+    # docker-compose.prod.observability.yml, chargé uniquement en production
+    # (ssh-deploy.sh) - voir ce fichier pour le raisonnement complet (bug réel corrigé,
+    # Phase 19, 28/08/2026).
 
   # "entrypoint" de base (docker-compose.yml) est spécifique au dev : entrypoint-worker-dev.sh
   # attend un bind-mount partagé avec "backend" qui n'existe pas ici (image déjà construite,
@@ -151,11 +149,7 @@ services:
       # Même raison que "backend" ci-dessus (kernel.secret) - jamais MAILER_DSN ici, voir
       # le commentaire correspondant sur "backend".
       APP_SECRET: '${APP_SECRET}'
-    networks:
-      - default
-      # Export OTLP des traces vers "tempo:4318" (socle partagé, Phase 19) - voir le
-      # commentaire correspondant sur "backend".
-      - observability-shared
+    # "observability-shared" n'est PAS ici, voir le commentaire correspondant sur "backend".
 
   mustang:
     image: '${MUSTANG_IMAGE}'
@@ -214,11 +208,10 @@ services:
     networks:
       - default
       - traefik-public
-      # Cible de scrape Prometheus (Phase 19, socle partagé) - rejoint uniquement par
-      # "nginx" (jamais "backend"/"worker" directement, jamais "postgres"/"redis"/"mustang" -
-      # moindre privilège, seul le point d'entrée HTTP a besoin d'être atteint depuis
-      # l'extérieur de ce projet Compose).
-      - observability-shared
+    # "observability-shared" n'est PAS ici (cible de scrape Prometheus) - vit dans
+    # docker-compose.prod.observability.yml, chargé uniquement en production
+    # (ssh-deploy.sh), voir ce fichier pour le raisonnement complet.
+    #
     # Les labels Traefik (nom du routeur) ne sont PAS ici : Compose interpole les
     # variables d'environnement dans les valeurs de labels, jamais dans leurs clés
     # (vérifié avec "docker compose config" le 26/08/2026) - or Traefik traite les noms
@@ -234,8 +227,9 @@ services:
   # migrés vers le socle partagé du VPS (Phase 19,
   # docs/20-observability-infrastructure-migration.md) : dépôt privé
   # github.com/Joello61/infrastructure, réutilisable par de futurs projets hébergés sur ce
-  # même serveur. "nginx" ci-dessous rejoint désormais "observability-shared" (cible de
-  # scrape Prometheus) au lieu d'exécuter ces services localement.
+  # même serveur. "nginx"/"backend"/"worker" rejoignent "observability-shared" pour être
+  # scrapés/tracés - voir docker-compose.prod.observability.yml, chargé uniquement en
+  # production (portée déjà décidée, jamais staging).
 
 volumes:
   storage_documents:
@@ -247,12 +241,11 @@ volumes:
   # écrivain, jamais deux entrypoints concurrents sur le même fichier.
   jwt_keys:
 
-# "traefik-public" et "observability-shared" sont des réseaux partagés avec le socle
-# d'infrastructure du VPS (github.com/Joello61/infrastructure, Phase 19 - hors de ce
-# dépôt) - créés une seule fois sur le serveur ("docker network create <nom>"), jamais par
-# ce fichier lui-même.
+# "traefik-public" est un réseau partagé avec le socle d'infrastructure du VPS
+# (github.com/Joello61/infrastructure, Phase 19 - hors de ce dépôt) - créé une seule fois
+# sur le serveur ("docker network create traefik-public"), jamais par ce fichier
+# lui-même. "observability-shared" n'est PAS déclaré ici (jamais staging) - voir
+# docker-compose.prod.observability.yml.
 networks:
   traefik-public:
-    external: true
-  observability-shared:
     external: true

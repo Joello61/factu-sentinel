@@ -1,0 +1,52 @@
+# Overlay chargé UNIQUEMENT en production (ssh-deploy.sh), jamais pour staging - Phase 19,
+# docs/20-observability-infrastructure-migration.md.
+#
+# "observability-shared" (socle partagé, github.com/Joello61/infrastructure) est
+# explicitement production uniquement (portée déjà documentée : "observabilité en
+# PRODUCTION uniquement, jamais staging", même principe déjà appliqué à
+# COMPOSE_PROFILES=observability en Phase 18). Isolé dans ce fichier séparé plutôt que
+# dans docker-compose.prod.yml (partagé identiquement entre les deux environnements) parce
+# que la fusion de listes Compose est strictement additive (docker-compose.prod.yml,
+# commentaire d'en-tête) - aucun override ne peut RETIRER un réseau ajouté dans un fichier
+# de base, seul le fait de ne jamais charger ce fichier pour staging garantit
+# l'exclusion.
+#
+# Bug réel corrigé (28/08/2026), pas anticipé au départ : avant ce fichier,
+# nginx/backend/worker des DEUX environnements rejoignaient "observability-shared" (même
+# docker-compose.prod.yml partagé) - les deux services "nginx" y recevaient alors le même
+# alias réseau générique ("nginx", ajouté automatiquement par Compose), résolution DNS
+# ambiguë côté Prometheus, jetons de scrape de deux environnements différents en
+# collision (401 selon lequel des deux était résolu au moment du scrape). Constaté en
+# production réelle, jamais deviné.
+#
+# Usage (ssh-deploy.sh, uniquement quand ENVIRONMENT=production) :
+#   docker compose --env-file .env.production \
+#     -f docker-compose.yml -f docker-compose.prod.yml \
+#     -f docker-compose.prod.traefik.yml -f docker-compose.prod.observability.yml up -d
+
+services:
+  nginx:
+    networks:
+      - observability-shared
+
+  # "default" doit être répété explicitement ici (contrairement à "nginx" ci-dessus, qui
+  # l'a déjà dans docker-compose.prod.yml) : constaté avec "docker compose config" avant
+  # correction - dès qu'UN SEUL fichier de la fusion déclare une liste "networks:" pour un
+  # service, Compose cesse d'ajouter implicitement "default" à ce service, quel que soit
+  # le fichier qui a déclenché cette liste explicite. "backend"/"worker" n'avaient plus
+  # aucune déclaration "networks:" dans docker-compose.prod.yml après le retrait de
+  # "observability-shared" de ce fichier - sans "default" ici, ils perdraient toute
+  # connexion à "postgres"/"redis"/"mustang" en production.
+  backend:
+    networks:
+      - default
+      - observability-shared
+
+  worker:
+    networks:
+      - default
+      - observability-shared
+
+networks:
+  observability-shared:
+    external: true
