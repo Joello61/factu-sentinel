@@ -112,7 +112,15 @@ fi
 # automatiquement repris par "infisical run" ci-dessous, jamais besoin de "--token" explicite
 # (vérifié sur la documentation officielle du CLI).
 export INFISICAL_API_URL="$INFISICAL_API_URL"
-export INFISICAL_TOKEN="\$(infisical login --method=universal-auth --client-id="$INFISICAL_CLIENT_ID" --client-secret="$INFISICAL_CLIENT_SECRET" --silent --plain)"
+# Jamais "export VAR=\\\$(cmd)" en une seule ligne - constaté en pratique (28/08/2026) :
+# préfixer une substitution de commande par "export" directement avale son code de
+# sortie (le code de sortie de l'AFFECTATION devient celui d'"export" lui-même, jamais
+# celui de la commande substituée) - "set -e" ne détecte alors jamais un échec
+# d'authentification Infisical, le script continue avec un jeton vide/invalide au lieu de
+# s'arrêter. Affectation et export séparés en deux lignes pour que "set -e" fonctionne
+# réellement.
+INFISICAL_TOKEN="\$(infisical login --method=universal-auth --client-id="$INFISICAL_CLIENT_ID" --client-secret="$INFISICAL_CLIENT_SECRET" --silent --plain)"
+export INFISICAL_TOKEN
 
 echo "=== Récupération des images ==="
 docker compose \$COMPOSE_FILES pull
