@@ -68,6 +68,28 @@ BACKUP_RUNNER=()
 if [ -n "${INFISICAL_CLIENT_ID:-}" ] && [ -n "${INFISICAL_CLIENT_SECRET:-}" ]; then
   export COMPOSE_FILE="docker-compose.yml:docker-compose.prod.yml"
 
+  # "docker compose exec" valide la configuration fusionnée avant d'agir, même s'il ne
+  # fait que se connecter à un conteneur déjà démarré (jamais besoin de créer quoi que ce
+  # soit à partir de ces images ici) - sans BACKEND_IMAGE/FRONTEND_IMAGE/MUSTANG_IMAGE,
+  # "image: '${BACKEND_IMAGE}'" s'interpole en chaîne vide et Compose refuse la commande
+  # entière ("invalid compose project", constaté en pratique, 30/08/2026). ssh-deploy.sh
+  # les exporte lui-même avant tout "docker compose" (SHA testé, connu à l'avance) - ce
+  # script n'a pas cette information, il la déduit donc des conteneurs réellement en
+  # cours d'exécution plutôt que de la supposer.
+  COMPOSE_PROJECT_LABEL="$(basename "$ROOT_DIR")"
+  for svc_var in BACKEND_IMAGE:backend FRONTEND_IMAGE:frontend MUSTANG_IMAGE:mustang; do
+    var_name="${svc_var%%:*}"
+    svc_name="${svc_var##*:}"
+    container_id="$(docker ps -q \
+      --filter "label=com.docker.compose.project=${COMPOSE_PROJECT_LABEL}" \
+      --filter "label=com.docker.compose.service=${svc_name}")"
+    if [ -z "$container_id" ]; then
+      echo "Erreur : aucun conteneur en cours d'exécution pour le service \"${svc_name}\" (projet \"${COMPOSE_PROJECT_LABEL}\")." >&2
+      exit 1
+    fi
+    export "${var_name}=$(docker inspect --format '{{.Config.Image}}' "$container_id")"
+  done
+
   # Remplace le "source .env.production" d'avant la Phase 19 (Workstream B,
   # docs/20-observability-infrastructure-migration.md) - plus aucun fichier ".env.production"
   # requis sur le serveur. "backup.sh" lit $POSTGRES_USER/$POSTGRES_DB directement (pas via
