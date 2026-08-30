@@ -93,8 +93,14 @@ Exemple de tâche cron (à adapter - systemd timer équivalent possible, même p
 
 ```cron
 # Sauvegarde quotidienne à 3h locales - les secrets sont chargés depuis un fichier non
-# committé (permissions 600), jamais écrits directement dans la crontab.
-0 3 * * * . /etc/factusentinel/backup.env && /opt/factusentinel/docker/backup/automated-backup.sh >> /var/log/factusentinel-backup.log 2>&1
+# committé (permissions 600), jamais écrits directement dans la crontab. Le fichier de
+# log doit être dans un répertoire où l'utilisateur du cron a le droit d'écrire -
+# "/var/log/" appartient à root:syslog, jamais inscriptible par un utilisateur applicatif
+# ordinaire (constaté en pratique, Phase 19, 30/08/2026 : le cron s'est bien déclenché
+# chaque nuit pendant plusieurs jours mais échouait systématiquement, silencieusement,
+# dès la redirection elle-même, avant même que le script ne démarre - aucun log n'était
+# donc jamais produit pour en garder la trace).
+0 3 * * * . /etc/factusentinel/backup.env && /opt/apps/factusentinel/docker/backup/automated-backup.sh >> /opt/apps/factusentinel/backups/backup.log 2>&1
 ```
 
 `/etc/factusentinel/backup.env` (jamais committé, permissions restreintes) :
@@ -103,7 +109,14 @@ Exemple de tâche cron (à adapter - systemd timer équivalent possible, même p
 BACKUP_GPG_PASSPHRASE='...'
 BACKUP_RCLONE_REMOTE='ovh-backup:factusentinel-backups'
 BACKUP_RETENTION_DAYS='14'
-COMPOSE_ENV_FILE='.env.production'
+# Identité machine Universal Auth Infisical (Phase 19 Workstream B) - même identité que
+# le déploiement de production ("factusentinel-production-deploy"), portée de lecture
+# déjà identique (POSTGRES_USER/POSTGRES_DB), jamais une identité dédiée distincte pour
+# ce seul besoin (simplicité opérationnelle, un identifiant de plus à gérer pour un gain
+# de séparation marginal ici). Remplace "COMPOSE_ENV_FILE='.env.production'" - ce fichier
+# n'existe plus sur le serveur depuis cette phase.
+INFISICAL_CLIENT_ID='...'
+INFISICAL_CLIENT_SECRET='...'
 # Optionnel - voir docker/monitoring/README.md (moniteur "push" Uptime Kuma) : détecte une
 # sauvegarde silencieusement absente, jamais un échec explicite signalé par ce script.
 BACKUP_MONITORING_PUSH_URL='https://monitoring.exemple/api/push/...'

@@ -21,12 +21,18 @@
 #   - BACKUP_GPG_PASSPHRASE disponible dans l'environnement d'exécution (gestionnaire de
 #     secrets de l'hébergeur ou fichier chargé par le service cron/systemd - jamais en
 #     dur dans ce script ni dans une crontab committée).
+#   - CLI Infisical installé sur l'hôte (Phase 19 Workstream B,
+#     docs/20-observability-infrastructure-migration.md).
 #
 # Variables attendues :
 #   BACKUP_GPG_PASSPHRASE   (obligatoire, jamais stockée ici)
 #   BACKUP_RCLONE_REMOTE    (obligatoire, ex. "ovh-backup:factusentinel-backups")
 #   BACKUP_RETENTION_DAYS   (optionnel, défaut 14)
-#   COMPOSE_ENV_FILE        (optionnel, ex. ".env.production" - passé à --env-file)
+#   INFISICAL_CLIENT_ID/INFISICAL_CLIENT_SECRET (optionnel - identité machine Universal
+#     Auth, même identité que le déploiement de production réutilisée ici, portée de
+#     lecture identique : POSTGRES_USER/POSTGRES_DB, jamais un secret que cette identité
+#     ne pouvait déjà lire) - sans ces deux variables, POSTGRES_USER/POSTGRES_DB
+#     retombent sur les défauts de dev (comportement identique à avant cette phase).
 #   BACKUP_MONITORING_PUSH_URL (optionnel) - URL d'un moniteur "push" Uptime Kuma
 #     (docker/monitoring/README.md) : appelée en cas de succès uniquement, pour qu'une
 #     absence de sauvegarde silencieuse (cron qui ne se déclenche plus, script qui échoue
@@ -58,28 +64,24 @@ BACKUP_DIR="$ROOT_DIR/backups"
 # Linux/macOS - vérifié sur la documentation officielle Docker le 26/08/2026) plutôt que
 # de modifier backup.sh/restore.sh pour leur faire connaître l'overlay de production :
 # ils restent ainsi utilisables tels quels en développement comme en production.
-if [ -n "${COMPOSE_ENV_FILE:-}" ]; then
+BACKUP_RUNNER=()
+if [ -n "${INFISICAL_CLIENT_ID:-}" ] && [ -n "${INFISICAL_CLIENT_SECRET:-}" ]; then
   export COMPOSE_FILE="docker-compose.yml:docker-compose.prod.yml"
-  export COMPOSE_ENV_FILES="$COMPOSE_ENV_FILE"
 
-  # COMPOSE_ENV_FILES ci-dessus ne fait que dire à "docker compose" quel fichier lire pour
-  # SES PROPRES commandes (exec, up, ...) - il n'exporte rien dans CE process shell.
-  # backup.sh lit pourtant $POSTGRES_USER/$POSTGRES_DB directement (pas via Docker Compose)
-  # pour sa commande "pg_dump -U ...", avec un repli sur les valeurs de dev
-  # ("factusentinel") si absentes - jamais rencontré avant le premier essai réel en
-  # production, où le rôle "factusentinel" n'existe pas (POSTGRES_USER réel :
-  # "factusentinel_prod"). Charger explicitement le fichier dans ce process pour que ces
-  # variables soient également visibles ici, POSTGRES_PASSWORD y compris (déjà lu par
-  # "docker compose exec" de toute façon via COMPOSE_ENV_FILES - aucune frontière de
-  # confiance supplémentaire franchie en l'exportant aussi dans ce process).
-  set -a
-  # shellcheck disable=SC1090
-  source "$COMPOSE_ENV_FILE"
-  set +a
+  # Remplace le "source .env.production" d'avant la Phase 19 (Workstream B,
+  # docs/20-observability-infrastructure-migration.md) - plus aucun fichier ".env.production"
+  # requis sur le serveur. "backup.sh" lit $POSTGRES_USER/$POSTGRES_DB directement (pas via
+  # Docker Compose) pour sa commande "pg_dump -U ..." - "infisical run" les injecte dans
+  # l'environnement du processus qui exécute backup.sh, exactement le même mécanisme que
+  # ssh-deploy.sh pour le déploiement lui-même.
+  export INFISICAL_API_URL='http://localhost:8081'
+  INFISICAL_TOKEN="$(infisical login --method=universal-auth --client-id="$INFISICAL_CLIENT_ID" --client-secret="$INFISICAL_CLIENT_SECRET" --silent --plain)"
+  export INFISICAL_TOKEN
+  BACKUP_RUNNER=(infisical run --projectId='3f7529af-9a52-4bc1-b442-e0390561084d' --env=production --)
 fi
 
 echo "=== Sauvegarde ==="
-BACKUP_OUTPUT="$("$ROOT_DIR/docker/backup/backup.sh" "$BACKUP_DIR" | tee /dev/stderr)"
+BACKUP_OUTPUT="$("${BACKUP_RUNNER[@]}" "$ROOT_DIR/docker/backup/backup.sh" "$BACKUP_DIR" | tee /dev/stderr)"
 LATEST_BACKUP="$(echo "$BACKUP_OUTPUT" | sed -n 's/^Sauvegarde écrite : //p')"
 
 if [ -z "$LATEST_BACKUP" ] || [ ! -f "$LATEST_BACKUP" ]; then
