@@ -1220,20 +1220,25 @@ Loki (logs) → Prometheus (métriques) → Grafana (dashboards) → OpenTelemet
   `docs/19-observability-architecture.md`, section « Critère de complétude ». **Phase 18
   close.**
 
-**Phase 19 (27-28/08/2026) - Workstream A (migration infra) fait, Workstream B (secrets)
-reste à faire.** La Phase 18 couplait la stack d'observabilité à FactuSentinel
-(`docker-compose.prod.yml`, un seul projet Compose), alors que l'éditeur avait explicitement
-proposé dès le départ un socle partagé (`/opt/infrastructure/`, réutilisable par un futur
-projet). Écart reconnu en cours de Phase 18, décision explicite de l'éditeur de terminer la
-Phase 18 couplée d'abord (valider que ça fonctionne), puis de migrer séparément - voir
+**Phase 19 (27-31/08/2026) - close, Workstream A (migration infra) et Workstream B
+(secrets/Infisical) exécutés et vérifiés en production ET staging.** La Phase 18 couplait
+la stack d'observabilité à FactuSentinel (`docker-compose.prod.yml`, un seul projet
+Compose), alors que l'éditeur avait explicitement proposé dès le départ un socle partagé
+(`/opt/infrastructure/`, réutilisable par un futur projet). Écart reconnu en cours de
+Phase 18, décision explicite de l'éditeur de terminer la Phase 18 couplée d'abord (valider
+que ça fonctionne), puis de migrer séparément - voir
 `docs/20-observability-infrastructure-migration.md` pour le plan complet et son état
 d'exécution réel (écarts inclus : Traefik et Uptime Kuma également migrés, dépôt Git dédié,
-trois bugs réels trouvés et corrigés en cours de migration). Traefik, Loki, Alloy, Prometheus,
-Tempo, Grafana et Uptime Kuma vivent désormais dans `github.com/Joello61/infrastructure`,
-réutilisable par de futurs projets hébergés sur le même VPS. Détail complet et preuves :
-`docs/19-observability-architecture.md`. Reste à faire (Workstream B, non commencé) :
-gestionnaire de secrets (Infisical), régénération complète des secrets prod/staging, correctif
-`PLATFORM_ADMIN_TOTP_ENCRYPTION_KEY`.
+pgAdmin ajouté, sept bugs réels trouvés et corrigés en cours de route - dont un gap de
+sauvegarde automatique préexistant, jamais lié à cette phase, révélé par la surveillance
+désormais fonctionnelle d'Uptime Kuma). Traefik, Loki, Alloy, Prometheus, Tempo, Grafana,
+Uptime Kuma, Infisical et pgAdmin vivent désormais dans `github.com/Joello61/infrastructure`,
+réutilisable par de futurs projets hébergés sur le même VPS. Tous les secrets de production
+et staging régénérés et stockés dans Infisical, plus aucun fichier `.env.production`/
+`.env.staging` sur le serveur, correctif `PLATFORM_ADMIN_TOTP_ENCRYPTION_KEY` vérifié par un
+enrôlement MFA réel sur les deux environnements. Détail complet et preuves :
+`docs/19-observability-architecture.md`, `docs/20-observability-infrastructure-migration.md`.
+**Phase 19 close.**
 
 ## 42. Operational Readiness
 

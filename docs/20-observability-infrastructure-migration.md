@@ -1,11 +1,10 @@
 # Phase 19 - Migration de la stack d'observabilité vers /opt/infrastructure/
 
-> **Mise à jour (28/08/2026) : Workstream A (migration infra) exécuté et vérifié en
-> production - voir « État d'exécution réel » en fin de document pour les écarts précis
-> par rapport au plan ci-dessous.** Workstream B (secrets, section « Rajout - Hygiène des
-> secrets ») reste non exécuté. Le plan original ci-dessous est conservé tel quel comme
-> historique de la décision, pas réécrit silencieusement - les écarts sont documentés
-> séparément.
+> **Mise à jour (31/08/2026) : Phase 19 entièrement exécutée et vérifiée en production ET
+> staging - Workstream A (migration infra) et Workstream B (secrets/Infisical).** Voir
+> « État d'exécution réel » en fin de document pour les écarts précis par rapport au plan
+> ci-dessous. Le plan original est conservé tel quel comme historique de la décision, pas
+> réécrit silencieusement - les écarts sont documentés séparément.
 
 ## Le gap constaté
 
@@ -241,7 +240,7 @@ rajout sur l'hygiène des secrets suit toujours le même principe et reste non e
 ci-dessous) : rien n'a été régénéré, aucun gestionnaire n'a été installé, seul le périmètre
 et l'inventaire sont posés.
 
-## État d'exécution réel (28/08/2026)
+## État d'exécution réel (28-31/08/2026)
 
 **Workstream A (migration infra) exécuté et vérifié en production**, avec plusieurs écarts
 réels par rapport au plan original ci-dessus - jamais une réécriture silencieuse des
@@ -294,3 +293,78 @@ conteneurs d'un service supprimé d'un fichier Compose).
 Détail complet des vérifications (traces Tempo, alertes Grafana, datasources) :
 `docs/19-observability-architecture.md`, section « Phase 19 - migration vers le socle
 partagé ».
+
+## Workstream B (secrets/Infisical) - exécuté et vérifié (31/08/2026)
+
+**Infisical déployé** dans `github.com/Joello61/infrastructure` (base Postgres/Redis
+dédiées, réseau Docker isolé) - deux projets : `FactuSentinel` (environnements `staging`/
+`production`) et `Infrastructure` (secrets du socle partagé lui-même, `GRAFANA_ADMIN_*`).
+Trois identités machine Universal Auth créées, une par usage (`factusentinel-staging-deploy`,
+`factusentinel-production-deploy`, `infrastructure-deploy`), chacune scopée en lecture seule
+à son seul environnement (rôle projet `No Access` + Additional Privilege `Describe Secret` +
+`Read Value` sur l'environnement concerné - les deux permissions sont nécessaires ensemble,
+`describeSecret` seul ou `readValue` seul ne suffisent pas, vérifié sur la documentation
+officielle Infisical après un vrai `403` en production).
+
+**Tous les secrets régénérés** (staging d'abord, puis production) et stockés exclusivement
+dans Infisical - `POSTGRES_*`, `APP_SECRET`, `JWT_PASSPHRASE`, `PLATFORM_ADMIN_JWT_PASSPHRASE`,
+`PLATFORM_ADMIN_TOTP_ENCRYPTION_KEY` (nouveau, corrige le gap), `METRICS_SCRAPE_TOKEN`,
+`PUBLIC_DOMAIN`/`CORS_ALLOW_ORIGIN`/`FRONTEND_URL`/`HSTS_ENABLED` (non secrets mais migrés
+aussi, pour permettre la suppression complète des fichiers `.env`). `MAILER_DSN`/
+`MISTRAL_API_KEY` migrés tels quels (décision explicite de l'éditeur : pas de régénération
+via les tableaux de bord Brevo/Mistral dans cette phase, à faire séparément si besoin).
+Import en masse via `infisical secrets set --file=... --env=... --projectId=...` (CLI
+officiel, jamais saisi secret par secret dans l'interface) - génération et poussée dans un
+seul script shell qui n'affiche jamais aucune valeur en clair, fichier temporaire détruit
+immédiatement après.
+
+**`ssh-deploy.sh` réécrit pour l'injection au runtime** (`infisical run`, Universal Auth,
+un jeton par déploiement) - plus aucun fichier `.env.production`/`.env.staging` sur le
+serveur, supprimés après validation complète des deux environnements. `docker/backup/automated-backup.sh`
+migré du même principe (remplace un `source .env.production` qui serait devenu impossible).
+
+**Volumes réinitialisés** (`jwt_keys`, `postgres_data`) pour les deux environnements, avant
+la bascule vers les nouveaux secrets - environnements confirmés vierges de données
+utilisateur réelles par l'éditeur, migration de données donc non nécessaire (contrairement
+à ce que `POSTGRES_PASSWORD`/`JWT_PASSPHRASE` auraient autrement exigé - voir la note
+technique sur l'ordre `ALTER ROLE` dans une version antérieure de ce document, devenue sans
+objet ici).
+
+**Quatre bugs réels trouvés et corrigés pendant l'exécution**, tous vérifiés avant/après
+correction :
+1. `export VAR="$(commande)"` sur une seule ligne avale le code de sortie de la
+   substitution de commande sous `set -e` (le code de sortie devient celui d'`export`
+   lui-même) - un échec d'authentification Infisical n'arrêtait jamais le script,
+   continuait avec un jeton vide. Vérifié empiriquement (`export FOO=$(false)` sort en 0,
+   `FOO=$(false); export FOO` sort en 1). Affectation et export désormais toujours séparés.
+2. `403 "not allowed to describeSecret"` - `describeSecret` et `readValue` sont deux
+   permissions Infisical distinctes, toutes deux nécessaires pour lire une valeur de
+   secret (vérifié sur la documentation officielle après l'avoir constaté en production) -
+   seule `readValue` avait été accordée initialement.
+3. `docker compose down`/`exec` échoue en "invalid compose project" sans
+   `BACKEND_IMAGE`/`FRONTEND_IMAGE`/`MUSTANG_IMAGE` valides, même pour des opérations qui
+   ne créent aucun conteneur à partir de ces images - `automated-backup.sh` les déduit
+   désormais des conteneurs réellement en cours d'exécution (`docker inspect`) plutôt que
+   de les supposer connues à l'avance (contrairement à `ssh-deploy.sh`, qui connaît le SHA
+   testé).
+4. **Cron de sauvegarde silencieusement en échec depuis sa mise en place** (pas une
+   régression de cette phase, un gap préexistant révélé par la surveillance nouvellement
+   fonctionnelle d'Uptime Kuma) - `/var/log/` appartient à `root:syslog`, jamais
+   inscriptible par l'utilisateur de déploiement ; le cron se déclenchait bien chaque nuit
+   (confirmé dans les journaux système) mais échouait à la redirection du log elle-même,
+   avant même que le script ne démarre - aucun log n'était donc jamais produit pour le
+   remarquer. Log redirigé vers `backups/backup.log`, déjà inscriptible.
+
+**Ajout hors périmètre initial, décision de l'éditeur en cours d'exécution** : pgAdmin,
+partagé entre tous les projets hébergés sur ce VPS, même modèle qu'Uptime Kuma (tunnel SSH
+uniquement, rejoint le réseau interne de chaque projet plutôt que `observability-shared` -
+jamais une base de données exposée sur un réseau partagé générique). Aucune connexion
+PostgreSQL pré-provisionnée - configurée manuellement par serveur/environnement, mot de
+passe récupéré dans Infisical au moment de la connexion.
+
+**Vérification complète effectuée** : parcours applicatif (inscription/connexion/email/IA)
+sur les deux environnements après rotation, création et enrôlement MFA réel du premier
+`PlatformAdministrator` sur les deux environnements (confirme `PLATFORM_ADMIN_TOTP_ENCRYPTION_KEY`),
+sauvegarde production réelle produite et envoyée vers le stockage distant, nettoyage
+résiduel confirmé (aucun fichier `.env`/jeton en clair restant sur le serveur, volumes
+orphelins de l'ancienne stack Phase 18 supprimés).
