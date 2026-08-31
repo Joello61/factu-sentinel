@@ -474,6 +474,45 @@ Secrets identifiés : identifiants de base de données, secret de signature de s
 
 **Règle absolue** : aucun secret n'est **jamais** commité dans le dépôt de code source (`.env` versionné, valeur en dur dans un fichier de configuration versionné). Tous les secrets sont injectés par variable d'environnement ou un mécanisme de gestion de secrets dédié, distincts par environnement (section 53), avec un accès restreint et audité si le mécanisme le permet.
 
+**Mécanisme réel (Phase 19 Workstream B, exécuté le 31/08/2026)** : Infisical (self-hosted,
+`github.com/Joello61/infrastructure`), un projet par produit applicatif (`FactuSentinel`,
+environnements `staging`/`production` distincts) plus un projet `Infrastructure` pour les
+secrets du socle partagé lui-même. Aucun fichier `.env.staging`/`.env.production` contenant
+une valeur réelle sur le serveur - les secrets sont injectés directement dans
+l'environnement du processus `docker compose` au déploiement (`infisical run`,
+`docker/deploy/ssh-deploy.sh`), jamais écrits sur disque. Authentification non interactive
+via Universal Auth (identité machine Infisical), **une identité par environnement**, jamais
+partagée, avec un accès en lecture seule strictement scopé à son environnement (rôle projet
+`No Access` + Additional Privilege `Describe Secret` + `Read Value` - les deux actions sont
+nécessaires ensemble pour lire une valeur de secret, vérifié sur la documentation officielle
+Infisical).
+
+**Procédure de rotation réelle** :
+1. Modifier/régénérer la valeur dans Infisical (projet et environnement concernés).
+2. Selon le secret, une action complémentaire peut être nécessaire avant de redéployer :
+   - `POSTGRES_PASSWORD` : `ALTER ROLE` sur le rôle PostgreSQL réel avant de redémarrer les
+     services qui en dépendent (jamais l'inverse, sous peine de verrouiller l'accès
+     applicatif) - sauf si l'environnement est réinitialisé à neuf, auquel cas la nouvelle
+     valeur peut être fournie directement à l'initialisation.
+   - `JWT_PASSPHRASE`/`PLATFORM_ADMIN_JWT_PASSPHRASE` : supprimer le volume nommé `jwt_keys`
+     avant redémarrage - la passphrase chiffre la paire de clés déjà présente sur ce volume
+     (`--skip-if-exists`), la changer seule sans régénérer les clés casse le déchiffrement
+     (`bad decrypt`).
+3. Redéployer (le nouveau conteneur reçoit la nouvelle valeur au démarrage, l'ancien est
+   détruit avec l'ancienne).
+4. Vérifier le parcours applicatif complet (inscription, connexion, email, IA) sur
+   l'environnement concerné.
+
+Une seule exception documentée à la règle « jamais de secret en clair sur disque » :
+l'amorçage d'Infisical lui-même (identifiants de sa propre base Postgres/Redis) ne peut
+structurellement pas être injecté depuis Infisical (rien n'existe encore pour les servir
+avant qu'il soit démarré) - traité avec la même rigueur que tout autre secret par ailleurs
+(généré via `openssl rand`, jamais committé), documenté comme cas particulier assumé.
+`METRICS_SCRAPE_TOKEN` (lu par Prometheus via `credentials_file`, jamais une variable
+d'environnement - limitation de Prometheus, pas d'Infisical) reste également un fichier sur
+disque, mais géré et régénéré depuis Infisical plutôt que créé une fois à la main et jamais
+retouché.
+
 ## 28. AI Security
 
 Rappel structurant, cohérent avec `06-technical-architecture.md` (section 14-15) et `09-test-strategy.md` (section 29) : **l'IA est considérée comme une dépendance externe non fiable**, jamais comme un composant de confiance implicite.
