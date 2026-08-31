@@ -371,3 +371,34 @@ sur les deux environnements après rotation, création et enrôlement MFA réel 
 sauvegarde production réelle produite et envoyée vers le stockage distant, nettoyage
 résiduel confirmé (aucun fichier `.env`/jeton en clair restant sur le serveur, volumes
 orphelins de l'ancienne stack Phase 18 supprimés).
+
+## Le socle partagé lui-même branché sur Infisical (31/08/2026)
+
+Dernier point resté différé à la clôture initiale de la Phase 19 : le lancement de
+`/opt/infrastructure/` lui-même (`GRAFANA_ADMIN_*`, `PGADMIN_DEFAULT_*`,
+`OBSERVABILITY_ALLOWED_PROJECTS`) lisait encore un fichier `.env` en clair sur le serveur.
+Corrigé avec exactement le même mécanisme que côté FactuSentinel : un second projet
+Infisical (`Infrastructure`, distinct de `FactuSentinel` - moindre privilège, une identité
+compromise dans un projet n'expose jamais l'autre), une identité machine dédiée
+(`infrastructure-deploy`, resserrée de `Member` vers `No Access` + `Describe Secret` +
+`Read Value` en cours de route pour rester cohérente avec le modèle de moindre privilège
+déjà appliqué partout ailleurs), et un nouveau `deploy.sh` dans le dépôt
+`github.com/Joello61/infrastructure` qui enveloppe `docker compose up -d` avec
+`infisical run` - même patron que `docker/deploy/ssh-deploy.sh`.
+
+**Exception de bootstrap conservée, jamais éliminée** : `.env` sur le serveur contient
+toujours les cinq identifiants nécessaires à Infisical pour démarrer lui-même
+(`INFISICAL_POSTGRES_USER`/`PASSWORD`/`DB`, `INFISICAL_ENCRYPTION_KEY`,
+`INFISICAL_AUTH_SECRET`, `INFISICAL_SITE_URL`) plus `GRAFANA_PORT` (non secret, purement
+local à ce serveur) - rien ne peut structurellement injecter ces valeurs depuis Infisical
+avant qu'il soit lui-même démarré. Documenté comme cas particulier assumé depuis le début
+de ce chantier, jamais une régression découverte après coup.
+
+Vérifié : `deploy.sh` injecte bien les 5 secrets non-bootstrap au lancement ("Injecting 5
+Infisical secrets"), les 10 conteneurs du socle démarrent sains, Grafana/pgAdmin/Uptime
+Kuma répondent normalement, Alloy continue de filtrer correctement avec
+`OBSERVABILITY_ALLOWED_PROJECTS` reçu depuis Infisical plutôt que d'un fichier local.
+Ancien `.env` (avec les valeurs désormais migrées) sauvegardé le temps de la vérification
+puis supprimé.
+
+**Phase 19 - plus aucun élément différé.**
