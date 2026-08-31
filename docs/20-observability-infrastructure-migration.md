@@ -311,8 +311,11 @@ dans Infisical - `POSTGRES_*`, `APP_SECRET`, `JWT_PASSPHRASE`, `PLATFORM_ADMIN_J
 `PLATFORM_ADMIN_TOTP_ENCRYPTION_KEY` (nouveau, corrige le gap), `METRICS_SCRAPE_TOKEN`,
 `PUBLIC_DOMAIN`/`CORS_ALLOW_ORIGIN`/`FRONTEND_URL`/`HSTS_ENABLED` (non secrets mais migrés
 aussi, pour permettre la suppression complète des fichiers `.env`). `MAILER_DSN`/
-`MISTRAL_API_KEY` migrés tels quels (décision explicite de l'éditeur : pas de régénération
-via les tableaux de bord Brevo/Mistral dans cette phase, à faire séparément si besoin).
+`MISTRAL_API_KEY` d'abord migrés tels quels (décision explicite de l'éditeur : pas de
+régénération via les tableaux de bord Brevo/Mistral dans le même geste que le reste), puis
+réellement régénérés séparément le 31/08/2026 - clé Mistral distincte par environnement
+(staging/production, jamais partagée, cohérent avec le principe déjà appliqué à toutes les
+autres paires de secrets de ce document) et nouvelle clé SMTP Brevo par environnement.
 Import en masse via `infisical secrets set --file=... --env=... --projectId=...` (CLI
 officiel, jamais saisi secret par secret dans l'interface) - génération et poussée dans un
 seul script shell qui n'affiche jamais aucune valeur en clair, fichier temporaire détruit
